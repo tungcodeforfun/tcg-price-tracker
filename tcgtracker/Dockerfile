@@ -22,8 +22,9 @@ RUN apt-get update && apt-get install -y \
 # Set work directory
 WORKDIR /app
 
-# Copy requirements
-COPY pyproject.toml ./
+# Copy requirements and readme
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
 
 # Install dependencies
 RUN pip install --upgrade pip && \

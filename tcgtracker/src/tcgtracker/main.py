@@ -63,7 +63,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting TCG Price Tracker application")
     
     # Initialize database connection pool
-    # TODO: Initialize database connections
+    from tcgtracker.database.connection import get_db_manager
+    db_manager = get_db_manager()
+    try:
+        await db_manager.initialize()
+        logger.info("Database connection pool initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        # Don't raise here - let the app start even if DB is unavailable
     
     # Initialize Redis connection pool
     # TODO: Initialize Redis connections
@@ -78,7 +85,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Shutting down TCG Price Tracker application")
     
     # Clean up database connections
-    # TODO: Close database connections
+    try:
+        await db_manager.close()
+        logger.info("Database connections closed")
+    except Exception as e:
+        logger.error(f"Error closing database connections: {e}")
     
     # Clean up Redis connections
     # TODO: Close Redis connections
