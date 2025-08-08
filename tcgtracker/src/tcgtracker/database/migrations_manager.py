@@ -67,11 +67,10 @@ class MigrationsManager:
             logger.error(f"Failed to downgrade database: {e}")
             raise
     
-    def get_current_revision(self) -> Optional[str]:
+    async def get_current_revision(self) -> Optional[str]:
         """Get current database revision."""
         try:
             from alembic.runtime.migration import MigrationContext
-            from alembic.operations import Operations
             
             db_manager = get_db_manager()
             
@@ -85,14 +84,8 @@ class MigrationsManager:
                 except Exception as e:
                     logger.error(f"Database error while getting revision: {e}")
                     raise
-                finally:
-                    # Ensure database manager cleanup
-                    try:
-                        await db_manager.close()
-                    except Exception as cleanup_error:
-                        logger.warning(f"Error during database cleanup: {cleanup_error}")
             
-            return asyncio.wait_for(_get_revision(), timeout=30.0)
+            return await asyncio.wait_for(_get_revision(), timeout=30.0)
         except asyncio.TimeoutError:
             logger.error("Timeout while getting current revision")
             return None
@@ -128,7 +121,7 @@ async def init_database() -> None:
     
     try:
         # Check if this is a fresh database
-        current_revision = migrations_manager.get_current_revision()
+        current_revision = await migrations_manager.get_current_revision()
         
         if current_revision is None:
             logger.info("Fresh database detected, running migrations")
