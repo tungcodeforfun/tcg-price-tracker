@@ -23,13 +23,15 @@ class MigrationsManager:
     
     def _get_alembic_config(self) -> Config:
         """Get Alembic configuration."""
-        # Find the alembic.ini file
-        current_dir = Path(__file__).parent
-        project_dir = current_dir.parent.parent.parent  # Go up to tcgtracker directory
-        alembic_ini = project_dir / "alembic.ini"
-        
-        if not alembic_ini.exists():
-            raise FileNotFoundError(f"alembic.ini not found at {alembic_ini}")
+        # Search for alembic.ini starting from current directory and moving up
+        current = Path(__file__).parent
+        for parent in [current] + list(current.parents):
+            alembic_ini = parent / "alembic.ini"
+            if alembic_ini.exists():
+                logger.info(f"Found alembic.ini at {alembic_ini}")
+                break
+        else:
+            raise FileNotFoundError("alembic.ini not found in project hierarchy")
         
         cfg = Config(str(alembic_ini))
         cfg.set_main_option("sqlalchemy.url", self.settings.database.url)
@@ -74,13 +76,26 @@ class MigrationsManager:
             db_manager = get_db_manager()
             
             async def _get_revision():
-                async with db_manager.get_write_session() as session:
-                    async with session.begin():
-                        connection = await session.connection()
-                        context = MigrationContext.configure(connection.sync_connection)
-                        return context.get_current_revision()
+                try:
+                    async with db_manager.get_write_session() as session:
+                        async with session.begin():
+                            connection = await session.connection()
+                            context = MigrationContext.configure(connection.sync_connection)
+                            return context.get_current_revision()
+                except Exception as e:
+                    logger.error(f"Database error while getting revision: {e}")
+                    raise
+                finally:
+                    # Ensure database manager cleanup
+                    try:
+                        await db_manager.close()
+                    except Exception as cleanup_error:
+                        logger.warning(f"Error during database cleanup: {cleanup_error}")
             
-            return asyncio.run(_get_revision())
+            return asyncio.wait_for(_get_revision(), timeout=30.0)
+        except asyncio.TimeoutError:
+            logger.error("Timeout while getting current revision")
+            return None
         except Exception as e:
             logger.warning(f"Failed to get current revision: {e}")
             return None

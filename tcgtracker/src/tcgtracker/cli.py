@@ -5,6 +5,7 @@ from typing import Optional
 
 import click
 import structlog
+from sqlalchemy import text
 
 from tcgtracker.database.connection import get_db_manager, create_tables, drop_tables
 from tcgtracker.database.migrations_manager import (
@@ -137,24 +138,28 @@ def drop_tables():
 
 
 @db.command()
-async def test_connection():
+def test_connection():
     """Test database connection."""
     try:
-        db_manager = get_db_manager()
-        await db_manager.initialize()
-        
-        async with db_manager.get_write_session() as session:
-            result = await session.execute("SELECT 1 as test")
-            row = result.fetchone()
-            if row and row.test == 1:
-                click.echo("Database connection successful!")
-            else:
-                click.echo("Database connection failed: Unexpected result")
-                
-        await db_manager.close()
+        asyncio.run(_test_connection_async())
+        click.echo("Database connection successful!")
     except Exception as e:
         click.echo(f"Database connection failed: {e}", err=True)
         raise click.ClickException(str(e))
+
+
+async def _test_connection_async():
+    """Internal async function for testing connection."""
+    db_manager = get_db_manager()
+    await db_manager.initialize()
+    
+    async with db_manager.get_write_session() as session:
+        result = await session.execute(text("SELECT 1 as test"))
+        row = result.fetchone()
+        if not (row and row.test == 1):
+            raise Exception("Unexpected result from test query")
+            
+    await db_manager.close()
 
 
 @cli.command()
