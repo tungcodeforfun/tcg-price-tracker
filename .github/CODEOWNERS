@@ -1,0 +1,30 @@
+# CODEOWNERS - Define code review assignments
+# Each line is a file pattern followed by one or more owners.
+
+# Global owners - require approval for all changes
+* @tungcodeforfun
+
+# Database and migrations - require database expertise
+/tcgtracker/src/tcgtracker/database/ @tungcodeforfun
+/tcgtracker/migrations/ @tungcodeforfun
+alembic.ini @tungcodeforfun
+docker-compose.yml @tungcodeforfun
+
+# Security-sensitive areas - require security review
+/tcgtracker/src/tcgtracker/config.py @tungcodeforfun
+/.github/workflows/ @tungcodeforfun
+/scripts/ @tungcodeforfun
+Dockerfile @tungcodeforfun
+
+# API and business logic - require backend expertise
+/tcgtracker/src/tcgtracker/main.py @tungcodeforfun
+/tcgtracker/src/tcgtracker/cli.py @tungcodeforfun
+
+# Infrastructure and deployment
+/.github/ @tungcodeforfun
+/docker-compose.yml @tungcodeforfun
+/scripts/ @tungcodeforfun
+
+# Documentation
+README.md @tungcodeforfun
+*.md @tungcodeforfun
