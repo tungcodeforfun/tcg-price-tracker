@@ -1,0 +1,379 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: '3.11'
+  POETRY_VERSION: '1.6.1'
+
+jobs:
+  # Job 1: Code Quality and Security Checks
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Code Quality & Security
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          poetry-${{ runner.os }}-
+
+    - name: Install dependencies
+      working-directory: ./tcgtracker
+      run: |
+        poetry install --with dev
+
+    - name: Run Black (Code Formatting)
+      working-directory: ./tcgtracker
+      run: |
+        poetry run black --check --diff src/ tests/
+
+    - name: Run isort (Import Sorting)
+      working-directory: ./tcgtracker
+      run: |
+        poetry run isort --check-only --diff src/ tests/
+
+    - name: Run flake8 (Linting)
+      working-directory: ./tcgtracker
+      run: |
+        poetry run flake8 src/ tests/
+
+    - name: Run mypy (Type Checking)
+      working-directory: ./tcgtracker
+      run: |
+        poetry run mypy src/
+
+    - name: Run bandit (Security Linting)
+      working-directory: ./tcgtracker
+      run: |
+        poetry run bandit -r src/ -f json -o bandit-report.json
+        poetry run bandit -r src/
+
+    - name: Run safety (Dependency Security Check)
+      working-directory: ./tcgtracker
+      run: |
+        poetry run safety check --json --output safety-report.json
+        poetry run safety check
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          tcgtracker/bandit-report.json
+          tcgtracker/safety-report.json
+
+  # Job 2: Test Suite
+  test:
+    runs-on: ubuntu-latest
+    name: Test Suite
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: tcgtracker_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: tcgtracker_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    env:
+      # Test database configuration
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: tcgtracker_test
+      DB_USER: tcgtracker_test
+      DB_PASSWORD: test_password
+      
+      # Test Redis configuration
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      
+      # Test API keys (fake values)
+      API_TCGPLAYER_CLIENT_ID: test_client_id
+      API_TCGPLAYER_CLIENT_SECRET: test_client_secret
+      API_EBAY_CLIENT_ID: test_ebay_client_id
+      API_EBAY_CLIENT_SECRET: test_ebay_client_secret
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ env.POETRY_VERSION }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: poetry-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          poetry-${{ runner.os }}-
+
+    - name: Install dependencies
+      working-directory: ./tcgtracker
+      run: |
+        poetry install --with dev
+
+    - name: Wait for PostgreSQL
+      run: |
+        until pg_isready -h localhost -p 5432 -U tcgtracker_test; do
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+
+    - name: Run database migrations
+      working-directory: ./tcgtracker
+      run: |
+        poetry run tcg-cli db init
+        poetry run tcg-cli db upgrade
+
+    - name: Run unit tests
+      working-directory: ./tcgtracker
+      run: |
+        poetry run pytest tests/ -v --cov=src/tcgtracker --cov-report=xml --cov-report=html --cov-report=term-missing
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./tcgtracker/coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Upload coverage artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: tcgtracker/htmlcov/
+
+    - name: Test database rollback
+      working-directory: ./tcgtracker
+      run: |
+        poetry run tcg-cli db downgrade -r -1
+        poetry run tcg-cli db upgrade
+
+  # Job 3: Build and Container Security
+  build:
+    runs-on: ubuntu-latest
+    name: Build & Container Security
+    needs: [code-quality, test]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./tcgtracker
+        file: ./tcgtracker/Dockerfile
+        tags: tcg-price-tracker:${{ github.sha }}
+        outputs: type=docker,dest=/tmp/tcg-image.tar
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Upload Docker image artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: docker-image
+        path: /tmp/tcg-image.tar
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        input: /tmp/tcg-image.tar
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Job 4: Integration Tests
+  integration-test:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    needs: [build]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: tcgtracker_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: tcgtracker_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download Docker image
+      uses: actions/download-artifact@v3
+      with:
+        name: docker-image
+        path: /tmp
+
+    - name: Load Docker image
+      run: |
+        docker load --input /tmp/tcg-image.tar
+        docker tag tcg-price-tracker:${{ github.sha }} tcg-price-tracker:latest
+
+    - name: Start application container
+      run: |
+        docker run -d \
+          --name tcg-app \
+          --network host \
+          -e DB_HOST=localhost \
+          -e DB_PORT=5432 \
+          -e DB_NAME=tcgtracker_test \
+          -e DB_USER=tcgtracker_test \
+          -e DB_PASSWORD=test_password \
+          -e REDIS_HOST=localhost \
+          -e REDIS_PORT=6379 \
+          tcg-price-tracker:latest
+
+    - name: Wait for application startup
+      run: |
+        timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+
+    - name: Run API health checks
+      run: |
+        curl -f http://localhost:8000/health
+        curl -f http://localhost:8000/
+
+    - name: Get application logs
+      if: always()
+      run: |
+        docker logs tcg-app
+
+    - name: Stop application
+      if: always()
+      run: |
+        docker stop tcg-app || true
+        docker rm tcg-app || true
+
+  # Job 5: Security Scan (Secrets and Dependencies)
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Advanced Security Scan
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for secret scanning
+
+    - name: Run TruffleHog (Secret Detection)
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+
+    - name: Run Semgrep (SAST)
+      uses: securecodewarrior/github-action-add-sarif@v1
+      with:
+        sarif-file: semgrep.sarif
+      continue-on-error: true
+
+    - name: Run OSSAR (Microsoft Security Scanner)
+      uses: github/ossar-action@v1
+      id: ossar
+
+    - name: Upload OSSAR results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: ${{ steps.ossar.outputs.sarifFile }}
+
+  # Summary job that requires all others to pass
+  ci-summary:
+    runs-on: ubuntu-latest
+    name: CI Summary
+    needs: [code-quality, test, build, integration-test, security-scan]
+    if: always()
+    steps:
+    - name: Check job status
+      run: |
+        echo "Code Quality: ${{ needs.code-quality.result }}"
+        echo "Tests: ${{ needs.test.result }}"
+        echo "Build: ${{ needs.build.result }}"
+        echo "Integration Tests: ${{ needs.integration-test.result }}"
+        echo "Security Scan: ${{ needs.security-scan.result }}"
+        
+        if [[ "${{ needs.code-quality.result }}" != "success" ]] || 
+           [[ "${{ needs.test.result }}" != "success" ]] || 
+           [[ "${{ needs.build.result }}" != "success" ]] || 
+           [[ "${{ needs.integration-test.result }}" != "success" ]] || 
+           [[ "${{ needs.security-scan.result }}" != "success" ]]; then
+          echo "❌ CI Pipeline Failed"
+          exit 1
+        else
+          echo "✅ CI Pipeline Passed"
+        fi
