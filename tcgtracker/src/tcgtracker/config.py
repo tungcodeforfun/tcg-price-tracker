@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from typing import Any, Dict, Optional
+from urllib.parse import quote_plus
 
 from pydantic import Field, validator
 from pydantic_settings import BaseSettings
@@ -28,13 +29,17 @@ class DatabaseSettings(BaseSettings):
     @property
     def url(self) -> str:
         """Get the database URL."""
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.name}"
+        encoded_user = quote_plus(self.user)
+        encoded_password = quote_plus(self.password) if self.password else ""
+        return f"postgresql+asyncpg://{encoded_user}:{encoded_password}@{self.host}:{self.port}/{self.name}"
     
     @property
     def read_url(self) -> Optional[str]:
         """Get the read replica database URL."""
         if self.read_host and self.read_port:
-            return f"postgresql+asyncpg://{self.user}:{self.password}@{self.read_host}:{self.read_port}/{self.name}"
+            encoded_user = quote_plus(self.user)
+            encoded_password = quote_plus(self.password) if self.password else ""
+            return f"postgresql+asyncpg://{encoded_user}:{encoded_password}@{self.read_host}:{self.read_port}/{self.name}"
         return None
     
     class Config:
