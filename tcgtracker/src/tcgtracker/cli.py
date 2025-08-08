@@ -31,26 +31,42 @@ def db():
 
 @db.command()
 @click.option("--message", "-m", required=True, help="Migration message")
-@click.option("--autogenerate/--no-autogenerate", default=True, help="Auto-generate migration")
+@click.option(
+    "--autogenerate/--no-autogenerate", default=True, help="Auto-generate migration"
+)
 def create_migration(message: str, autogenerate: bool):
     """Create a new database migration."""
     try:
         migrations_manager = MigrationsManager()
         migrations_manager.create_migration(message, autogenerate)
         click.echo(f"Migration '{message}' created successfully")
+    except FileNotFoundError as e:
+        click.echo(f"Migration configuration not found: {e}", err=True)
+        raise click.ClickException("alembic.ini not found. Run 'alembic init' first.")
+    except ValueError as e:
+        click.echo(f"Invalid migration parameters: {e}", err=True)
+        raise click.ClickException(str(e))
     except Exception as e:
         click.echo(f"Failed to create migration: {e}", err=True)
         raise click.ClickException(str(e))
 
 
 @db.command()
-@click.option("--revision", "-r", default="head", help="Target revision (default: head)")
+@click.option(
+    "--revision", "-r", default="head", help="Target revision (default: head)"
+)
 def upgrade(revision: str):
     """Upgrade database to specified revision."""
     try:
         migrations_manager = MigrationsManager()
         migrations_manager.upgrade_database(revision)
         click.echo(f"Database upgraded to revision: {revision}")
+    except FileNotFoundError as e:
+        click.echo(f"Migration configuration not found: {e}", err=True)
+        raise click.ClickException("alembic.ini not found. Run 'alembic init' first.")
+    except ConnectionError as e:
+        click.echo(f"Database connection failed: {e}", err=True)
+        raise click.ClickException("Cannot connect to database. Check your configuration.")
     except Exception as e:
         click.echo(f"Failed to upgrade database: {e}", err=True)
         raise click.ClickException(str(e))
@@ -91,36 +107,31 @@ def history():
         raise click.ClickException(str(e))
 
 
-def _run_async_migrations():
-    """Helper function to run async migrations safely."""
-    try:
-        loop = asyncio.get_running_loop()
-        # We're in an event loop, so we need to run this differently
-        # Convert init_database to sync version for CLI context
-        from tcgtracker.database.migrations_manager import MigrationsManager
-        migrations_manager = MigrationsManager()
-        
-        # Create a fresh database manager for sync operations
-        migrations_manager.upgrade_database("head")
-        return True
-    except RuntimeError:
-        # No event loop running, safe to use asyncio.run()
-        asyncio.run(init_database())
-        return True
 
 @db.command()
 def init():
     """Initialize database with all tables and migrations."""
     try:
-        _run_async_migrations()
+        asyncio.run(init_database())
         click.echo("Database initialized successfully")
+    except FileNotFoundError as e:
+        click.echo(f"Migration configuration not found: {e}", err=True)
+        raise click.ClickException("alembic.ini not found. Run 'alembic init' first.")
+    except ConnectionError as e:
+        click.echo(f"Database connection failed: {e}", err=True)
+        raise click.ClickException("Cannot connect to database. Check your configuration.")
+    except PermissionError as e:
+        click.echo(f"Permission denied: {e}", err=True)
+        raise click.ClickException("Insufficient permissions for database operations.")
     except Exception as e:
         click.echo(f"Failed to initialize database: {e}", err=True)
         raise click.ClickException(str(e))
 
 
 @db.command()
-@click.confirmation_option(prompt="Are you sure you want to reset the database? All data will be lost!")
+@click.confirmation_option(
+    prompt="Are you sure you want to reset the database? All data will be lost!"
+)
 def reset():
     """Reset database by dropping and recreating all tables."""
     try:
@@ -160,6 +171,12 @@ def test_connection():
     try:
         asyncio.run(_test_connection_async())
         click.echo("Database connection successful!")
+    except ConnectionError as e:
+        click.echo(f"Database connection failed: {e}", err=True)
+        raise click.ClickException("Cannot connect to database. Check your configuration.")
+    except TimeoutError as e:
+        click.echo(f"Database connection timeout: {e}", err=True)
+        raise click.ClickException("Database connection timed out.")
     except Exception as e:
         click.echo(f"Database connection failed: {e}", err=True)
         raise click.ClickException(str(e))
@@ -169,13 +186,13 @@ async def _test_connection_async():
     """Internal async function for testing connection."""
     db_manager = get_db_manager()
     await db_manager.initialize()
-    
+
     async with db_manager.get_write_session() as session:
         result = await session.execute(text("SELECT 1 as test"))
         row = result.fetchone()
         if not (row and row.test == 1):
             raise Exception("Unexpected result from test query")
-            
+
     await db_manager.close()
 
 
@@ -188,7 +205,7 @@ def serve(host: str, port: int, reload: bool, debug: bool):
     """Start the TCG Price Tracker server."""
     import uvicorn
     from tcgtracker.main import app
-    
+
     uvicorn.run(
         "tcgtracker.main:app",
         host=host,

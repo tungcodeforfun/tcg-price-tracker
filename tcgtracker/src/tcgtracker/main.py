@@ -17,10 +17,11 @@ import logging
 # Set up basic logging level
 logging.basicConfig(level=logging.INFO)
 
+
 def configure_logging() -> None:
     """Configure structured logging based on settings."""
     settings = get_settings()
-    
+
     # Map log levels
     level_map = {
         "DEBUG": logging.DEBUG,
@@ -29,27 +30,29 @@ def configure_logging() -> None:
         "ERROR": logging.ERROR,
         "CRITICAL": logging.CRITICAL,
     }
-    
+
     log_level = level_map.get(settings.app.log_level.upper(), logging.INFO)
-    
+
     processors = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),
         structlog.dev.set_exc_info,
-        structlog.processors.JSONRenderer() if settings.app.log_format == "json" 
+        structlog.processors.JSONRenderer()
+        if settings.app.log_format == "json"
         else structlog.dev.ConsoleRenderer(),
     ]
-    
+
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.stdlib.BoundLogger,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
+
     # Set logging level
     logging.getLogger().setLevel(log_level)
+
 
 # Configure logging
 configure_logging()
@@ -61,9 +64,10 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     logger.info("Starting TCG Price Tracker application")
-    
+
     # Initialize database connection pool
     from tcgtracker.database.connection import get_db_manager
+
     db_manager = get_db_manager()
     try:
         await db_manager.initialize()
@@ -71,39 +75,39 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
         # Don't raise here - let the app start even if DB is unavailable
-    
+
     # Initialize Redis connection pool
     # TODO: Initialize Redis connections
-    
+
     # Start background tasks
     # TODO: Initialize Celery workers
-    
+
     logger.info("Application startup complete")
-    
+
     yield
-    
+
     logger.info("Shutting down TCG Price Tracker application")
-    
+
     # Clean up database connections
     try:
         await db_manager.close()
         logger.info("Database connections closed")
     except Exception as e:
         logger.error(f"Error closing database connections: {e}")
-    
+
     # Clean up Redis connections
     # TODO: Close Redis connections
-    
+
     # Stop background tasks
     # TODO: Stop Celery workers
-    
+
     logger.info("Application shutdown complete")
 
 
 def create_app() -> FastAPI:
     """Create and configure FastAPI application."""
     settings = get_settings()
-    
+
     app = FastAPI(
         title=settings.app.title,
         description=settings.app.description,
@@ -111,7 +115,7 @@ def create_app() -> FastAPI:
         debug=settings.app.debug,
         lifespan=lifespan,
     )
-    
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -120,7 +124,7 @@ def create_app() -> FastAPI:
         allow_methods=settings.app.allow_methods,
         allow_headers=settings.app.allow_headers,
     )
-    
+
     # Add health check endpoint
     @app.get("/health", tags=["system"])
     async def health_check() -> JSONResponse:
@@ -133,7 +137,7 @@ def create_app() -> FastAPI:
             },
             status_code=200,
         )
-    
+
     # Add root endpoint
     @app.get("/", tags=["system"])
     async def root() -> JSONResponse:
@@ -147,7 +151,7 @@ def create_app() -> FastAPI:
             },
             status_code=200,
         )
-    
+
     # Global exception handler
     @app.exception_handler(Exception)
     async def global_exception_handler(request, exc):
@@ -158,7 +162,7 @@ def create_app() -> FastAPI:
             path=request.url.path,
             method=request.method,
         )
-        
+
         if settings.app.debug:
             # In debug mode, return detailed error information
             return JSONResponse(
@@ -178,13 +182,13 @@ def create_app() -> FastAPI:
                     "message": "An unexpected error occurred. Please try again later.",
                 },
             )
-    
+
     # TODO: Add API routers
     # app.include_router(auth_router, prefix="/api/v1/auth", tags=["authentication"])
     # app.include_router(cards_router, prefix="/api/v1/cards", tags=["cards"])
     # app.include_router(prices_router, prefix="/api/v1/prices", tags=["prices"])
     # app.include_router(alerts_router, prefix="/api/v1/alerts", tags=["alerts"])
-    
+
     logger.info("FastAPI application created successfully")
     return app
 
@@ -196,9 +200,9 @@ app = create_app()
 def main() -> None:
     """Main entry point for running the application."""
     import uvicorn
-    
+
     settings = get_settings()
-    
+
     uvicorn.run(
         "tcgtracker.main:app",
         host=settings.app.host,
