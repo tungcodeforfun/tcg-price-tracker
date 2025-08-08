@@ -91,11 +91,28 @@ def history():
         raise click.ClickException(str(e))
 
 
+def _run_async_migrations():
+    """Helper function to run async migrations safely."""
+    try:
+        loop = asyncio.get_running_loop()
+        # We're in an event loop, so we need to run this differently
+        # Convert init_database to sync version for CLI context
+        from tcgtracker.database.migrations_manager import MigrationsManager
+        migrations_manager = MigrationsManager()
+        
+        # Create a fresh database manager for sync operations
+        migrations_manager.upgrade_database("head")
+        return True
+    except RuntimeError:
+        # No event loop running, safe to use asyncio.run()
+        asyncio.run(init_database())
+        return True
+
 @db.command()
 def init():
     """Initialize database with all tables and migrations."""
     try:
-        asyncio.run(init_database())
+        _run_async_migrations()
         click.echo("Database initialized successfully")
     except Exception as e:
         click.echo(f"Failed to initialize database: {e}", err=True)
