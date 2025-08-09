@@ -164,7 +164,7 @@ class TCGPlayerClient(BaseAPIClient):
             logger.info("Access token refreshed successfully")
 
         except Exception as exc:
-            logger.error(f"Failed to refresh access token: {str(exc)}")
+            logger.error("Failed to refresh access token")
             # Clear stored tokens on refresh failure
             self._access_token = None
             self._refresh_token = None
@@ -187,11 +187,7 @@ class TCGPlayerClient(BaseAPIClient):
             seconds=expires_in - 60
         )  # 60s buffer
 
-        logger.info(
-            "OAuth tokens stored",
-            expires_at=self._token_expires_at.isoformat(),
-            has_refresh_token=bool(self._refresh_token),
-        )
+        logger.info("OAuth tokens stored successfully")
 
     async def _ensure_valid_token(self) -> None:
         """

@@ -17,6 +17,7 @@ from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import Card, User
 from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
+from tcgtracker.validation.sanitizers import sanitize_search_input
 
 router = APIRouter()
 
@@ -247,7 +248,8 @@ async def get_search_suggestions(
     from sqlalchemy import distinct, or_, select
 
     # Build query for card names
-    name_query = select(distinct(Card.name)).where(Card.name.ilike(f"%{query}%"))
+    sanitized_query = sanitize_search_input(query)
+    name_query = select(distinct(Card.name)).where(Card.name.ilike(f"%{sanitized_query}%"))
 
     if tcg_type:
         name_query = name_query.where(Card.tcg_type == tcg_type)

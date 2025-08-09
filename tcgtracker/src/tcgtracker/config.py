@@ -147,7 +147,7 @@ class SecuritySettings(BaseSettings):
         default_factory=lambda: os.getenv(
             "SECRET_KEY",
             os.getenv(
-                "SECURITY_SECRET_KEY", "INSECURE-DEV-KEY-DO-NOT-USE-IN-PRODUCTION!!!"
+                "SECURITY_SECRET_KEY", ""
             ),
         ),
         description="Secret key for JWT signing (must be at least 32 characters)",
@@ -158,32 +158,62 @@ class SecuritySettings(BaseSettings):
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
         """Validate that secret key is properly configured."""
+        # Allow empty secret key only in development mode
+        app_env = os.getenv("APP_ENVIRONMENT", "development")
+        
         if not v or v == "":
-            raise ValueError(
-                "SECURITY_SECRET_KEY environment variable must be set with a secure random string of at least 32 characters. "
-                "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
-            )
+            if app_env == "production":
+                raise ValueError(
+                    "SECURITY_SECRET_KEY environment variable must be set in production. "
+                    "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+                )
+            else:
+                # Use a development-only key
+                v = "development-only-key-not-for-production-use-" + "x" * 20
+        
         if len(v) < 32:
             raise ValueError("Secret key must be at least 32 characters long")
-        # Warn if using common insecure patterns
-        insecure_patterns = [
-            "dev",
-            "test",
-            "change",
-            "example",
-            "secret",
-            "key",
-            "123",
-            "abc",
-        ]
-        if any(pattern in v.lower() for pattern in insecure_patterns):
-            import warnings
-
-            warnings.warn(
-                "Secret key appears to contain insecure patterns. "
-                "Please use a cryptographically secure random string in production.",
-                UserWarning,
-            )
+        
+        # Enforce strict validation in production
+        if app_env == "production":
+            # Reject common insecure patterns in production
+            insecure_patterns = [
+                "dev",
+                "test",
+                "change",
+                "example",
+                "secret",
+                "key",
+                "123",
+                "abc",
+                "insecure",
+                "default",
+            ]
+            if any(pattern in v.lower() for pattern in insecure_patterns):
+                raise ValueError(
+                    "Secret key contains insecure patterns. "
+                    "Production requires a cryptographically secure random string."
+                )
+        else:
+            # Warn in non-production environments
+            if "development-only" not in v:
+                insecure_patterns = [
+                    "dev",
+                    "test",
+                    "change",
+                    "example",
+                    "secret",
+                    "key",
+                    "123",
+                    "abc",
+                ]
+                if any(pattern in v.lower() for pattern in insecure_patterns):
+                    import warnings
+                    warnings.warn(
+                        "Secret key appears to contain insecure patterns. "
+                        "Please use a cryptographically secure random string in production.",
+                        UserWarning,
+                    )
         return v
 
     algorithm: str = Field(default="HS256", description="JWT algorithm")
@@ -215,6 +245,12 @@ class AppSettings(BaseSettings):
         description="Application description",
     )
     version: str = Field(default="0.1.0", description="Application version")
+
+    # Environment
+    environment: str = Field(
+        default="development",
+        description="Application environment (development, staging, production)",
+    )
 
     # Server settings
     host: str = Field(default="0.0.0.0", description="Server host")
