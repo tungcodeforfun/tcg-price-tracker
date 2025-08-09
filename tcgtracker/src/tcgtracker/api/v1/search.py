@@ -192,24 +192,43 @@ async def import_card_from_search(
     new_card = Card(**card_data.model_dump())
     db.add(new_card)
     
-    # Add initial price if available
-    if search_result.price:
-        from tcgtracker.database.models import PriceHistory
+    try:
+        # Commit the card first to get its ID
+        await db.commit()
+        await db.refresh(new_card)
         
-        price = Price(
-            card=new_card,
-            source=search_result.source,
-            price=search_result.price,
-            currency="USD",
-            condition="near_mint",
-            listing_url=search_result.listing_url,
+        # Add initial price if available (after card is committed)
+        if search_result.price:
+            from datetime import datetime, timezone
+            from tcgtracker.database.models import PriceHistory, DataSourceEnum, CardConditionEnum
+            
+            # Map source from API to database enum
+            source_map = {
+                "tcgplayer": DataSourceEnum.TCGPLAYER,
+                "ebay": DataSourceEnum.EBAY,
+            }
+            db_source = source_map.get(search_result.source.lower(), DataSourceEnum.MANUAL)
+            
+            price = PriceHistory(
+                card_id=new_card.id,  # Now new_card.id will have a value
+                source=db_source,
+                market_price=search_result.price,
+                currency="USD",
+                condition=CardConditionEnum.NEAR_MINT,
+                timestamp=datetime.now(timezone.utc),
+            )
+            db.add(price)
+            await db.commit()  # Commit the price record
+        
+        return new_card
+        
+    except Exception as e:
+        # Rollback the transaction on any error
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to import card: {str(e)}"
         )
-        db.add(price)
-    
-    await db.commit()
-    await db.refresh(new_card)
-    
-    return new_card
 
 
 @router.get("/suggestions", response_model=List[str])

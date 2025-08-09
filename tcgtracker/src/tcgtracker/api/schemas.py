@@ -138,7 +138,7 @@ class PriceCreate(BaseModel):
     """Price creation schema."""
     card_id: int
     source: PriceSource
-    price: Decimal = Field(..., gt=0)
+    market_price: Decimal = Field(..., gt=0)
     currency: str = "USD"
     condition: CardCondition = CardCondition.NEAR_MINT
     listing_url: Optional[str] = None
@@ -149,11 +149,11 @@ class PriceResponse(BaseModel):
     id: int
     card_id: int
     source: PriceSource
-    price: Decimal
+    market_price: Decimal
     currency: str
     condition: CardCondition
     listing_url: Optional[str]
-    created_at: datetime
+    timestamp: datetime
 
     class Config:
         from_attributes = True
@@ -170,7 +170,7 @@ class PriceHistory(BaseModel):
 
 
 # Collection schemas
-class CardCreate(BaseModel):
+class CollectionItemCreate(BaseModel):
     """Collection item creation schema."""
     card_id: int
     quantity: int = Field(default=1, gt=0)
@@ -179,7 +179,7 @@ class CardCreate(BaseModel):
     notes: Optional[str] = None
 
 
-class CardUpdate(BaseModel):
+class CollectionItemUpdate(BaseModel):
     """Collection item update schema."""
     quantity: Optional[int] = Field(None, gt=0)
     condition: Optional[CardCondition] = None
@@ -187,7 +187,7 @@ class CardUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-class CardResponse(BaseModel):
+class CollectionItemResponse(BaseModel):
     """Collection item response schema."""
     id: int
     user_id: int

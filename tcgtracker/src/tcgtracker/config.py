@@ -144,7 +144,7 @@ class SecuritySettings(BaseSettings):
     """Security configuration."""
 
     secret_key: str = Field(
-        default_factory=lambda: os.getenv("SECRET_KEY", os.getenv("SECURITY_SECRET_KEY", "development-only-secret-key-not-for-production-use")),
+        default_factory=lambda: os.getenv("SECRET_KEY", os.getenv("SECURITY_SECRET_KEY", "INSECURE-DEV-KEY-DO-NOT-USE-IN-PRODUCTION!!!")),
         description="Secret key for JWT signing (must be at least 32 characters)",
         min_length=32,
     )
@@ -185,12 +185,6 @@ class SecuritySettings(BaseSettings):
     password_hash_schemes: list[str] = Field(
         default=["bcrypt"], description="Password hash schemes"
     )
-
-    @validator("secret_key")
-    def validate_secret_key(cls, v: str) -> str:
-        if len(v) < 32:
-            raise ValueError("Secret key must be at least 32 characters long")
-        return v
 
     class Config:
         env_prefix = "SECURITY_"

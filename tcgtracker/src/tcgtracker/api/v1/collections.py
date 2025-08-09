@@ -12,24 +12,24 @@ from sqlalchemy.orm import selectinload
 from tcgtracker.api.dependencies import get_current_active_user
 from tcgtracker.api.schemas import (
     CardCondition,
-    CardCreate,
-    CardResponse,
-    CardUpdate,
+    CollectionItemCreate,
+    CollectionItemResponse,
+    CollectionItemUpdate,
     CollectionStats,
     GameType,
 )
 from tcgtracker.database.connection import get_session
-from tcgtracker.database.models import Card, Card, PriceHistory, User
+from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
 
 router = APIRouter()
 
 
-@router.post("/items", response_model=CardResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/items", response_model=CollectionItemResponse, status_code=status.HTTP_201_CREATED)
 async def add_to_collection(
-    item_data: CardCreate,
+    item_data: CollectionItemCreate,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> Card:
+) -> CollectionItem:
     """Add a card to user's collection."""
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == item_data.card_id))
@@ -42,11 +42,11 @@ async def add_to_collection(
         )
     
     # Check if item already exists in collection
-    existing_query = select(Card).where(
+    existing_query = select(CollectionItem).where(
         and_(
-            Card.user_id == current_user.id,
-            Card.card_id == item_data.card_id,
-            Card.condition == item_data.condition,
+            CollectionItem.user_id == current_user.id,
+            CollectionItem.card_id == item_data.card_id,
+            CollectionItem.condition == item_data.condition,
         )
     )
     result = await db.execute(existing_query)
@@ -60,7 +60,7 @@ async def add_to_collection(
         return existing_item
     
     # Create new collection item
-    new_item = Card(
+    new_item = CollectionItem(
         user_id=current_user.id,
         **item_data.model_dump()
     )
@@ -74,7 +74,7 @@ async def add_to_collection(
     return new_item
 
 
-@router.get("/items", response_model=List[CardResponse])
+@router.get("/items", response_model=List[CollectionItemResponse])
 async def get_collection_items(
     game_type: Optional[GameType] = Query(None),
     condition: Optional[CardCondition] = Query(None),
@@ -82,22 +82,22 @@ async def get_collection_items(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> List[Card]:
+) -> List[CollectionItem]:
     """Get user's collection items."""
     query = (
-        select(Card)
+        select(CollectionItem)
         .options(
-            selectinload(Card.card).selectinload(Card.prices)
+            selectinload(CollectionItem.card).selectinload(Card.price_history)
         )
-        .where(Card.user_id == current_user.id)
+        .where(CollectionItem.user_id == current_user.id)
     )
     
     # Apply filters
     if condition:
-        query = query.where(Card.condition == condition)
+        query = query.where(CollectionItem.condition == condition)
     
     if game_type:
-        query = query.join(Card).where(Card.game_type == game_type)
+        query = query.join(Card).where(Card.tcg_type == game_type)
     
     query = query.limit(limit).offset(offset)
     
@@ -106,29 +106,35 @@ async def get_collection_items(
     
     # Calculate current values
     for item in items:
-        if item.card and item.card.prices:
-            latest_price = max(item.card.prices, key=lambda p: p.created_at)
-            item.current_value = latest_price.price * item.quantity
+        if item.card and item.card.price_history:
+            try:
+                # Calculate value based on latest price
+                latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
+                item.current_value = latest_price.market_price * item.quantity
+            except ValueError:  # Empty price_history
+                item.current_value = Decimal(0)
+        else:
+            item.current_value = Decimal(0)
     
     return items
 
 
-@router.get("/items/{item_id}", response_model=CardResponse)
+@router.get("/items/{item_id}", response_model=CollectionItemResponse)
 async def get_collection_item(
     item_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> Card:
+) -> CollectionItem:
     """Get a specific collection item."""
     result = await db.execute(
-        select(Card)
+        select(CollectionItem)
         .options(
-            selectinload(Card.card).selectinload(Card.prices)
+            selectinload(CollectionItem.card).selectinload(Card.price_history)
         )
         .where(
             and_(
-                Card.id == item_id,
-                Card.user_id == current_user.id,
+                CollectionItem.id == item_id,
+                CollectionItem.user_id == current_user.id,
             )
         )
     )
@@ -141,27 +147,33 @@ async def get_collection_item(
         )
     
     # Calculate current value
-    if item.card and item.card.prices:
-        latest_price = max(item.card.prices, key=lambda p: p.created_at)
-        item.current_value = latest_price.price * item.quantity
+    if item.card and item.card.price_history:
+        try:
+            # Calculate value based on latest price
+            latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
+            item.current_value = latest_price.market_price * item.quantity
+        except ValueError:  # Empty price_history
+            item.current_value = Decimal(0)
+    else:
+        item.current_value = Decimal(0)
     
     return item
 
 
-@router.put("/items/{item_id}", response_model=CardResponse)
+@router.put("/items/{item_id}", response_model=CollectionItemResponse)
 async def update_collection_item(
     item_id: int,
-    item_update: CardUpdate,
+    item_update: CollectionItemUpdate,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> Card:
+) -> CollectionItem:
     """Update a collection item."""
     result = await db.execute(
-        select(Card)
+        select(CollectionItem)
         .where(
             and_(
-                Card.id == item_id,
-                Card.user_id == current_user.id,
+                CollectionItem.id == item_id,
+                CollectionItem.user_id == current_user.id,
             )
         )
     )
@@ -192,11 +204,11 @@ async def remove_from_collection(
 ) -> None:
     """Remove an item from collection."""
     result = await db.execute(
-        select(Card)
+        select(CollectionItem)
         .where(
             and_(
-                Card.id == item_id,
-                Card.user_id == current_user.id,
+                CollectionItem.id == item_id,
+                CollectionItem.user_id == current_user.id,
             )
         )
     )
@@ -220,14 +232,14 @@ async def get_collection_stats(
 ) -> CollectionStats:
     """Get collection statistics."""
     # Base query for user's collection
-    query = select(Card).where(Card.user_id == current_user.id)
+    query = select(CollectionItem).where(CollectionItem.user_id == current_user.id)
     
     if game_type:
-        query = query.join(Card).where(Card.game_type == game_type)
+        query = query.join(Card).where(Card.tcg_type == game_type)
     
     result = await db.execute(
         query.options(
-            selectinload(Card.card).selectinload(Card.prices)
+            selectinload(CollectionItem.card).selectinload(Card.price_history)
         )
     )
     items = result.scalars().all()
@@ -244,9 +256,12 @@ async def get_collection_stats(
             total_invested += item.purchase_price * item.quantity
         
         # Calculate current value
-        if item.card and item.card.prices:
-            latest_price = max(item.card.prices, key=lambda p: p.created_at)
-            total_value += latest_price.price * item.quantity
+        if item.card and item.card.price_history:
+            try:
+                latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
+                total_value += latest_price.market_price * item.quantity
+            except ValueError:  # Empty price_history
+                pass  # Skip this item's value
     
     profit_loss = total_value - total_invested
     profit_loss_percentage = (
@@ -272,13 +287,13 @@ async def get_collection_value_history(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Get historical value of collection."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     
     # Get user's collection items
     result = await db.execute(
-        select(Card)
-        .options(selectinload(Card.card))
-        .where(Card.user_id == current_user.id)
+        select(CollectionItem)
+        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
+        .where(CollectionItem.user_id == current_user.id)
     )
     items = result.scalars().all()
     
@@ -293,22 +308,22 @@ async def get_collection_value_history(
     
     # Get price history for each card in collection
     card_ids = [item.card_id for item in items]
-    since_date = datetime.utcnow() - timedelta(days=days)
+    since_date = datetime.now(timezone.utc) - timedelta(days=days)
     
     price_query = (
         select(
-            Price.card_id,
-            func.date(Price.created_at).label("date"),
-            func.avg(Price.price).label("avg_price"),
+            PriceHistory.card_id,
+            func.date(PriceHistory.timestamp).label("date"),
+            func.avg(PriceHistory.market_price).label("avg_price"),
         )
         .where(
             and_(
-                Price.card_id.in_(card_ids),
-                Price.created_at >= since_date,
+                PriceHistory.card_id.in_(card_ids),
+                PriceHistory.timestamp >= since_date,
             )
         )
-        .group_by(Price.card_id, func.date(Price.created_at))
-        .order_by(func.date(Price.created_at))
+        .group_by(PriceHistory.card_id, func.date(PriceHistory.timestamp))
+        .order_by(func.date(PriceHistory.timestamp))
     )
     
     result = await db.execute(price_query)

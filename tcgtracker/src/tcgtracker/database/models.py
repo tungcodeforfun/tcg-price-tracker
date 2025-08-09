@@ -103,6 +103,7 @@ class User(Base, TimestampMixin):
 
     # Relationships
     alerts: Mapped[List["UserAlert"]] = relationship("UserAlert", back_populates="user")
+    collection_items: Mapped[List["CollectionItem"]] = relationship("CollectionItem", back_populates="user")
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email='{self.email}')>"
@@ -165,6 +166,9 @@ class Card(Base, TimestampMixin):
     )
     user_alerts: Mapped[List["UserAlert"]] = relationship(
         "UserAlert", back_populates="card"
+    )
+    collection_items: Mapped[List["CollectionItem"]] = relationship(
+        "CollectionItem", back_populates="card"
     )
 
     # Constraints and Indexes
@@ -244,6 +248,42 @@ class PriceHistory(Base):
 
     def __repr__(self) -> str:
         return f"<PriceHistory(id={self.id}, card_id={self.card_id}, market_price={self.market_price})>"
+
+
+class CollectionItem(Base, TimestampMixin):
+    """Collection item model for user's card collections."""
+
+    __tablename__ = "collection_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    card_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    condition: Mapped[CardConditionEnum] = mapped_column(
+        Enum(CardConditionEnum), default=CardConditionEnum.NEAR_MINT, nullable=False
+    )
+    purchase_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="collection_items")
+    card: Mapped["Card"] = relationship("Card", back_populates="collection_items")
+
+    # Constraints and Indexes
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "card_id", "condition", name="uq_collection_items_user_card_condition"
+        ),
+        Index("idx_collection_items_user", "user_id"),
+        Index("idx_collection_items_card", "card_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<CollectionItem(id={self.id}, user_id={self.user_id}, card_id={self.card_id}, quantity={self.quantity})>"
 
 
 class UserAlert(Base, TimestampMixin):

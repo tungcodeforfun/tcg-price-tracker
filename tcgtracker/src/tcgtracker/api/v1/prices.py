@@ -1,7 +1,7 @@
 """Price tracking endpoints."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
@@ -22,7 +22,7 @@ from tcgtracker.api.schemas import (
     PriceSource,
 )
 from tcgtracker.database.connection import get_session
-from tcgtracker.database.models import Card, PriceHistory, UserAlert, User
+from tcgtracker.database.models import Card, PriceHistory, UserAlert, User, CardConditionEnum
 from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
 
@@ -61,12 +61,12 @@ async def fetch_and_update_price(
                 logger.error("Error fetching eBay price", exc_info=e)
     
     if price_data:
-        new_price = Price(
+        new_price = PriceHistory(
             card_id=card.id,
             source=source,
-            price=Decimal(str(price_data)),
-            currency="USD",
-            condition="near_mint",
+            market_price=Decimal(str(price_data)),
+            condition=CardConditionEnum.NEAR_MINT,
+            timestamp=datetime.now(timezone.utc),
         )
         db.add(new_price)
         await db.commit()
@@ -93,14 +93,14 @@ async def create_price(
         )
     
     # Create price entry
-    new_price = Price(**price_data.model_dump())
+    new_price = PriceHistory(**price_data.model_dump())
     db.add(new_price)
     
     # Check price alerts
-    alerts_query = select(PriceAlert).where(
+    alerts_query = select(UserAlert).where(
         and_(
-            PriceAlert.card_id == price_data.card_id,
-            PriceAlert.is_active == True,
+            UserAlert.card_id == price_data.card_id,
+            UserAlert.is_active == True,
         )
     )
     result = await db.execute(alerts_query)
@@ -108,10 +108,10 @@ async def create_price(
     
     for alert in alerts:
         if (
-            (alert.alert_type == "above" and price_data.price >= alert.target_price) or
-            (alert.alert_type == "below" and price_data.price <= alert.target_price)
+            (alert.alert_type == "above" and price_data.market_price >= alert.target_price) or
+            (alert.alert_type == "below" and price_data.market_price <= alert.target_price)
         ):
-            alert.triggered_at = datetime.utcnow()
+            alert.triggered_at = datetime.now(timezone.utc)
             # TODO: Send notification to user
     
     await db.commit()
@@ -140,25 +140,25 @@ async def get_price_history(
         )
     
     # Build price query
-    since_date = datetime.utcnow() - timedelta(days=days)
-    price_query = select(Price).where(
+    since_date = datetime.now(timezone.utc) - timedelta(days=days)
+    price_query = select(PriceHistory).where(
         and_(
-            Price.card_id == card_id,
-            Price.created_at >= since_date,
+            PriceHistory.card_id == card_id,
+            PriceHistory.timestamp >= since_date,
         )
     )
     
     if source:
-        price_query = price_query.where(Price.source == source)
+        price_query = price_query.where(PriceHistory.source == source)
     
-    price_query = price_query.order_by(Price.created_at)
+    price_query = price_query.order_by(PriceHistory.timestamp)
     
     result = await db.execute(price_query)
     prices = result.scalars().all()
     
     # Calculate statistics
     if prices:
-        price_values = [p.price for p in prices]
+        price_values = [p.market_price for p in prices]
         avg_price = sum(price_values) / len(price_values)
         min_price = min(price_values)
         max_price = max(price_values)
@@ -181,9 +181,24 @@ async def get_price_history(
         max_price = None
         trend = "no_data"
     
+    # Convert database objects to response schemas
+    price_responses = [
+        PriceResponse(
+            id=p.id,
+            card_id=p.card_id,
+            source=p.source,
+            market_price=p.market_price,
+            currency=p.currency,
+            condition=p.condition,
+            listing_url=None,  # PriceHistory model doesn't have listing_url
+            timestamp=p.timestamp,
+        )
+        for p in prices
+    ]
+    
     return PriceHistory(
         card_id=card_id,
-        prices=prices,
+        prices=price_responses,
         average_price=avg_price,
         min_price=min_price,
         max_price=max_price,
@@ -277,10 +292,10 @@ async def get_price_trends(
     # Build query for price changes
     query = select(
         Card.game_type,
-        func.avg(Price.price).label("avg_price"),
-        func.count(Price.id).label("price_count"),
-    ).select_from(Price).join(Card).where(
-        Price.created_at >= since_date
+        func.avg(PriceHistory.market_price).label("avg_price"),
+        func.count(PriceHistory.id).label("price_count"),
+    ).select_from(PriceHistory).join(Card).where(
+        PriceHistory.timestamp >= since_date
     ).group_by(Card.game_type)
     
     if game_type:
