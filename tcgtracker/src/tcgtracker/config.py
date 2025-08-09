@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import Any, Dict, Optional
 from urllib.parse import quote_plus
 
-from pydantic import Field, validator, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -121,6 +121,14 @@ class ExternalAPISettings(BaseSettings):
     ebay_environment: str = Field(
         default="production", description="eBay environment (sandbox or production)"
     )
+    
+    @field_validator("ebay_environment")
+    @classmethod
+    def validate_ebay_environment(cls, v: str) -> str:
+        """Validate that eBay environment is either sandbox or production."""
+        if v.lower() not in ["sandbox", "production"]:
+            raise ValueError('eBay environment must be "sandbox" or "production"')
+        return v.lower()
     # Production credentials
     ebay_client_id: str = Field(default="", description="eBay Production Client ID")
     ebay_client_secret: str = Field(default="", description="eBay Production Client Secret")

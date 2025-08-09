@@ -378,10 +378,10 @@ class PriceChartingClient(BaseAPIClient):
             
             # Validate price range (sanity check)
             if price < 0:
-                logger.warning(f"Negative price detected: {price}")
+                logger.warning(f"Negative price detected: {price} for input: {price_str}")
                 return None
             elif price > 100000:  # $100,000 max for a single card
-                logger.warning(f"Unreasonably high price detected: {price}")
+                logger.warning(f"Unreasonably high price detected: {price} for input: {price_str}")
                 return None
             elif price == 0:
                 return None  # Zero prices are not useful

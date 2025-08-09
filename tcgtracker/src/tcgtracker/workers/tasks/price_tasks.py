@@ -135,8 +135,8 @@ async def _update_card_price_async(task: PriceUpdateTask, card_id: int) -> dict:
                 raise  # Re-raise to trigger Celery retry with delay
         except AuthenticationException as e:
             logger.error(f"PriceCharting authentication failed: {e}")
-            # Authentication issues should not fallback
-            raise
+            # Allow fallback for auth failures but log the issue
+            logger.warning(f"Falling back to JustTCG due to PriceCharting auth failure")
         except PriceValidationException as e:
             logger.error(f"Invalid price data from PriceCharting for card {card_id}: {e}")
             # Invalid data should trigger fallback
@@ -190,9 +190,9 @@ async def _update_card_price_async(task: PriceUpdateTask, card_id: int) -> dict:
                 card_id=card.id,
                 source=data_source,
                 market_price=price_data.get("market_price"),
-                price_low=price_data.get("low_price", price_data.get("low_price")),
-                price_high=price_data.get("high_price", price_data.get("high_price")),
-                price_avg=price_data.get("mid_price", price_data.get("mid_price")),
+                price_low=price_data.get("low_price"),
+                price_high=price_data.get("high_price"),
+                price_avg=price_data.get("mid_price"),
                 timestamp=datetime.utcnow(),
             )
             
@@ -310,7 +310,7 @@ async def _cleanup_old_price_history_async(days_to_keep: int) -> dict:
         
         # Count entries to be deleted
         count_result = await session.execute(
-            select(PriceHistory).where(PriceHistory.fetched_at < cutoff_date)
+            select(PriceHistory).where(PriceHistory.timestamp < cutoff_date)
         )
         count = len(count_result.scalars().all())
         
@@ -321,7 +321,7 @@ async def _cleanup_old_price_history_async(days_to_keep: int) -> dict:
         # Delete old entries
         await session.execute(
             PriceHistory.__table__.delete().where(
-                PriceHistory.fetched_at < cutoff_date
+                PriceHistory.timestamp < cutoff_date
             )
         )
         await session.commit()

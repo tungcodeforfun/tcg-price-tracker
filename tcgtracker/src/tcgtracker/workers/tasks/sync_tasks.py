@@ -301,14 +301,18 @@ async def _sync_card_data_async(task: SyncTask, set_id: int) -> dict:
                     logger.warning(f"Card data missing ID: {card_data.get('name', 'Unknown')}")
                     continue
                     
-                # Try to find by external_id first, then fall back to tcgplayer_id for compatibility
+                # Try to find by external_id first
                 result = await session.execute(
-                    select(Card).where(
-                        (Card.external_id == str(external_id)) | 
-                        (Card.tcgplayer_id == int(external_id) if external_id.isdigit() else None)
-                    )
+                    select(Card).where(Card.external_id == str(external_id))
                 )
                 existing_card = result.scalar_one_or_none()
+                
+                # If not found by external_id and it's numeric, try tcgplayer_id for backward compatibility
+                if not existing_card and external_id.isdigit():
+                    result = await session.execute(
+                        select(Card).where(Card.tcgplayer_id == int(external_id))
+                    )
+                    existing_card = result.scalar_one_or_none()
                 
                 if existing_card:
                     # Update existing card
