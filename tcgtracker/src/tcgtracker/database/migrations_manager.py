@@ -40,16 +40,9 @@ class MigrationsManager:
         return cfg
 
     def create_migration(self, message: str, autogenerate: bool = True) -> None:
-        """Create a new migration."""
-        # Validate migration message
-        if not message or not message.strip():
-            raise ValueError("Migration message cannot be empty")
-
-        # Sanitize message to prevent SQL injection and command injection
-        # Allow alphanumeric, spaces, hyphens, underscores, periods (for versions), and colons (for namespacing)
-        sanitized_message = re.sub(r"[^a-zA-Z0-9\s\-_:.]", "", message.strip())
-        # Limit message length to prevent buffer overflow
-        sanitized_message = sanitized_message[:100]
+        """Create a new migration with strict input validation."""
+        # Validate migration message with strict allowlist approach
+        sanitized_message = self._validate_migration_message(message)
 
         try:
             logger.info(f"Creating migration: {sanitized_message}")
@@ -60,6 +53,40 @@ class MigrationsManager:
         except Exception as e:
             logger.error(f"Failed to create migration: {e}")
             raise
+
+    def _validate_migration_message(self, message: str) -> str:
+        """Validate and sanitize migration message with strict allowlist approach.
+        
+        Args:
+            message: The migration message to validate
+            
+        Returns:
+            Sanitized migration message
+            
+        Raises:
+            ValueError: If message is invalid or contains disallowed characters
+        """
+        if not message or not message.strip():
+            raise ValueError("Migration message cannot be empty")
+        
+        # Strip and check length
+        clean_message = message.strip()
+        if len(clean_message) > 100:
+            raise ValueError("Migration message must be 100 characters or less")
+        
+        # Strict allowlist: only allow alphanumeric, spaces, hyphens, underscores
+        # This prevents any potential injection attacks
+        if not re.match(r'^[a-zA-Z0-9\s\-_]+$', clean_message):
+            raise ValueError(
+                "Migration message can only contain letters, numbers, spaces, "
+                "hyphens, and underscores"
+            )
+        
+        # Additional validation: ensure it's not just whitespace/special chars
+        if not re.search(r'[a-zA-Z0-9]', clean_message):
+            raise ValueError("Migration message must contain at least one alphanumeric character")
+        
+        return clean_message
 
     def upgrade_database(self, revision: str = "head") -> None:
         """Upgrade database to specified revision."""

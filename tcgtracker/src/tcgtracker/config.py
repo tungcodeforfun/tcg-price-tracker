@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import Any, Dict, Optional
 from urllib.parse import quote_plus
 
-from pydantic import Field, validator
+from pydantic import Field, validator, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -144,13 +144,32 @@ class SecuritySettings(BaseSettings):
     """Security configuration."""
 
     secret_key: str = Field(
-        default_factory=lambda: os.getenv(
-            "SECURITY_SECRET_KEY",
-            "dev_secret_key_change_in_production_must_be_32_chars_long",
-        ),
+        default_factory=lambda: os.getenv("SECURITY_SECRET_KEY", ""),
         description="Secret key for JWT signing (must be at least 32 characters)",
         min_length=32,
     )
+    
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        """Validate that secret key is properly configured."""
+        if not v or v == "":
+            raise ValueError(
+                "SECURITY_SECRET_KEY environment variable must be set with a secure random string of at least 32 characters. "
+                "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+        if len(v) < 32:
+            raise ValueError("Secret key must be at least 32 characters long")
+        # Warn if using common insecure patterns
+        insecure_patterns = ["dev", "test", "change", "example", "secret", "key", "123", "abc"]
+        if any(pattern in v.lower() for pattern in insecure_patterns):
+            import warnings
+            warnings.warn(
+                "Secret key appears to contain insecure patterns. "
+                "Please use a cryptographically secure random string in production.",
+                UserWarning
+            )
+        return v
     algorithm: str = Field(default="HS256", description="JWT algorithm")
     access_token_expire_minutes: int = Field(
         default=60, description="Access token expiration in minutes"
