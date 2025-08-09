@@ -66,7 +66,9 @@ def upgrade(revision: str):
         raise click.ClickException("alembic.ini not found. Run 'alembic init' first.")
     except ConnectionError as e:
         click.echo(f"Database connection failed: {e}", err=True)
-        raise click.ClickException("Cannot connect to database. Check your configuration.")
+        raise click.ClickException(
+            "Cannot connect to database. Check your configuration."
+        )
     except Exception as e:
         click.echo(f"Failed to upgrade database: {e}", err=True)
         raise click.ClickException(str(e))
@@ -107,7 +109,6 @@ def history():
         raise click.ClickException(str(e))
 
 
-
 @db.command()
 def init():
     """Initialize database with all tables and migrations."""
@@ -119,7 +120,9 @@ def init():
         raise click.ClickException("alembic.ini not found. Run 'alembic init' first.")
     except ConnectionError as e:
         click.echo(f"Database connection failed: {e}", err=True)
-        raise click.ClickException("Cannot connect to database. Check your configuration.")
+        raise click.ClickException(
+            "Cannot connect to database. Check your configuration."
+        )
     except PermissionError as e:
         click.echo(f"Permission denied: {e}", err=True)
         raise click.ClickException("Insufficient permissions for database operations.")
@@ -173,7 +176,9 @@ def test_connection():
         click.echo("Database connection successful!")
     except ConnectionError as e:
         click.echo(f"Database connection failed: {e}", err=True)
-        raise click.ClickException("Cannot connect to database. Check your configuration.")
+        raise click.ClickException(
+            "Cannot connect to database. Check your configuration."
+        )
     except TimeoutError as e:
         click.echo(f"Database connection timeout: {e}", err=True)
         raise click.ClickException("Database connection timed out.")

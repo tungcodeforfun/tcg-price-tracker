@@ -1,5 +1,6 @@
 """Configuration management for TCG Price Tracker."""
 
+import os
 from functools import lru_cache
 from typing import Any, Dict, Optional
 from urllib.parse import quote_plus
@@ -143,6 +144,10 @@ class SecuritySettings(BaseSettings):
     """Security configuration."""
 
     secret_key: str = Field(
+        default_factory=lambda: os.getenv(
+            "SECURITY_SECRET_KEY",
+            "dev_secret_key_change_in_production_must_be_32_chars_long",
+        ),
         description="Secret key for JWT signing (must be at least 32 characters)",
         min_length=32,
     )

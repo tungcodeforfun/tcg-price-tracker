@@ -42,10 +42,10 @@ class MigrationsManager:
         # Validate migration message
         if not message or not message.strip():
             raise ValueError("Migration message cannot be empty")
-        
+
         # Sanitize message to prevent issues with special characters
-        sanitized_message = message.strip().replace('"', "'").replace('\\', '/')
-        
+        sanitized_message = message.strip().replace('"', "'").replace("\\", "/")
+
         try:
             logger.info(f"Creating migration: {sanitized_message}")
             command.revision(
