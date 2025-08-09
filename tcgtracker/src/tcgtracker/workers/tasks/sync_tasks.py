@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from tcgtracker.database.connection import get_db_manager
 from tcgtracker.database.models import Card, TCGSet
-from tcgtracker.integrations.tcgplayer import TCGPlayerClient
+from tcgtracker.integrations.justtcg import JustTCGClient
 from tcgtracker.redis_manager import get_redis_manager
 from tcgtracker.workers.celery_app import celery_app
 
@@ -25,16 +25,31 @@ class SyncTask(Task):
     
     def __init__(self):
         super().__init__()
-        self._tcgplayer_client = None
+        self._justtcg_client = None
+        self._pricecharting_client = None
     
     @property
-    def tcgplayer_client(self):
-        """Lazy initialization of TCGPlayer client."""
-        if self._tcgplayer_client is None:
+    def justtcg_client(self):
+        """Lazy initialization of JustTCG client."""
+        if self._justtcg_client is None:
             from tcgtracker.config import get_settings
             settings = get_settings()
-            self._tcgplayer_client = TCGPlayerClient(settings.external_apis)
-        return self._tcgplayer_client
+            self._justtcg_client = JustTCGClient(
+                api_key=settings.external_apis.justtcg_api_key
+            )
+        return self._justtcg_client
+    
+    @property
+    def pricecharting_client(self):
+        """Lazy initialization of PriceCharting client."""
+        if self._pricecharting_client is None:
+            from tcgtracker.config import get_settings
+            from tcgtracker.integrations.pricecharting import PriceChartingClient
+            settings = get_settings()
+            self._pricecharting_client = PriceChartingClient(
+                api_key=settings.external_apis.pricecharting_api_key
+            )
+        return self._pricecharting_client
 
 
 @celery_app.task(base=SyncTask, bind=True, name="sync_tcg_sets")
@@ -81,8 +96,10 @@ async def _sync_tcg_sets_async(task: SyncTask, tcg_type: str) -> dict:
         logger.info(f"Syncing sets for {current_tcg_type}")
         
         try:
-            # Fetch sets from TCGPlayer
-            sets_data = await task.tcgplayer_client.get_sets(current_tcg_type)
+            # Fetch sets from JustTCG
+            # Map tcg_type to JustTCG game names
+            game = "pokemon" if current_tcg_type == "pokemon" else "onepiece"
+            sets_data = await task.justtcg_client.get_sets(game)
             
             if not sets_data:
                 logger.warning(f"No sets data received for {current_tcg_type}")
@@ -94,33 +111,31 @@ async def _sync_tcg_sets_async(task: SyncTask, tcg_type: str) -> dict:
                 updated_sets = 0
                 
                 for set_data in sets_data:
-                    # Check if set already exists
+                    # Check if set already exists by name and code
                     result = await session.execute(
                         select(TCGSet).where(
-                            TCGSet.tcgplayer_id == set_data["tcgplayer_id"]
+                            TCGSet.set_name == set_data["name"],
+                            TCGSet.set_code == set_data.get("code", "")
                         )
                     )
                     existing_set = result.scalar_one_or_none()
                     
                     if existing_set:
                         # Update existing set
-                        existing_set.name = set_data["name"]
-                        existing_set.code = set_data.get("code")
+                        existing_set.set_name = set_data["name"]
+                        existing_set.set_code = set_data.get("code", "")
                         existing_set.release_date = set_data.get("release_date")
-                        existing_set.card_count = set_data.get("card_count")
-                        existing_set.is_active = set_data.get("is_active", True)
+                        existing_set.total_cards = set_data.get("card_count")
                         existing_set.updated_at = datetime.utcnow()
                         updated_sets += 1
                     else:
                         # Create new set
                         new_set = TCGSet(
                             tcg_type=current_tcg_type,
-                            name=set_data["name"],
-                            code=set_data.get("code"),
-                            tcgplayer_id=set_data["tcgplayer_id"],
+                            set_name=set_data["name"],
+                            set_code=set_data.get("code", ""),
                             release_date=set_data.get("release_date"),
-                            card_count=set_data.get("card_count"),
-                            is_active=set_data.get("is_active", True),
+                            total_cards=set_data.get("card_count"),
                         )
                         session.add(new_set)
                         new_sets += 1
@@ -159,52 +174,68 @@ async def _sync_tcg_sets_async(task: SyncTask, tcg_type: str) -> dict:
     }
 
 
-@celery_app.task(base=SyncTask, bind=True, name="sync_tcgplayer_categories")
-def sync_tcgplayer_categories(self) -> dict:
-    """Sync TCGPlayer categories and groups.
+@celery_app.task(base=SyncTask, bind=True, name="sync_pricecharting_data")
+def sync_pricecharting_data(self) -> dict:
+    """Sync PriceCharting product data.
     
     Returns:
         dict: Sync results
     """
-    logger.info("Starting TCGPlayer categories sync")
+    logger.info("Starting PriceCharting data sync")
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        result = loop.run_until_complete(_sync_tcgplayer_categories_async(self))
+        result = loop.run_until_complete(_sync_pricecharting_data_async(self))
         return result
     finally:
         loop.close()
 
 
-async def _sync_tcgplayer_categories_async(task: SyncTask) -> dict:
-    """Async implementation of TCGPlayer categories synchronization."""
+async def _sync_pricecharting_data_async(task: SyncTask) -> dict:
+    """Async implementation of PriceCharting data synchronization."""
     try:
-        # Fetch categories from TCGPlayer
-        categories_data = await task.tcgplayer_client.get_categories()
+        # Get basic product data for Pokemon and One Piece
+        pokemon_count = 0
+        onepiece_count = 0
         
-        if not categories_data:
-            logger.warning("No categories data received from TCGPlayer")
-            return {"status": "no_data"}
+        # Sync Pokemon products
+        pokemon_products = await task.pricecharting_client.get_pokemon_products(limit=50)
+        if pokemon_products:
+            pokemon_count = len(pokemon_products)
         
-        # Store categories in cache for quick access
+        # Sync One Piece products  
+        onepiece_products = await task.pricecharting_client.get_one_piece_products(limit=50)
+        if onepiece_products:
+            onepiece_count = len(onepiece_products)
+        
+        # Store in cache for quick access
         redis_manager = get_redis_manager()
-        await redis_manager.set_json(
-            "tcgplayer:categories",
-            categories_data,
-            ttl=86400  # Cache for 24 hours
-        )
+        if pokemon_products:
+            await redis_manager.set_json(
+                "pricecharting:pokemon:products",
+                pokemon_products,
+                ttl=86400  # Cache for 24 hours
+            )
         
-        logger.info(f"Synced {len(categories_data)} TCGPlayer categories")
+        if onepiece_products:
+            await redis_manager.set_json(
+                "pricecharting:onepiece:products", 
+                onepiece_products,
+                ttl=86400  # Cache for 24 hours
+            )
+        
+        logger.info(f"Synced {pokemon_count} Pokemon and {onepiece_count} One Piece products")
         
         return {
             "status": "success",
-            "categories_count": len(categories_data),
+            "pokemon_count": pokemon_count,
+            "onepiece_count": onepiece_count,
             "timestamp": datetime.utcnow().isoformat(),
         }
         
     except Exception as e:
-        logger.error(f"Error syncing TCGPlayer categories: {e}")
+        logger.error(f"Error syncing PriceCharting data: {e}")
         return {
             "status": "error",
             "error": str(e),
@@ -249,9 +280,10 @@ async def _sync_card_data_async(task: SyncTask, set_id: int) -> dict:
             return {"error": f"Set {set_id} not found"}
         
         try:
-            # Fetch cards from TCGPlayer
-            cards_data = await task.tcgplayer_client.get_cards_in_set(
-                tcg_set.tcgplayer_id
+            # Fetch cards from PriceCharting
+            # Use set code or name for lookup
+            cards_data = await task.pricecharting_client.get_cards_in_set(
+                tcg_set.set_code if tcg_set.set_code else tcg_set.set_name
             )
             
             if not cards_data:
@@ -263,9 +295,17 @@ async def _sync_card_data_async(task: SyncTask, set_id: int) -> dict:
             
             for card_data in cards_data:
                 # Check if card already exists
+                # PriceCharting returns 'pricecharting_id' or 'id'
+                external_id = card_data.get("pricecharting_id") or card_data.get("id")
+                if not external_id:
+                    logger.warning(f"Card data missing ID: {card_data.get('name', 'Unknown')}")
+                    continue
+                    
+                # Try to find by external_id first, then fall back to tcgplayer_id for compatibility
                 result = await session.execute(
                     select(Card).where(
-                        Card.tcgplayer_id == card_data["tcgplayer_id"]
+                        (Card.external_id == str(external_id)) | 
+                        (Card.tcgplayer_id == int(external_id) if external_id.isdigit() else None)
                     )
                 )
                 existing_card = result.scalar_one_or_none()
@@ -286,7 +326,8 @@ async def _sync_card_data_async(task: SyncTask, set_id: int) -> dict:
                         name=card_data["name"],
                         number=card_data.get("number"),
                         rarity=card_data.get("rarity"),
-                        tcgplayer_id=card_data["tcgplayer_id"],
+                        external_id=str(external_id),  # Use external_id field for new cards
+                        tcgplayer_id=int(external_id) if external_id.isdigit() else None,  # Keep for compatibility
                         image_url=card_data.get("image_url"),
                     )
                     session.add(new_card)

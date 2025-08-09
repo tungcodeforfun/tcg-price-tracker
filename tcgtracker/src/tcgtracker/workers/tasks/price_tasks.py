@@ -10,9 +10,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from tcgtracker.database.connection import get_db_manager
-from tcgtracker.database.models import Card, PriceHistory
-from tcgtracker.integrations.tcgplayer import TCGPlayerClient
+from tcgtracker.database.models import Card, DataSourceEnum, PriceHistory
+from tcgtracker.integrations.justtcg import JustTCGClient
+from tcgtracker.integrations.pricecharting import PriceChartingClient
 from tcgtracker.redis_manager import get_redis_manager
+from tcgtracker.utils.exceptions import (
+    AuthenticationException,
+    NetworkException,
+    PriceValidationException,
+    RateLimitException,
+)
 from tcgtracker.workers.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
@@ -26,16 +33,30 @@ class PriceUpdateTask(Task):
     
     def __init__(self):
         super().__init__()
-        self._tcgplayer_client = None
+        self._justtcg_client = None
+        self._pricecharting_client = None
     
     @property
-    def tcgplayer_client(self):
-        """Lazy initialization of TCGPlayer client."""
-        if self._tcgplayer_client is None:
+    def justtcg_client(self):
+        """Lazy initialization of JustTCG client."""
+        if self._justtcg_client is None:
             from tcgtracker.config import get_settings
             settings = get_settings()
-            self._tcgplayer_client = TCGPlayerClient(settings.external_apis)
-        return self._tcgplayer_client
+            self._justtcg_client = JustTCGClient(
+                api_key=settings.external_apis.justtcg_api_key
+            )
+        return self._justtcg_client
+    
+    @property
+    def pricecharting_client(self):
+        """Lazy initialization of PriceCharting client."""
+        if self._pricecharting_client is None:
+            from tcgtracker.config import get_settings
+            settings = get_settings()
+            self._pricecharting_client = PriceChartingClient(
+                api_key=settings.external_apis.pricecharting_api_key
+            )
+        return self._pricecharting_client
 
 
 @celery_app.task(base=PriceUpdateTask, bind=True, name="update_card_price")
@@ -76,26 +97,103 @@ async def _update_card_price_async(task: PriceUpdateTask, card_id: int) -> dict:
             logger.error(f"Card {card_id} not found")
             return {"error": f"Card {card_id} not found"}
         
+        price_data = None
+        data_source = None
+        
         try:
-            # Fetch price from TCGPlayer
-            price_data = await task.tcgplayer_client.get_card_price(
-                card.tcgplayer_id
+            # Try PriceCharting first (primary source)
+            logger.info(f"Attempting to fetch price from PriceCharting for card {card_id}")
+            price_data = await task.pricecharting_client.get_card_price(
+                card_identifier=card.name if card.name else str(card.id)
             )
             
-            if not price_data:
-                logger.warning(f"No price data found for card {card_id}")
-                return {"warning": f"No price data for card {card_id}"}
+            if price_data:
+                data_source = DataSourceEnum.PRICECHARTING
+                # Transform PriceCharting data format
+                transformed_data = {
+                    "market_price": price_data.get("complete_price", price_data.get("market_price", 0)),
+                    "low_price": price_data.get("loose_price", price_data.get("low_price", 0)),
+                    "high_price": price_data.get("new_price", price_data.get("high_price", 0)),
+                    "mid_price": price_data.get("market_price", price_data.get("mid_price", 0)),
+                }
+                
+                # Validate prices
+                for key, value in transformed_data.items():
+                    if value and (value < 0 or value > 100000):
+                        raise PriceValidationException(
+                            f"Invalid price value for {key}: ${value}",
+                            price=value
+                        )
+                
+                price_data = transformed_data
+                logger.info(f"Successfully fetched price from PriceCharting for card {card_id}")
             
+        except RateLimitException as e:
+            logger.warning(f"PriceCharting rate limit exceeded for card {card_id}: {e}")
+            # Don't fallback for rate limits - wait and retry later
+            if e.retry_after:
+                raise  # Re-raise to trigger Celery retry with delay
+        except AuthenticationException as e:
+            logger.error(f"PriceCharting authentication failed: {e}")
+            # Authentication issues should not fallback
+            raise
+        except PriceValidationException as e:
+            logger.error(f"Invalid price data from PriceCharting for card {card_id}: {e}")
+            # Invalid data should trigger fallback
+        except NetworkException as e:
+            logger.warning(f"Network issue with PriceCharting for card {card_id}: {e}")
+            # Network issues should trigger fallback
+        except Exception as e:
+            logger.warning(f"Unexpected PriceCharting error for card {card_id}: {e}")
+            
+        # Fallback to JustTCG if PriceCharting fails
+        if not price_data:
+            try:
+                logger.info(f"Falling back to JustTCG for card {card_id}")
+                # Determine game type from card's tcg_type
+                game = "pokemon" if card.tcg_type.value == "POKEMON" else "onepiece"
+                price_data = await task.justtcg_client.get_card_price(
+                    card_identifier=card.name if card.name else str(card.id),
+                    game=game
+                )
+                
+                if price_data:
+                    data_source = DataSourceEnum.JUSTTCG
+                    
+                    # Validate JustTCG prices too
+                    for key in ["market_price", "low_price", "high_price", "mid_price"]:
+                        value = price_data.get(key, 0)
+                        if value and (value < 0 or value > 100000):
+                            raise PriceValidationException(
+                                f"Invalid price value from JustTCG for {key}: ${value}",
+                                price=value
+                            )
+                    
+                    logger.info(f"Successfully fetched price from JustTCG for card {card_id}")
+                    
+            except RateLimitException as e:
+                logger.error(f"JustTCG rate limit exceeded for card {card_id}: {e}")
+                raise  # Re-raise for Celery retry
+            except PriceValidationException as e:
+                logger.error(f"Invalid price data from JustTCG for card {card_id}: {e}")
+                # Both sources failed with invalid data
+            except Exception as e:
+                logger.error(f"JustTCG also failed for card {card_id}: {e}")
+        
+        if not price_data:
+            logger.warning(f"No price data found from any source for card {card_id}")
+            return {"warning": f"No price data available for card {card_id}"}
+        
+        try:
             # Create price history entry
             price_history = PriceHistory(
                 card_id=card.id,
-                source="tcgplayer",
+                source=data_source,
                 market_price=price_data.get("market_price"),
-                low_price=price_data.get("low_price"),
-                mid_price=price_data.get("mid_price"),
-                high_price=price_data.get("high_price"),
-                direct_low_price=price_data.get("direct_low_price"),
-                fetched_at=datetime.utcnow(),
+                price_low=price_data.get("low_price", price_data.get("low_price")),
+                price_high=price_data.get("high_price", price_data.get("high_price")),
+                price_avg=price_data.get("mid_price", price_data.get("mid_price")),
+                timestamp=datetime.utcnow(),
             )
             
             session.add(price_history)

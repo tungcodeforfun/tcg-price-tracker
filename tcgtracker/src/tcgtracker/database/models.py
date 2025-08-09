@@ -65,6 +65,8 @@ class DataSourceEnum(enum.Enum):
     EBAY = "ebay"
     CARDMARKET = "cardmarket"
     MANUAL = "manual"
+    JUSTTCG = "justtcg"
+    PRICECHARTING = "pricecharting"
 
 
 class TimestampMixin:
@@ -156,7 +158,9 @@ class Card(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
-    tcgplayer_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True)
+    # Deprecated: Use external_id instead for all external systems
+    tcgplayer_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True)  # TODO: Remove in future migration
+    # Unified external ID field for all pricing sources (TCGPlayer, PriceCharting, JustTCG, etc.)
     external_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

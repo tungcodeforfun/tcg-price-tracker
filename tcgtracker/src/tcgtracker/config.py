@@ -111,16 +111,10 @@ class CelerySettings(BaseSettings):
 class ExternalAPISettings(BaseSettings):
     """External API configuration."""
 
-    # TCGPlayer API
-    tcgplayer_client_id: str = Field(default="", description="TCGPlayer Client ID")
-    tcgplayer_client_secret: str = Field(
-        default="", description="TCGPlayer Client Secret"
-    )
-    tcgplayer_auth_code: str = Field(
-        default="", description="TCGPlayer Authorization Code"
-    )
-    tcgplayer_base_url: str = Field(
-        default="https://api.tcgplayer.com", description="TCGPlayer API base URL"
+    # JustTCG API
+    justtcg_api_key: str = Field(default="", description="JustTCG API Key")
+    justtcg_base_url: str = Field(
+        default="https://api.justtcg.com/v1", description="JustTCG API base URL"
     )
 
     # eBay API
@@ -130,11 +124,20 @@ class ExternalAPISettings(BaseSettings):
         default="https://api.ebay.com", description="eBay API base URL"
     )
 
+    # PriceCharting API
+    pricecharting_api_key: str = Field(default="", description="PriceCharting API Key")
+    pricecharting_base_url: str = Field(
+        default="https://www.pricecharting.com/api", description="PriceCharting API base URL"
+    )
+
     # Rate limiting
-    tcgplayer_rate_limit: int = Field(
-        default=300, description="TCGPlayer requests per minute"
+    justtcg_rate_limit: int = Field(
+        default=4, description="JustTCG requests per minute (free tier: 100/day)"
     )
     ebay_rate_limit: int = Field(default=1000, description="eBay requests per hour")
+    pricecharting_rate_limit: int = Field(
+        default=60, description="PriceCharting requests per minute"
+    )
 
     class Config:
         env_prefix = "API_"

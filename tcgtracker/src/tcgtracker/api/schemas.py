@@ -34,6 +34,8 @@ class PriceSource(str, Enum):
     TCGPLAYER = "tcgplayer"
     EBAY = "ebay"
     CARDMARKET = "cardmarket"
+    JUSTTCG = "justtcg"
+    PRICECHARTING = "pricecharting"
 
 
 # User schemas
