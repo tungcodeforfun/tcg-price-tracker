@@ -92,7 +92,6 @@ class MigrationsManager:
             engine = create_engine(
                 self.settings.database.url,
                 poolclass=NullPool,  # No connection pooling for one-off operations
-                connect_args={"connect_timeout": 10},
             )
 
             try:
@@ -144,6 +143,12 @@ async def init_database() -> None:
             migrations_manager.upgrade_database("head")
 
         logger.info("Database initialization completed")
+    except FileNotFoundError as e:
+        logger.error(f"Alembic configuration not found: {e}")
+        raise ConnectionError("Migration configuration missing. Please ensure alembic.ini exists.")
+    except PermissionError as e:
+        logger.error(f"Database permission error: {e}")
+        raise ConnectionError("Insufficient database permissions for migration operations.")
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise

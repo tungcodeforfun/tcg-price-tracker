@@ -23,7 +23,7 @@ logger = structlog.get_logger(__name__)
 
 def run_async(coro):
     """Run async function with proper event loop handling.
-    
+
     Uses nest_asyncio to handle nested event loops cleanly,
     avoiding thread-based workarounds.
     """
