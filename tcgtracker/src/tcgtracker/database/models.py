@@ -92,6 +92,9 @@ class User(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False, index=True
     )
+    username: Mapped[str] = mapped_column(
+        String(50), unique=True, nullable=False, index=True
+    )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     first_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
@@ -103,9 +106,12 @@ class User(Base, TimestampMixin):
 
     # Relationships
     alerts: Mapped[List["UserAlert"]] = relationship("UserAlert", back_populates="user")
+    collection_items: Mapped[List["CollectionItem"]] = relationship(
+        "CollectionItem", back_populates="user"
+    )
 
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, email='{self.email}')>"
+        return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"
 
 
 class TCGSet(Base, TimestampMixin):
@@ -145,12 +151,13 @@ class Card(Base, TimestampMixin):
     tcg_type: Mapped[TCGTypeEnum] = mapped_column(
         Enum(TCGTypeEnum), nullable=False, index=True
     )
-    set_identifier: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    set_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     card_number: Mapped[str] = mapped_column(String(20), nullable=False)
-    card_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
     tcgplayer_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Foreign Keys
@@ -166,29 +173,32 @@ class Card(Base, TimestampMixin):
     user_alerts: Mapped[List["UserAlert"]] = relationship(
         "UserAlert", back_populates="card"
     )
+    collection_items: Mapped[List["CollectionItem"]] = relationship(
+        "CollectionItem", back_populates="card"
+    )
 
     # Constraints and Indexes
     __table_args__ = (
         UniqueConstraint(
-            "tcg_type", "set_identifier", "card_number", name="uq_cards_type_set_number"
+            "tcg_type", "set_name", "card_number", name="uq_cards_type_set_number"
         ),
-        Index("idx_cards_tcg_set", "tcg_type", "set_identifier"),
+        Index("idx_cards_tcg_set", "tcg_type", "set_name"),
         Index("idx_cards_popularity", "search_count", postgresql_using="btree"),
         Index(
             "idx_cards_name_search",
-            "card_name",
+            "name",
             postgresql_using="gin",
-            postgresql_ops={"card_name": "gin_trgm_ops"},
+            postgresql_ops={"name": "gin_trgm_ops"},
         ),
     )
 
     @hybrid_property
     def full_name(self) -> str:
         """Get the full card name including set information."""
-        return f"{self.card_name} ({self.set_identifier} {self.card_number})"
+        return f"{self.name} ({self.set_name} {self.card_number})"
 
     def __repr__(self) -> str:
-        return f"<Card(id={self.id}, name='{self.card_name}', set='{self.set_identifier}')>"
+        return f"<Card(id={self.id}, name='{self.name}', set='{self.set_name}')>"
 
 
 class PriceHistory(Base):
@@ -244,6 +254,45 @@ class PriceHistory(Base):
 
     def __repr__(self) -> str:
         return f"<PriceHistory(id={self.id}, card_id={self.card_id}, market_price={self.market_price})>"
+
+
+class CollectionItem(Base, TimestampMixin):
+    """Collection item model for user's card collections."""
+
+    __tablename__ = "collection_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    card_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    condition: Mapped[CardConditionEnum] = mapped_column(
+        Enum(CardConditionEnum), default=CardConditionEnum.NEAR_MINT, nullable=False
+    )
+    purchase_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="collection_items")
+    card: Mapped["Card"] = relationship("Card", back_populates="collection_items")
+
+    # Constraints and Indexes
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "card_id",
+            "condition",
+            name="uq_collection_items_user_card_condition",
+        ),
+        Index("idx_collection_items_user", "user_id"),
+        Index("idx_collection_items_card", "card_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<CollectionItem(id={self.id}, user_id={self.user_id}, card_id={self.card_id}, quantity={self.quantity})>"
 
 
 class UserAlert(Base, TimestampMixin):
