@@ -1,12 +1,14 @@
 """Database migrations management utilities."""
 
 import asyncio
+import re
 from pathlib import Path
 from typing import Optional
 
 import structlog
 from alembic import command
 from alembic.config import Config
+from sqlalchemy.pool import NullPool
 
 from tcgtracker.config import get_settings
 from tcgtracker.database.connection import get_db_manager
@@ -43,8 +45,11 @@ class MigrationsManager:
         if not message or not message.strip():
             raise ValueError("Migration message cannot be empty")
 
-        # Sanitize message to prevent issues with special characters
-        sanitized_message = message.strip().replace('"', "'").replace("\\", "/")
+        # Sanitize message to prevent SQL injection and command injection
+        # Allow alphanumeric, spaces, hyphens, underscores, periods (for versions), and colons (for namespacing)
+        sanitized_message = re.sub(r"[^a-zA-Z0-9\s\-_:.]", "", message.strip())
+        # Limit message length to prevent buffer overflow
+        sanitized_message = sanitized_message[:100]
 
         try:
             logger.info(f"Creating migration: {sanitized_message}")
@@ -76,30 +81,26 @@ class MigrationsManager:
             logger.error(f"Failed to downgrade database: {e}")
             raise
 
-    async def get_current_revision(self) -> Optional[str]:
+    def get_current_revision(self) -> Optional[str]:
         """Get current database revision."""
         try:
             from alembic.runtime.migration import MigrationContext
+            from sqlalchemy import create_engine
 
-            db_manager = get_db_manager()
+            # Create a dedicated engine with restricted pooling for migration context
+            # This prevents connection exposure and limits resource usage
+            engine = create_engine(
+                self.settings.database.url,
+                poolclass=NullPool,  # No connection pooling for one-off operations
+                connect_args={"connect_timeout": 10},
+            )
 
-            async def _get_revision():
-                try:
-                    async with db_manager.get_write_session() as session:
-                        async with session.begin():
-                            connection = await session.connection()
-                            context = MigrationContext.configure(
-                                connection.sync_connection
-                            )
-                            return context.get_current_revision()
-                except Exception as e:
-                    logger.error(f"Database error while getting revision: {e}")
-                    raise
-
-            return await asyncio.wait_for(_get_revision(), timeout=30.0)
-        except asyncio.TimeoutError:
-            logger.error("Timeout while getting current revision")
-            return None
+            try:
+                with engine.connect() as connection:
+                    context = MigrationContext.configure(connection)
+                    return context.get_current_revision()
+            finally:
+                engine.dispose()
         except Exception as e:
             logger.warning(f"Failed to get current revision: {e}")
             return None
@@ -132,7 +133,7 @@ async def init_database() -> None:
 
     try:
         # Check if this is a fresh database
-        current_revision = await migrations_manager.get_current_revision()
+        current_revision = migrations_manager.get_current_revision()
 
         if current_revision is None:
             logger.info("Fresh database detected, running migrations")

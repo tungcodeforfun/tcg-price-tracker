@@ -38,9 +38,11 @@ def configure_logging() -> None:
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),
         structlog.dev.set_exc_info,
-        structlog.processors.JSONRenderer()
-        if settings.app.log_format == "json"
-        else structlog.dev.ConsoleRenderer(),
+        (
+            structlog.processors.JSONRenderer()
+            if settings.app.log_format == "json"
+            else structlog.dev.ConsoleRenderer()
+        ),
     ]
 
     structlog.configure(

@@ -4,8 +4,12 @@ import asyncio
 from typing import Optional
 
 import click
+import nest_asyncio
 import structlog
 from sqlalchemy import text
+
+# Allow nested event loops for better async handling
+nest_asyncio.apply()
 
 from tcgtracker.database.connection import get_db_manager, create_tables, drop_tables
 from tcgtracker.database.migrations_manager import (
@@ -15,6 +19,26 @@ from tcgtracker.database.migrations_manager import (
 )
 
 logger = structlog.get_logger(__name__)
+
+
+def run_async(coro):
+    """Run async function with proper event loop handling.
+    
+    Uses nest_asyncio to handle nested event loops cleanly,
+    avoiding thread-based workarounds.
+    """
+    try:
+        # Get existing loop if available
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Use nest_asyncio to handle nested loops
+            return loop.run_until_complete(coro)
+        else:
+            # No loop running, use standard asyncio.run
+            return asyncio.run(coro)
+    except RuntimeError:
+        # No loop exists, create new one
+        return asyncio.run(coro)
 
 
 @click.group()
@@ -113,7 +137,7 @@ def history():
 def init():
     """Initialize database with all tables and migrations."""
     try:
-        asyncio.run(init_database())
+        run_async(init_database())
         click.echo("Database initialized successfully")
     except FileNotFoundError as e:
         click.echo(f"Migration configuration not found: {e}", err=True)
@@ -138,7 +162,7 @@ def init():
 def reset():
     """Reset database by dropping and recreating all tables."""
     try:
-        asyncio.run(reset_database())
+        run_async(reset_database())
         click.echo("Database reset successfully")
     except Exception as e:
         click.echo(f"Failed to reset database: {e}", err=True)
@@ -149,7 +173,7 @@ def reset():
 def create_tables():
     """Create all database tables without migrations."""
     try:
-        asyncio.run(create_tables())
+        run_async(create_tables())
         click.echo("Database tables created successfully")
     except Exception as e:
         click.echo(f"Failed to create tables: {e}", err=True)
@@ -161,7 +185,7 @@ def create_tables():
 def drop_tables():
     """Drop all database tables."""
     try:
-        asyncio.run(drop_tables())
+        run_async(drop_tables())
         click.echo("Database tables dropped successfully")
     except Exception as e:
         click.echo(f"Failed to drop tables: {e}", err=True)
@@ -172,7 +196,7 @@ def drop_tables():
 def test_connection():
     """Test database connection."""
     try:
-        asyncio.run(_test_connection_async())
+        run_async(_test_connection_async())
         click.echo("Database connection successful!")
     except ConnectionError as e:
         click.echo(f"Database connection failed: {e}", err=True)

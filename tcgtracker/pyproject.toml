@@ -24,6 +24,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "structlog>=23.2.0",
     "click>=8.1.0",
+    "nest-asyncio>=1.5.8",
 ]
 
 [project.optional-dependencies]
