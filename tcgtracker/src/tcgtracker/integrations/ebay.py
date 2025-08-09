@@ -23,6 +23,7 @@ class eBayClient(BaseAPIClient):
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
         base_url: Optional[str] = None,
+        environment: Optional[str] = None,
     ) -> None:
         """
         Initialize eBay API client.
@@ -31,13 +32,25 @@ class eBayClient(BaseAPIClient):
             client_id: eBay client ID (App ID)
             client_secret: eBay client secret
             base_url: API base URL
+            environment: Environment to use ("sandbox" or "production")
         """
         settings = get_settings()
 
-        # Use provided values or fall back to config
-        self.client_id = client_id or settings.external_apis.ebay_client_id
-        self.client_secret = client_secret or settings.external_apis.ebay_client_secret
-        api_base_url = base_url or settings.external_apis.ebay_base_url
+        # Determine environment
+        self.environment = environment or settings.external_apis.ebay_environment
+        is_sandbox = self.environment.lower() == "sandbox"
+
+        # Use appropriate credentials based on environment
+        if is_sandbox:
+            # Use sandbox credentials
+            self.client_id = client_id or settings.external_apis.ebay_sandbox_client_id
+            self.client_secret = client_secret or settings.external_apis.ebay_sandbox_client_secret
+            api_base_url = base_url or settings.external_apis.ebay_sandbox_base_url
+        else:
+            # Use production credentials
+            self.client_id = client_id or settings.external_apis.ebay_client_id
+            self.client_secret = client_secret or settings.external_apis.ebay_client_secret
+            api_base_url = base_url or settings.external_apis.ebay_base_url
 
         if not self.client_id or not self.client_secret:
             raise ValueError("eBay client ID and secret are required")
@@ -62,6 +75,7 @@ class eBayClient(BaseAPIClient):
 
         logger.info(
             "eBay client initialized",
+            environment=self.environment,
             client_id=self.client_id[:8] + "..." if self.client_id else None,
             base_url=api_base_url,
         )
@@ -93,8 +107,11 @@ class eBayClient(BaseAPIClient):
         }
 
         try:
-            # Use a different base URL for OAuth
-            oauth_url = "https://api.ebay.com/identity/v1/oauth2/token"
+            # Use appropriate OAuth URL based on environment
+            if self.environment.lower() == "sandbox":
+                oauth_url = "https://api.sandbox.ebay.com/identity/v1/oauth2/token"
+            else:
+                oauth_url = "https://api.ebay.com/identity/v1/oauth2/token"
 
             response = await self._client.post(
                 oauth_url,

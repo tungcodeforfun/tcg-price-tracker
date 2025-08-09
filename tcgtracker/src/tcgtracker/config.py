@@ -118,10 +118,21 @@ class ExternalAPISettings(BaseSettings):
     )
 
     # eBay API
-    ebay_client_id: str = Field(default="", description="eBay Client ID")
-    ebay_client_secret: str = Field(default="", description="eBay Client Secret")
+    ebay_environment: str = Field(
+        default="production", description="eBay environment (sandbox or production)"
+    )
+    # Production credentials
+    ebay_client_id: str = Field(default="", description="eBay Production Client ID")
+    ebay_client_secret: str = Field(default="", description="eBay Production Client Secret")
+    # Sandbox credentials
+    ebay_sandbox_client_id: str = Field(default="", description="eBay Sandbox Client ID")
+    ebay_sandbox_client_secret: str = Field(default="", description="eBay Sandbox Client Secret")
+    # Base URLs (automatically set based on environment)
     ebay_base_url: str = Field(
         default="https://api.ebay.com", description="eBay API base URL"
+    )
+    ebay_sandbox_base_url: str = Field(
+        default="https://api.sandbox.ebay.com", description="eBay Sandbox API base URL"
     )
 
     # PriceCharting API
