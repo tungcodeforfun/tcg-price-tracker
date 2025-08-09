@@ -66,7 +66,7 @@ jobs:
         output-file: sbom.spdx.json
 
     - name: Upload SBOM
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: sbom
         path: sbom.spdx.json
@@ -176,7 +176,7 @@ jobs:
         echo "Digest: ${{ needs.build-and-push.outputs.image-digest }}"
 
     - name: Upload deployment artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: staging-deployment
         path: deployment/
