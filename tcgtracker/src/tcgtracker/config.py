@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import Any, Dict, Optional
 from urllib.parse import quote_plus
 
-from pydantic import Field, validator, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -111,30 +111,52 @@ class CelerySettings(BaseSettings):
 class ExternalAPISettings(BaseSettings):
     """External API configuration."""
 
-    # TCGPlayer API
-    tcgplayer_client_id: str = Field(default="", description="TCGPlayer Client ID")
-    tcgplayer_client_secret: str = Field(
-        default="", description="TCGPlayer Client Secret"
-    )
-    tcgplayer_auth_code: str = Field(
-        default="", description="TCGPlayer Authorization Code"
-    )
-    tcgplayer_base_url: str = Field(
-        default="https://api.tcgplayer.com", description="TCGPlayer API base URL"
+    # JustTCG API
+    justtcg_api_key: str = Field(default="", description="JustTCG API Key")
+    justtcg_base_url: str = Field(
+        default="https://api.justtcg.com/v1", description="JustTCG API base URL"
     )
 
     # eBay API
-    ebay_client_id: str = Field(default="", description="eBay Client ID")
-    ebay_client_secret: str = Field(default="", description="eBay Client Secret")
+    ebay_environment: str = Field(
+        default="production", description="eBay environment (sandbox or production)"
+    )
+    
+    @field_validator("ebay_environment")
+    @classmethod
+    def validate_ebay_environment(cls, v: str) -> str:
+        """Validate that eBay environment is either sandbox or production."""
+        if v.lower() not in ["sandbox", "production"]:
+            raise ValueError('eBay environment must be "sandbox" or "production"')
+        return v.lower()
+    # Production credentials
+    ebay_client_id: str = Field(default="", description="eBay Production Client ID")
+    ebay_client_secret: str = Field(default="", description="eBay Production Client Secret")
+    # Sandbox credentials
+    ebay_sandbox_client_id: str = Field(default="", description="eBay Sandbox Client ID")
+    ebay_sandbox_client_secret: str = Field(default="", description="eBay Sandbox Client Secret")
+    # Base URLs (automatically set based on environment)
     ebay_base_url: str = Field(
         default="https://api.ebay.com", description="eBay API base URL"
     )
+    ebay_sandbox_base_url: str = Field(
+        default="https://api.sandbox.ebay.com", description="eBay Sandbox API base URL"
+    )
+
+    # PriceCharting API
+    pricecharting_api_key: str = Field(default="", description="PriceCharting API Key")
+    pricecharting_base_url: str = Field(
+        default="https://www.pricecharting.com/api", description="PriceCharting API base URL"
+    )
 
     # Rate limiting
-    tcgplayer_rate_limit: int = Field(
-        default=300, description="TCGPlayer requests per minute"
+    justtcg_rate_limit: int = Field(
+        default=30, description="JustTCG requests per minute (API key: ~40/min from 1000/day quota, free tier: ~4/hour from 100/day quota)"
     )
     ebay_rate_limit: int = Field(default=1000, description="eBay requests per hour")
+    pricecharting_rate_limit: int = Field(
+        default=60, description="PriceCharting requests per minute"
+    )
 
     class Config:
         env_prefix = "API_"

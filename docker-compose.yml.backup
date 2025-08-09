@@ -9,30 +9,25 @@ services:
       target: development
     ports:
       - "8000:8000"
-    env_file:
-      - .env
     environment:
-      - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_RELOAD=${APP_RELOAD:-true}
-      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-DEBUG}
+      - APP_DEBUG=true
+      - APP_RELOAD=true
+      - APP_LOG_LEVEL=DEBUG
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-tcgtracker}
-      - DB_USER=${DB_USER:-tcgtracker}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=tcgtracker
+      - DB_USER=tcgtracker
+      - DB_PASSWORD=tcgtracker_dev_password
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
-      - SECURITY_SECRET_KEY=${SECURITY_SECRET_KEY}
-      - API_JUSTTCG_API_KEY=${API_JUSTTCG_API_KEY}
-      - API_PRICECHARTING_API_KEY=${API_PRICECHARTING_API_KEY}
-      - API_PRICECHARTING_RATE_LIMIT=${API_PRICECHARTING_RATE_LIMIT:-60}
-      - API_EBAY_ENVIRONMENT=${API_EBAY_ENVIRONMENT:-sandbox}
-      - API_EBAY_CLIENT_ID=${API_EBAY_CLIENT_ID}
-      - API_EBAY_CLIENT_SECRET=${API_EBAY_CLIENT_SECRET}
-      - API_EBAY_SANDBOX_CLIENT_ID=${API_EBAY_SANDBOX_CLIENT_ID}
-      - API_EBAY_SANDBOX_CLIENT_SECRET=${API_EBAY_SANDBOX_CLIENT_SECRET}
+      - SECURITY_SECRET_KEY=dev_secret_key_change_in_production_must_be_32_chars_long
+      - API_TCGPLAYER_CLIENT_ID=your_tcgplayer_client_id
+      - API_TCGPLAYER_CLIENT_SECRET=your_tcgplayer_client_secret
+      - API_TCGPLAYER_AUTH_CODE=your_tcgplayer_auth_code
+      - API_EBAY_CLIENT_ID=your_ebay_client_id
+      - API_EBAY_CLIENT_SECRET=your_ebay_client_secret
     volumes:
       - ./tcgtracker/src:/app/src
       - ./tcgtracker/tests:/app/tests
@@ -47,9 +42,9 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=${DB_NAME:-tcgtracker}
-      - POSTGRES_USER=${DB_USER:-tcgtracker}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=tcgtracker
+      - POSTGRES_USER=tcgtracker
+      - POSTGRES_PASSWORD=tcgtracker_dev_password
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
     ports:
       - "5432:5432"
@@ -64,9 +59,9 @@ services:
   postgres-replica:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=${DB_NAME:-tcgtracker}
-      - POSTGRES_USER=${DB_USER:-tcgtracker}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=tcgtracker
+      - POSTGRES_USER=tcgtracker
+      - POSTGRES_PASSWORD=tcgtracker_dev_password
       - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
     ports:
       - "5433:5432"
@@ -97,29 +92,24 @@ services:
       dockerfile: Dockerfile
       target: development
     command: celery -A tcgtracker.workers.celery_app worker --loglevel=info --concurrency=4
-    env_file:
-      - .env
     environment:
-      - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-DEBUG}
+      - APP_DEBUG=true
+      - APP_LOG_LEVEL=DEBUG
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-tcgtracker}
-      - DB_USER=${DB_USER:-tcgtracker}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=tcgtracker
+      - DB_USER=tcgtracker
+      - DB_PASSWORD=tcgtracker_dev_password
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
-      - SECURITY_SECRET_KEY=${SECURITY_SECRET_KEY}
-      - API_JUSTTCG_API_KEY=${API_JUSTTCG_API_KEY}
-      - API_PRICECHARTING_API_KEY=${API_PRICECHARTING_API_KEY}
-      - API_PRICECHARTING_RATE_LIMIT=${API_PRICECHARTING_RATE_LIMIT:-60}
-      - API_EBAY_ENVIRONMENT=${API_EBAY_ENVIRONMENT:-sandbox}
-      - API_EBAY_CLIENT_ID=${API_EBAY_CLIENT_ID}
-      - API_EBAY_CLIENT_SECRET=${API_EBAY_CLIENT_SECRET}
-      - API_EBAY_SANDBOX_CLIENT_ID=${API_EBAY_SANDBOX_CLIENT_ID}
-      - API_EBAY_SANDBOX_CLIENT_SECRET=${API_EBAY_SANDBOX_CLIENT_SECRET}
+      - SECURITY_SECRET_KEY=dev_secret_key_change_in_production_must_be_32_chars_long
+      - API_TCGPLAYER_CLIENT_ID=your_tcgplayer_client_id
+      - API_TCGPLAYER_CLIENT_SECRET=your_tcgplayer_client_secret
+      - API_TCGPLAYER_AUTH_CODE=your_tcgplayer_auth_code
+      - API_EBAY_CLIENT_ID=your_ebay_client_id
+      - API_EBAY_CLIENT_SECRET=your_ebay_client_secret
     volumes:
       - ./tcgtracker/src:/app/src
     depends_on:
@@ -138,29 +128,24 @@ services:
       dockerfile: Dockerfile
       target: development
     command: celery -A tcgtracker.workers.celery_app beat --loglevel=info
-    env_file:
-      - .env
     environment:
-      - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-DEBUG}
+      - APP_DEBUG=true
+      - APP_LOG_LEVEL=DEBUG
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-tcgtracker}
-      - DB_USER=${DB_USER:-tcgtracker}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=tcgtracker
+      - DB_USER=tcgtracker
+      - DB_PASSWORD=tcgtracker_dev_password
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CELERY_BROKER_URL=redis://redis:6379/1
       - CELERY_RESULT_BACKEND=redis://redis:6379/2
-      - SECURITY_SECRET_KEY=${SECURITY_SECRET_KEY}
-      - API_JUSTTCG_API_KEY=${API_JUSTTCG_API_KEY}
-      - API_PRICECHARTING_API_KEY=${API_PRICECHARTING_API_KEY}
-      - API_PRICECHARTING_RATE_LIMIT=${API_PRICECHARTING_RATE_LIMIT:-60}
-      - API_EBAY_ENVIRONMENT=${API_EBAY_ENVIRONMENT:-sandbox}
-      - API_EBAY_CLIENT_ID=${API_EBAY_CLIENT_ID}
-      - API_EBAY_CLIENT_SECRET=${API_EBAY_CLIENT_SECRET}
-      - API_EBAY_SANDBOX_CLIENT_ID=${API_EBAY_SANDBOX_CLIENT_ID}
-      - API_EBAY_SANDBOX_CLIENT_SECRET=${API_EBAY_SANDBOX_CLIENT_SECRET}
+      - SECURITY_SECRET_KEY=dev_secret_key_change_in_production_must_be_32_chars_long
+      - API_TCGPLAYER_CLIENT_ID=your_tcgplayer_client_id
+      - API_TCGPLAYER_CLIENT_SECRET=your_tcgplayer_client_secret
+      - API_TCGPLAYER_AUTH_CODE=your_tcgplayer_auth_code
+      - API_EBAY_CLIENT_ID=your_ebay_client_id
+      - API_EBAY_CLIENT_SECRET=your_ebay_client_secret
     volumes:
       - ./tcgtracker/src:/app/src
     depends_on:
@@ -191,8 +176,8 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     environment:
-      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@tcgtracker.dev}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin}
+      - PGADMIN_DEFAULT_EMAIL=admin@tcgtracker.dev
+      - PGADMIN_DEFAULT_PASSWORD=admin
       - PGADMIN_CONFIG_SERVER_MODE=False
     ports:
       - "8080:80"

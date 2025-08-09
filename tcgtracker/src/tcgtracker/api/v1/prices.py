@@ -28,8 +28,11 @@ from tcgtracker.database.models import (
     UserAlert,
     User,
     CardConditionEnum,
+    DataSourceEnum,
 )
 from tcgtracker.integrations.ebay import eBayClient
+from tcgtracker.integrations.justtcg import JustTCGClient
+from tcgtracker.integrations.pricecharting import PriceChartingClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
 
 router = APIRouter()
@@ -42,8 +45,39 @@ async def fetch_and_update_price(
 ) -> Optional[PriceHistory]:
     """Fetch price from external API and update database."""
     price_data = None
+    low_price = None
+    high_price = None
+    avg_price = None
 
-    if source == PriceSource.TCGPLAYER and card.external_id:
+    if source == PriceSource.PRICECHARTING:
+        # Fetch from PriceCharting
+        client = PriceChartingClient()
+        try:
+            result = await client.get_card_price(card.name)
+            if result:
+                # Transform PriceCharting data
+                price_data = result.get("complete_price", result.get("market_price", 0))
+                low_price = result.get("loose_price", result.get("low_price", 0))
+                high_price = result.get("new_price", result.get("high_price", 0))
+                avg_price = result.get("market_price", result.get("mid_price", 0))
+        except Exception as e:
+            logger.error("Error fetching PriceCharting price", exc_info=e)
+
+    elif source == PriceSource.JUSTTCG:
+        # Fetch from JustTCG
+        client = JustTCGClient()
+        try:
+            game = "pokemon" if card.tcg_type.value == "POKEMON" else "onepiece"
+            result = await client.get_card_price(card.name, game=game)
+            if result:
+                price_data = result.get("market_price", 0)
+                low_price = result.get("low_price", 0)
+                high_price = result.get("high_price", 0)
+                avg_price = result.get("mid_price", 0)
+        except Exception as e:
+            logger.error("Error fetching JustTCG price", exc_info=e)
+
+    elif source == PriceSource.TCGPLAYER and card.external_id:
         # Fetch from TCGPlayer
         client = TCGPlayerClient()
         async with client:
@@ -69,10 +103,22 @@ async def fetch_and_update_price(
                 logger.error("Error fetching eBay price", exc_info=e)
 
     if price_data:
+        # Map PriceSource enum to DataSourceEnum for database
+        source_mapping = {
+            PriceSource.PRICECHARTING: DataSourceEnum.PRICECHARTING,
+            PriceSource.JUSTTCG: DataSourceEnum.JUSTTCG,
+            PriceSource.TCGPLAYER: DataSourceEnum.TCGPLAYER,
+            PriceSource.EBAY: DataSourceEnum.EBAY,
+            PriceSource.CARDMARKET: DataSourceEnum.CARDMARKET,
+        }
+        
         new_price = PriceHistory(
             card_id=card.id,
-            source=source,
+            source=source_mapping.get(source, DataSourceEnum.MANUAL),
             market_price=Decimal(str(price_data)),
+            price_low=Decimal(str(low_price)) if low_price else None,
+            price_high=Decimal(str(high_price)) if high_price else None,
+            price_avg=Decimal(str(avg_price)) if avg_price else None,
             condition=CardConditionEnum.NEAR_MINT,
             timestamp=datetime.now(timezone.utc),
         )
@@ -218,7 +264,7 @@ async def get_price_history(
 @router.post("/update/{card_id}", response_model=PriceResponse)
 async def update_card_price(
     card_id: int,
-    source: PriceSource = Query(PriceSource.TCGPLAYER),
+    source: PriceSource = Query(PriceSource.PRICECHARTING),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
@@ -264,7 +310,7 @@ async def bulk_update_prices(
 
     updated_prices = []
     errors = []
-    source = update_request.source or PriceSource.TCGPLAYER
+    source = update_request.source or PriceSource.PRICECHARTING
 
     for card in cards:
         try:

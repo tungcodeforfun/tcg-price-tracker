@@ -10,8 +10,9 @@ from tcgtracker.workers.tasks.price_tasks import (
     update_card_price,
 )
 from tcgtracker.workers.tasks.sync_tasks import (
+    sync_card_data,
+    sync_pricecharting_data,
     sync_tcg_sets,
-    sync_tcgplayer_categories,
 )
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "check_price_alert",
     "check_all_price_alerts",
     # Sync tasks
+    "sync_card_data",
+    "sync_pricecharting_data",
     "sync_tcg_sets",
-    "sync_tcgplayer_categories",
 ]

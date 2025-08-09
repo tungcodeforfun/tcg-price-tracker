@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from tcgtracker.database.connection import get_db_manager
-from tcgtracker.database.models import Card, PriceAlert, PriceHistory, User
+from tcgtracker.database.models import Card, UserAlert, PriceHistory, User
 from tcgtracker.workers.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
@@ -44,12 +44,12 @@ async def _check_price_alert_async(alert_id: int) -> dict:
     async with db_manager.session() as session:
         # Get alert with related data
         result = await session.execute(
-            select(PriceAlert)
+            select(UserAlert)
             .options(
-                selectinload(PriceAlert.card),
-                selectinload(PriceAlert.user)
+                selectinload(UserAlert.card),
+                selectinload(UserAlert.user)
             )
-            .where(PriceAlert.id == alert_id)
+            .where(UserAlert.id == alert_id)
         )
         alert = result.scalar_one_or_none()
         
@@ -170,7 +170,7 @@ async def _check_all_price_alerts_async() -> dict:
     async with db_manager.session() as session:
         # Get all active alerts
         result = await session.execute(
-            select(PriceAlert).where(PriceAlert.is_active == True)
+            select(UserAlert).where(UserAlert.is_active == True)
         )
         alerts = result.scalars().all()
         

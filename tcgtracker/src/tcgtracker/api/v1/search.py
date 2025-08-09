@@ -16,8 +16,12 @@ from tcgtracker.api.schemas import (
 from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import Card, User
 from tcgtracker.integrations.ebay import eBayClient
+from tcgtracker.integrations.justtcg import JustTCGClient
+from tcgtracker.integrations.pricecharting import PriceChartingClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
+from tcgtracker.utils.exceptions import DataValidationException
 from tcgtracker.validation.sanitizers import sanitize_search_input
+from tcgtracker.validation.search_validators import SearchValidator
 
 router = APIRouter()
 
@@ -82,6 +86,129 @@ async def search_tcgplayer(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"TCGPlayer search failed: {str(e)}",
+        )
+
+
+@router.post("/pricecharting", response_model=List[SearchResult])
+async def search_pricecharting(
+    search_request: SearchRequest,
+    current_user: User = Depends(get_current_active_user),
+) -> List[SearchResult]:
+    """Search PriceCharting for cards."""
+    # Validate input
+    try:
+        validated_query = SearchValidator.validate_search_query(search_request.query)
+        validated_tcg_type = SearchValidator.validate_tcg_type(search_request.tcg_type)
+        validated_limit = SearchValidator.validate_limit(search_request.limit)
+    except DataValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid search parameters: {str(e)}"
+        )
+    
+    client = PriceChartingClient()
+
+    try:
+        # Determine which method to use based on TCG type
+        if validated_tcg_type == "pokemon":
+            products = await client.get_pokemon_products(
+                search_term=validated_query,
+                limit=validated_limit,
+            )
+        elif validated_tcg_type == "onepiece":
+            products = await client.get_one_piece_products(
+                search_term=validated_query,
+                limit=validated_limit,
+            )
+        else:
+            # Default to Pokemon if not specified
+            products = await client.get_pokemon_products(
+                search_term=validated_query,
+                limit=validated_limit,
+            )
+
+        if not products:
+            return []
+
+        # Format results
+        results = []
+        for product in products:
+            # Transform PriceCharting data to SearchResult
+            result = SearchResult(
+                external_id=str(product.get("pricecharting_id") or product.get("id", "")),
+                name=product.get("name", "Unknown"),
+                set_name=product.get("set_name", "Unknown Set"),
+                tcg_type=search_request.tcg_type or "pokemon",
+                price=product.get("complete_price") or product.get("market_price"),
+                image_url=product.get("image_url"),
+                source=PriceSource.PRICECHARTING,
+                listing_url=product.get("url"),
+            )
+            results.append(result)
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"PriceCharting search failed: {str(e)}",
+        )
+
+
+@router.post("/justtcg", response_model=List[SearchResult])
+async def search_justtcg(
+    search_request: SearchRequest,
+    current_user: User = Depends(get_current_active_user),
+) -> List[SearchResult]:
+    """Search JustTCG for cards."""
+    # Validate input
+    try:
+        validated_query = SearchValidator.validate_search_query(search_request.query)
+        validated_tcg_type = SearchValidator.validate_tcg_type(search_request.tcg_type)
+        validated_limit = SearchValidator.validate_limit(search_request.limit)
+    except DataValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid search parameters: {str(e)}"
+        )
+    
+    client = JustTCGClient()
+
+    try:
+        # Determine game type
+        game = "pokemon" if validated_tcg_type == "pokemon" else "onepiece"
+        
+        # Search JustTCG
+        products = await client.search_cards(
+            query=validated_query,
+            game=game,
+            limit=validated_limit,
+        )
+
+        if not products:
+            return []
+
+        # Format results
+        results = []
+        for product in products:
+            result = SearchResult(
+                external_id=str(product.get("id", "")),
+                name=product.get("name", "Unknown"),
+                set_name=product.get("set_name", "Unknown Set"),
+                tcg_type=search_request.tcg_type or "pokemon",
+                price=product.get("market_price"),
+                image_url=product.get("image_url"),
+                source=PriceSource.JUSTTCG,
+                listing_url=product.get("url"),
+            )
+            results.append(result)
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"JustTCG search failed: {str(e)}",
         )
 
 

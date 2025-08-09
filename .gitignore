@@ -72,4 +72,11 @@ node_modules/
 *.pem
 *.key
 *.crt
-secrets/
+secrets/.env.sandbox
+
+# Environment files with sensitive data
+.env.sandbox
+.env.production
+.env.staging
+.env.test
+*.env.*
