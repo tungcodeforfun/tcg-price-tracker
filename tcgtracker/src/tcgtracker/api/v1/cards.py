@@ -16,8 +16,8 @@ from tcgtracker.api.schemas import (
     CardUpdate,
     GameType,
 )
-from tcgtracker.database.connection import get_db_session
-from tcgtracker.database.models import Card, Price, User
+from tcgtracker.database.connection import get_session
+from tcgtracker.database.models import Card, PriceHistory, User
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ router = APIRouter()
 @router.post("/", response_model=CardResponse, status_code=status.HTTP_201_CREATED)
 async def create_card(
     card_data: CardCreate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> Card:
     """Create a new card."""
@@ -60,7 +60,7 @@ async def create_card(
 @router.get("/{card_id}", response_model=CardResponse)
 async def get_card(
     card_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> Card:
     """Get a specific card by ID."""
@@ -93,7 +93,7 @@ async def list_cards(
     search: Optional[str] = Query(None),
     limit: int = Query(20, le=100),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> List[Card]:
     """List cards with optional filters."""
@@ -137,7 +137,7 @@ async def list_cards(
 async def update_card(
     card_id: int,
     card_update: CardUpdate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> Card:
     """Update a card."""
@@ -164,7 +164,7 @@ async def update_card(
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_card(
     card_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> None:
     """Delete a card."""
@@ -184,7 +184,7 @@ async def delete_card(
 @router.post("/search", response_model=List[CardResponse])
 async def search_cards(
     search_params: CardSearchParams,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> List[Card]:
     """Advanced card search with multiple parameters."""

@@ -13,9 +13,9 @@ from tcgtracker.api.schemas import (
     SearchRequest,
     SearchResult,
 )
-from tcgtracker.database.connection import get_db_session
+from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import Card, User
-from tcgtracker.integrations.ebay import EbayClient
+from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
 
 router = APIRouter()
@@ -90,7 +90,7 @@ async def search_ebay(
     current_user: User = Depends(get_current_active_user),
 ) -> List[SearchResult]:
     """Search eBay for cards."""
-    client = EbayClient()
+    client = eBayClient()
     
     try:
         async with client:
@@ -160,7 +160,7 @@ async def search_all_sources(
 @router.post("/import", response_model=CardResponse, status_code=status.HTTP_201_CREATED)
 async def import_card_from_search(
     search_result: SearchResult,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> Card:
     """Import a card from search results into the database."""
@@ -194,7 +194,7 @@ async def import_card_from_search(
     
     # Add initial price if available
     if search_result.price:
-        from tcgtracker.database.models import Price
+        from tcgtracker.database.models import PriceHistory
         
         price = Price(
             card=new_card,
@@ -217,7 +217,7 @@ async def get_search_suggestions(
     query: str,
     game_type: str = None,
     limit: int = 10,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> List[str]:
     """Get search suggestions based on existing cards."""

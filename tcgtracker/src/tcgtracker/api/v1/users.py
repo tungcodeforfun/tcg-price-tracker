@@ -13,8 +13,8 @@ from tcgtracker.api.schemas import (
     UserResponse,
     UserUpdate,
 )
-from tcgtracker.database.connection import get_db_session
-from tcgtracker.database.models import Card, PriceAlert, User
+from tcgtracker.database.connection import get_session
+from tcgtracker.database.models import Card, UserAlert, User
 
 router = APIRouter()
 
@@ -30,7 +30,7 @@ async def get_current_user_profile(
 @router.put("/me", response_model=UserResponse)
 async def update_current_user(
     user_update: UserUpdate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> User:
     """Update current user's profile."""
@@ -69,9 +69,9 @@ async def update_current_user(
 @router.post("/alerts", response_model=PriceAlertResponse, status_code=status.HTTP_201_CREATED)
 async def create_price_alert(
     alert_data: PriceAlertCreate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> PriceAlert:
+) -> UserAlert:
     """Create a price alert for a card."""
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == alert_data.card_id))
@@ -86,12 +86,12 @@ async def create_price_alert(
     # Check if similar alert already exists
     from sqlalchemy import and_
     
-    existing_query = select(PriceAlert).where(
+    existing_query = select(UserAlert).where(
         and_(
-            PriceAlert.user_id == current_user.id,
-            PriceAlert.card_id == alert_data.card_id,
-            PriceAlert.alert_type == alert_data.alert_type,
-            PriceAlert.is_active == True,
+            UserAlert.user_id == current_user.id,
+            UserAlert.card_id == alert_data.card_id,
+            UserAlert.alert_type == alert_data.alert_type,
+            UserAlert.is_active == True,
         )
     )
     result = await db.execute(existing_query)
@@ -119,20 +119,20 @@ async def create_price_alert(
 @router.get("/alerts", response_model=List[PriceAlertResponse])
 async def get_price_alerts(
     active_only: bool = True,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> List[PriceAlert]:
+) -> List[UserAlert]:
     """Get user's price alerts."""
     from sqlalchemy.orm import selectinload
     
     query = (
-        select(PriceAlert)
-        .options(selectinload(PriceAlert.card))
-        .where(PriceAlert.user_id == current_user.id)
+        select(UserAlert)
+        .options(selectinload(UserAlert.card))
+        .where(UserAlert.user_id == current_user.id)
     )
     
     if active_only:
-        query = query.where(PriceAlert.is_active == True)
+        query = query.where(UserAlert.is_active == True)
     
     result = await db.execute(query)
     alerts = result.scalars().all()
@@ -143,17 +143,17 @@ async def get_price_alerts(
 @router.delete("/alerts/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_price_alert(
     alert_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> None:
     """Delete a price alert."""
     from sqlalchemy import and_
     
     result = await db.execute(
-        select(PriceAlert).where(
+        select(UserAlert).where(
             and_(
-                PriceAlert.id == alert_id,
-                PriceAlert.user_id == current_user.id,
+                UserAlert.id == alert_id,
+                UserAlert.user_id == current_user.id,
             )
         )
     )
@@ -172,17 +172,17 @@ async def delete_price_alert(
 @router.put("/alerts/{alert_id}/toggle", response_model=PriceAlertResponse)
 async def toggle_price_alert(
     alert_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> PriceAlert:
+) -> UserAlert:
     """Toggle a price alert active/inactive."""
     from sqlalchemy import and_
     
     result = await db.execute(
-        select(PriceAlert).where(
+        select(UserAlert).where(
             and_(
-                PriceAlert.id == alert_id,
-                PriceAlert.user_id == current_user.id,
+                UserAlert.id == alert_id,
+                UserAlert.user_id == current_user.id,
             )
         )
     )
@@ -203,27 +203,27 @@ async def toggle_price_alert(
 
 @router.get("/stats", response_model=dict)
 async def get_user_stats(
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Get user statistics."""
     from sqlalchemy import func
-    from tcgtracker.database.models import CollectionItem
+    from tcgtracker.database.models import Card
     
     # Get collection stats
     collection_query = select(
-        func.count(CollectionItem.id).label("total_items"),
-        func.sum(CollectionItem.quantity).label("total_cards"),
-    ).where(CollectionItem.user_id == current_user.id)
+        func.count(Card.id).label("total_items"),
+        func.sum(Card.quantity).label("total_cards"),
+    ).where(Card.user_id == current_user.id)
     
     result = await db.execute(collection_query)
     collection_stats = result.one()
     
     # Get alert stats
     alert_query = select(
-        func.count(PriceAlert.id).label("total_alerts"),
-        func.sum(func.cast(PriceAlert.is_active, int)).label("active_alerts"),
-    ).where(PriceAlert.user_id == current_user.id)
+        func.count(UserAlert.id).label("total_alerts"),
+        func.sum(func.cast(UserAlert.is_active, int)).label("active_alerts"),
+    ).where(UserAlert.user_id == current_user.id)
     
     result = await db.execute(alert_query)
     alert_stats = result.one()

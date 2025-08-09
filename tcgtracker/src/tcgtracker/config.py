@@ -144,7 +144,7 @@ class SecuritySettings(BaseSettings):
     """Security configuration."""
 
     secret_key: str = Field(
-        default_factory=lambda: os.getenv("SECURITY_SECRET_KEY", ""),
+        default_factory=lambda: os.getenv("SECRET_KEY", os.getenv("SECURITY_SECRET_KEY", "development-only-secret-key-not-for-production-use")),
         description="Secret key for JWT signing (must be at least 32 characters)",
         min_length=32,
     )

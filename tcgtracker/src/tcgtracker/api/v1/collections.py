@@ -12,24 +12,24 @@ from sqlalchemy.orm import selectinload
 from tcgtracker.api.dependencies import get_current_active_user
 from tcgtracker.api.schemas import (
     CardCondition,
-    CollectionItemCreate,
-    CollectionItemResponse,
-    CollectionItemUpdate,
+    CardCreate,
+    CardResponse,
+    CardUpdate,
     CollectionStats,
     GameType,
 )
-from tcgtracker.database.connection import get_db_session
-from tcgtracker.database.models import Card, CollectionItem, Price, User
+from tcgtracker.database.connection import get_session
+from tcgtracker.database.models import Card, Card, PriceHistory, User
 
 router = APIRouter()
 
 
-@router.post("/items", response_model=CollectionItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/items", response_model=CardResponse, status_code=status.HTTP_201_CREATED)
 async def add_to_collection(
-    item_data: CollectionItemCreate,
-    db: AsyncSession = Depends(get_db_session),
+    item_data: CardCreate,
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> CollectionItem:
+) -> Card:
     """Add a card to user's collection."""
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == item_data.card_id))
@@ -42,11 +42,11 @@ async def add_to_collection(
         )
     
     # Check if item already exists in collection
-    existing_query = select(CollectionItem).where(
+    existing_query = select(Card).where(
         and_(
-            CollectionItem.user_id == current_user.id,
-            CollectionItem.card_id == item_data.card_id,
-            CollectionItem.condition == item_data.condition,
+            Card.user_id == current_user.id,
+            Card.card_id == item_data.card_id,
+            Card.condition == item_data.condition,
         )
     )
     result = await db.execute(existing_query)
@@ -60,7 +60,7 @@ async def add_to_collection(
         return existing_item
     
     # Create new collection item
-    new_item = CollectionItem(
+    new_item = Card(
         user_id=current_user.id,
         **item_data.model_dump()
     )
@@ -74,27 +74,27 @@ async def add_to_collection(
     return new_item
 
 
-@router.get("/items", response_model=List[CollectionItemResponse])
+@router.get("/items", response_model=List[CardResponse])
 async def get_collection_items(
     game_type: Optional[GameType] = Query(None),
     condition: Optional[CardCondition] = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> List[CollectionItem]:
+) -> List[Card]:
     """Get user's collection items."""
     query = (
-        select(CollectionItem)
+        select(Card)
         .options(
-            selectinload(CollectionItem.card).selectinload(Card.prices)
+            selectinload(Card.card).selectinload(Card.prices)
         )
-        .where(CollectionItem.user_id == current_user.id)
+        .where(Card.user_id == current_user.id)
     )
     
     # Apply filters
     if condition:
-        query = query.where(CollectionItem.condition == condition)
+        query = query.where(Card.condition == condition)
     
     if game_type:
         query = query.join(Card).where(Card.game_type == game_type)
@@ -113,22 +113,22 @@ async def get_collection_items(
     return items
 
 
-@router.get("/items/{item_id}", response_model=CollectionItemResponse)
+@router.get("/items/{item_id}", response_model=CardResponse)
 async def get_collection_item(
     item_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> CollectionItem:
+) -> Card:
     """Get a specific collection item."""
     result = await db.execute(
-        select(CollectionItem)
+        select(Card)
         .options(
-            selectinload(CollectionItem.card).selectinload(Card.prices)
+            selectinload(Card.card).selectinload(Card.prices)
         )
         .where(
             and_(
-                CollectionItem.id == item_id,
-                CollectionItem.user_id == current_user.id,
+                Card.id == item_id,
+                Card.user_id == current_user.id,
             )
         )
     )
@@ -148,20 +148,20 @@ async def get_collection_item(
     return item
 
 
-@router.put("/items/{item_id}", response_model=CollectionItemResponse)
+@router.put("/items/{item_id}", response_model=CardResponse)
 async def update_collection_item(
     item_id: int,
-    item_update: CollectionItemUpdate,
-    db: AsyncSession = Depends(get_db_session),
+    item_update: CardUpdate,
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> CollectionItem:
+) -> Card:
     """Update a collection item."""
     result = await db.execute(
-        select(CollectionItem)
+        select(Card)
         .where(
             and_(
-                CollectionItem.id == item_id,
-                CollectionItem.user_id == current_user.id,
+                Card.id == item_id,
+                Card.user_id == current_user.id,
             )
         )
     )
@@ -187,16 +187,16 @@ async def update_collection_item(
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_from_collection(
     item_id: int,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> None:
     """Remove an item from collection."""
     result = await db.execute(
-        select(CollectionItem)
+        select(Card)
         .where(
             and_(
-                CollectionItem.id == item_id,
-                CollectionItem.user_id == current_user.id,
+                Card.id == item_id,
+                Card.user_id == current_user.id,
             )
         )
     )
@@ -215,19 +215,19 @@ async def remove_from_collection(
 @router.get("/stats", response_model=CollectionStats)
 async def get_collection_stats(
     game_type: Optional[GameType] = Query(None),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> CollectionStats:
     """Get collection statistics."""
     # Base query for user's collection
-    query = select(CollectionItem).where(CollectionItem.user_id == current_user.id)
+    query = select(Card).where(Card.user_id == current_user.id)
     
     if game_type:
         query = query.join(Card).where(Card.game_type == game_type)
     
     result = await db.execute(
         query.options(
-            selectinload(CollectionItem.card).selectinload(Card.prices)
+            selectinload(Card.card).selectinload(Card.prices)
         )
     )
     items = result.scalars().all()
@@ -268,7 +268,7 @@ async def get_collection_stats(
 @router.get("/value-history", response_model=dict)
 async def get_collection_value_history(
     days: int = Query(30, ge=1, le=365),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Get historical value of collection."""
@@ -276,9 +276,9 @@ async def get_collection_value_history(
     
     # Get user's collection items
     result = await db.execute(
-        select(CollectionItem)
-        .options(selectinload(CollectionItem.card))
-        .where(CollectionItem.user_id == current_user.id)
+        select(Card)
+        .options(selectinload(Card.card))
+        .where(Card.user_id == current_user.id)
     )
     items = result.scalars().all()
     

@@ -170,7 +170,7 @@ class PriceHistory(BaseModel):
 
 
 # Collection schemas
-class CollectionItemCreate(BaseModel):
+class CardCreate(BaseModel):
     """Collection item creation schema."""
     card_id: int
     quantity: int = Field(default=1, gt=0)
@@ -179,7 +179,7 @@ class CollectionItemCreate(BaseModel):
     notes: Optional[str] = None
 
 
-class CollectionItemUpdate(BaseModel):
+class CardUpdate(BaseModel):
     """Collection item update schema."""
     quantity: Optional[int] = Field(None, gt=0)
     condition: Optional[CardCondition] = None
@@ -187,7 +187,7 @@ class CollectionItemUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-class CollectionItemResponse(BaseModel):
+class CardResponse(BaseModel):
     """Collection item response schema."""
     id: int
     user_id: int

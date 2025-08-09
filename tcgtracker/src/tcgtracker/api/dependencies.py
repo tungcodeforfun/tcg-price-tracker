@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from tcgtracker.config import get_settings
-from tcgtracker.database.connection import get_db_session
+from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import User
 
 settings = get_settings()
@@ -23,7 +23,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
 ) -> User:
     """Get current authenticated user from JWT token."""
     credentials_exception = HTTPException(

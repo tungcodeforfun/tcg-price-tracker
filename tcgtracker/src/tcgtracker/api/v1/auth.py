@@ -16,7 +16,7 @@ from tcgtracker.api.dependencies import (
 )
 from tcgtracker.api.schemas import LoginRequest, Token, TokenRefresh, UserCreate, UserResponse
 from tcgtracker.config import get_settings
-from tcgtracker.database.connection import get_db_session
+from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import User
 
 router = APIRouter()
@@ -26,7 +26,7 @@ settings = get_settings()
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
 ) -> User:
     """Register a new user."""
     # Check if user already exists
@@ -68,7 +68,7 @@ async def register(
 @router.post("/login", response_model=Token)
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
 ) -> Token:
     """Login and receive access tokens."""
     # Find user by username or email
@@ -109,7 +109,7 @@ async def login(
 @router.post("/refresh", response_model=Token)
 async def refresh_token(
     token_data: TokenRefresh,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
 ) -> Token:
     """Refresh access token using refresh token."""
     from jose import JWTError, jwt

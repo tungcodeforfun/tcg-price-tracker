@@ -17,13 +17,13 @@ from tcgtracker.api.dependencies import get_current_active_user
 from tcgtracker.api.schemas import (
     BulkPriceUpdate,
     PriceCreate,
-    PriceHistory,
+    PriceHistory as PriceHistorySchema,
     PriceResponse,
     PriceSource,
 )
-from tcgtracker.database.connection import get_db_session
-from tcgtracker.database.models import Card, Price, PriceAlert, User
-from tcgtracker.integrations.ebay import EbayClient
+from tcgtracker.database.connection import get_session
+from tcgtracker.database.models import Card, PriceHistory, UserAlert, User
+from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
 
 router = APIRouter()
@@ -33,7 +33,7 @@ async def fetch_and_update_price(
     card: Card,
     source: PriceSource,
     db: AsyncSession,
-) -> Optional[Price]:
+) -> Optional[PriceHistory]:
     """Fetch price from external API and update database."""
     price_data = None
     
@@ -50,7 +50,7 @@ async def fetch_and_update_price(
     
     elif source == PriceSource.EBAY:
         # Fetch from eBay
-        client = EbayClient()
+        client = eBayClient()
         async with client:
             try:
                 query = f"{card.name} {card.set_name} {card.card_number or ''}".strip()
@@ -78,9 +78,9 @@ async def fetch_and_update_price(
 @router.post("/", response_model=PriceResponse, status_code=status.HTTP_201_CREATED)
 async def create_price(
     price_data: PriceCreate,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> Price:
+) -> PriceHistory:
     """Manually add a price entry for a card."""
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == price_data.card_id))
@@ -120,12 +120,12 @@ async def create_price(
     return new_price
 
 
-@router.get("/card/{card_id}", response_model=PriceHistory)
+@router.get("/card/{card_id}", response_model=PriceHistorySchema)
 async def get_price_history(
     card_id: int,
     days: int = Query(30, ge=1, le=365),
     source: Optional[PriceSource] = Query(None),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> PriceHistory:
     """Get price history for a specific card."""
@@ -196,9 +196,9 @@ async def update_card_price(
     card_id: int,
     source: PriceSource = Query(PriceSource.TCGPLAYER),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> Price:
+) -> PriceHistory:
     """Fetch and update the latest price for a card."""
     # Get card
     result = await db.execute(select(Card).where(Card.id == card_id))
@@ -226,9 +226,9 @@ async def update_card_price(
 async def bulk_update_prices(
     update_request: BulkPriceUpdate,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> List[Price]:
+) -> List[PriceHistory]:
     """Bulk update prices for multiple cards."""
     # Get cards
     result = await db.execute(
@@ -267,7 +267,7 @@ async def bulk_update_prices(
 async def get_price_trends(
     game_type: Optional[str] = Query(None),
     days: int = Query(7, ge=1, le=30),
-    db: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Get aggregated price trends."""
