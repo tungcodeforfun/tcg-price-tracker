@@ -63,9 +63,9 @@ class JustTCGClient(BaseAPIClient):
         """Prepare request headers with API authentication."""
         prepared_headers = super()._prepare_headers(headers)
 
-        # Add API key if available
+        # Add API key if available - JustTCG uses X-API-Key header
         if self.api_key:
-            prepared_headers["Authorization"] = f"Bearer {self.api_key}"
+            prepared_headers["X-API-Key"] = self.api_key
 
         return prepared_headers
 

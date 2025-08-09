@@ -151,7 +151,7 @@ class ExternalAPISettings(BaseSettings):
 
     # Rate limiting
     justtcg_rate_limit: int = Field(
-        default=4, description="JustTCG requests per minute (free tier: 100/day)"
+        default=30, description="JustTCG requests per minute (API key: ~40/min from 1000/day quota, free tier: ~4/hour from 100/day quota)"
     )
     ebay_rate_limit: int = Field(default=1000, description="eBay requests per hour")
     pricecharting_rate_limit: int = Field(

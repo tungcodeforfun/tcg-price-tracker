@@ -73,3 +73,10 @@ node_modules/
 *.key
 *.crt
 secrets/.env.sandbox
+
+# Environment files with sensitive data
+.env.sandbox
+.env.production
+.env.staging
+.env.test
+*.env.*
