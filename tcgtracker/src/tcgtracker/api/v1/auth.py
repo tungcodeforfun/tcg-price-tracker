@@ -14,7 +14,13 @@ from tcgtracker.api.dependencies import (
     get_password_hash,
     verify_password,
 )
-from tcgtracker.api.schemas import LoginRequest, Token, TokenRefresh, UserCreate, UserResponse
+from tcgtracker.api.schemas import (
+    LoginRequest,
+    Token,
+    TokenRefresh,
+    UserCreate,
+    UserResponse,
+)
 from tcgtracker.config import get_settings
 from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import User
@@ -23,7 +29,9 @@ router = APIRouter()
 settings = get_settings()
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
+)
 async def register(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_session),
@@ -36,19 +44,18 @@ async def register(
         )
     )
     existing_user = result.scalar_one_or_none()
-    
+
     if existing_user:
         if existing_user.email == user_data.email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail="Email already registered",
             )
         else:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
             )
-    
+
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
@@ -57,11 +64,11 @@ async def register(
         hashed_password=hashed_password,
         is_active=True,
     )
-    
+
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
-    
+
     return new_user
 
 
@@ -78,31 +85,30 @@ async def login(
         )
     )
     user = result.scalar_one_or_none()
-    
+
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
         )
-    
+
     # Create tokens
-    access_token_expires = timedelta(minutes=settings.security.access_token_expire_minutes)
+    access_token_expires = timedelta(
+        minutes=settings.security.access_token_expire_minutes
+    )
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
+
     return Token(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="bearer"
+        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
     )
 
 
@@ -113,44 +119,42 @@ async def refresh_token(
 ) -> Token:
     """Refresh access token using refresh token."""
     from jose import JWTError, jwt
-    
+
     try:
         payload = jwt.decode(
             token_data.refresh_token,
             settings.security.secret_key,
-            algorithms=[settings.security.algorithm]
+            algorithms=[settings.security.algorithm],
         )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token"
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
             )
     except JWTError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
-    
+
     # Verify user exists and is active
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()
-    
+
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive"
+            detail="User not found or inactive",
         )
-    
+
     # Create new tokens
-    access_token_expires = timedelta(minutes=settings.security.access_token_expire_minutes)
+    access_token_expires = timedelta(
+        minutes=settings.security.access_token_expire_minutes
+    )
     access_token = create_access_token(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
+
     return Token(
-        access_token=access_token,
-        refresh_token=new_refresh_token,
-        token_type="bearer"
+        access_token=access_token, refresh_token=new_refresh_token, token_type="bearer"
     )

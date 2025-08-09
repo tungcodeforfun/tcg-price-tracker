@@ -16,7 +16,7 @@ from tcgtracker.api.schemas import (
     CollectionItemResponse,
     CollectionItemUpdate,
     CollectionStats,
-    GameType,
+    TCGType,
 )
 from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
@@ -24,7 +24,9 @@ from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
 router = APIRouter()
 
 
-@router.post("/items", response_model=CollectionItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/items", response_model=CollectionItemResponse, status_code=status.HTTP_201_CREATED
+)
 async def add_to_collection(
     item_data: CollectionItemCreate,
     db: AsyncSession = Depends(get_session),
@@ -34,13 +36,12 @@ async def add_to_collection(
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == item_data.card_id))
     card = result.scalar_one_or_none()
-    
+
     if not card:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Card not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
         )
-    
+
     # Check if item already exists in collection
     existing_query = select(CollectionItem).where(
         and_(
@@ -51,32 +52,29 @@ async def add_to_collection(
     )
     result = await db.execute(existing_query)
     existing_item = result.scalar_one_or_none()
-    
+
     if existing_item:
         # Update quantity instead of creating duplicate
         existing_item.quantity += item_data.quantity
         await db.commit()
         await db.refresh(existing_item)
         return existing_item
-    
+
     # Create new collection item
-    new_item = CollectionItem(
-        user_id=current_user.id,
-        **item_data.model_dump()
-    )
+    new_item = CollectionItem(user_id=current_user.id, **item_data.model_dump())
     db.add(new_item)
     await db.commit()
     await db.refresh(new_item)
-    
+
     # Load related data
     await db.refresh(new_item, ["card"])
-    
+
     return new_item
 
 
 @router.get("/items", response_model=List[CollectionItemResponse])
 async def get_collection_items(
-    game_type: Optional[GameType] = Query(None),
+    tcg_type: Optional[TCGType] = Query(None),
     condition: Optional[CardCondition] = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
@@ -86,24 +84,22 @@ async def get_collection_items(
     """Get user's collection items."""
     query = (
         select(CollectionItem)
-        .options(
-            selectinload(CollectionItem.card).selectinload(Card.price_history)
-        )
+        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
         .where(CollectionItem.user_id == current_user.id)
     )
-    
+
     # Apply filters
     if condition:
         query = query.where(CollectionItem.condition == condition)
-    
-    if game_type:
-        query = query.join(Card).where(Card.tcg_type == game_type)
-    
+
+    if tcg_type:
+        query = query.join(Card).where(Card.tcg_type == tcg_type)
+
     query = query.limit(limit).offset(offset)
-    
+
     result = await db.execute(query)
     items = result.scalars().all()
-    
+
     # Calculate current values
     for item in items:
         if item.card and item.card.price_history:
@@ -115,7 +111,7 @@ async def get_collection_items(
                 item.current_value = Decimal(0)
         else:
             item.current_value = Decimal(0)
-    
+
     return items
 
 
@@ -128,9 +124,7 @@ async def get_collection_item(
     """Get a specific collection item."""
     result = await db.execute(
         select(CollectionItem)
-        .options(
-            selectinload(CollectionItem.card).selectinload(Card.price_history)
-        )
+        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
         .where(
             and_(
                 CollectionItem.id == item_id,
@@ -139,13 +133,12 @@ async def get_collection_item(
         )
     )
     item = result.scalar_one_or_none()
-    
+
     if not item:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collection item not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Collection item not found"
         )
-    
+
     # Calculate current value
     if item.card and item.card.price_history:
         try:
@@ -156,7 +149,7 @@ async def get_collection_item(
             item.current_value = Decimal(0)
     else:
         item.current_value = Decimal(0)
-    
+
     return item
 
 
@@ -169,8 +162,7 @@ async def update_collection_item(
 ) -> CollectionItem:
     """Update a collection item."""
     result = await db.execute(
-        select(CollectionItem)
-        .where(
+        select(CollectionItem).where(
             and_(
                 CollectionItem.id == item_id,
                 CollectionItem.user_id == current_user.id,
@@ -178,21 +170,20 @@ async def update_collection_item(
         )
     )
     item = result.scalar_one_or_none()
-    
+
     if not item:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collection item not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Collection item not found"
         )
-    
+
     # Update fields
     update_data = item_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(item, field, value)
-    
+
     await db.commit()
     await db.refresh(item, ["card"])
-    
+
     return item
 
 
@@ -204,8 +195,7 @@ async def remove_from_collection(
 ) -> None:
     """Remove an item from collection."""
     result = await db.execute(
-        select(CollectionItem)
-        .where(
+        select(CollectionItem).where(
             and_(
                 CollectionItem.id == item_id,
                 CollectionItem.user_id == current_user.id,
@@ -213,48 +203,47 @@ async def remove_from_collection(
         )
     )
     item = result.scalar_one_or_none()
-    
+
     if not item:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Collection item not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Collection item not found"
         )
-    
+
     await db.delete(item)
     await db.commit()
 
 
 @router.get("/stats", response_model=CollectionStats)
 async def get_collection_stats(
-    game_type: Optional[GameType] = Query(None),
+    tcg_type: Optional[TCGType] = Query(None),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
 ) -> CollectionStats:
     """Get collection statistics."""
     # Base query for user's collection
     query = select(CollectionItem).where(CollectionItem.user_id == current_user.id)
-    
-    if game_type:
-        query = query.join(Card).where(Card.tcg_type == game_type)
-    
+
+    if tcg_type:
+        query = query.join(Card).where(Card.tcg_type == tcg_type)
+
     result = await db.execute(
         query.options(
             selectinload(CollectionItem.card).selectinload(Card.price_history)
         )
     )
     items = result.scalars().all()
-    
+
     # Calculate statistics
     total_cards = sum(item.quantity for item in items)
     unique_cards = len(items)
     total_invested = Decimal("0")
     total_value = Decimal("0")
-    
+
     for item in items:
         # Add purchase price if available
         if item.purchase_price:
             total_invested += item.purchase_price * item.quantity
-        
+
         # Calculate current value
         if item.card and item.card.price_history:
             try:
@@ -262,14 +251,12 @@ async def get_collection_stats(
                 total_value += latest_price.market_price * item.quantity
             except ValueError:  # Empty price_history
                 pass  # Skip this item's value
-    
+
     profit_loss = total_value - total_invested
     profit_loss_percentage = (
-        float((profit_loss / total_invested) * 100) 
-        if total_invested > 0 
-        else 0.0
+        float((profit_loss / total_invested) * 100) if total_invested > 0 else 0.0
     )
-    
+
     return CollectionStats(
         total_cards=total_cards,
         unique_cards=unique_cards,
@@ -288,7 +275,7 @@ async def get_collection_value_history(
 ) -> dict:
     """Get historical value of collection."""
     from datetime import datetime, timedelta, timezone
-    
+
     # Get user's collection items
     result = await db.execute(
         select(CollectionItem)
@@ -296,7 +283,7 @@ async def get_collection_value_history(
         .where(CollectionItem.user_id == current_user.id)
     )
     items = result.scalars().all()
-    
+
     if not items:
         return {
             "days": days,
@@ -305,11 +292,11 @@ async def get_collection_value_history(
             "change": 0,
             "change_percentage": 0,
         }
-    
+
     # Get price history for each card in collection
     card_ids = [item.card_id for item in items]
     since_date = datetime.now(timezone.utc) - timedelta(days=days)
-    
+
     price_query = (
         select(
             PriceHistory.card_id,
@@ -325,36 +312,34 @@ async def get_collection_value_history(
         .group_by(PriceHistory.card_id, func.date(PriceHistory.timestamp))
         .order_by(func.date(PriceHistory.timestamp))
     )
-    
+
     result = await db.execute(price_query)
     price_history = result.all()
-    
+
     # Build daily value history
     daily_values = {}
     for price_record in price_history:
         date_str = str(price_record.date)
         if date_str not in daily_values:
             daily_values[date_str] = Decimal("0")
-        
+
         # Find corresponding collection item
         for item in items:
             if item.card_id == price_record.card_id:
                 daily_values[date_str] += price_record.avg_price * item.quantity
                 break
-    
+
     # Format response
     history = [
         {"date": date, "value": float(value)}
         for date, value in sorted(daily_values.items())
     ]
-    
+
     current_value = history[-1]["value"] if history else 0
     start_value = history[0]["value"] if history else 0
     change = current_value - start_value
-    change_percentage = (
-        (change / start_value) * 100 if start_value > 0 else 0
-    )
-    
+    change_percentage = (change / start_value) * 100 if start_value > 0 else 0
+
     return {
         "days": days,
         "history": history,

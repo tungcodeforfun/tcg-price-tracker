@@ -36,37 +36,36 @@ async def update_current_user(
     """Update current user's profile."""
     # Check if email/username already taken
     if user_update.email and user_update.email != current_user.email:
-        result = await db.execute(
-            select(User).where(User.email == user_update.email)
-        )
+        result = await db.execute(select(User).where(User.email == user_update.email))
         if result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail="Email already registered",
             )
-    
+
     if user_update.username and user_update.username != current_user.username:
         result = await db.execute(
             select(User).where(User.username == user_update.username)
         )
         if result.scalar_one_or_none():
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
             )
-    
+
     # Update fields
     update_data = user_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(current_user, field, value)
-    
+
     await db.commit()
     await db.refresh(current_user)
-    
+
     return current_user
 
 
-@router.post("/alerts", response_model=PriceAlertResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/alerts", response_model=PriceAlertResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_price_alert(
     alert_data: PriceAlertCreate,
     db: AsyncSession = Depends(get_session),
@@ -76,16 +75,15 @@ async def create_price_alert(
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == alert_data.card_id))
     card = result.scalar_one_or_none()
-    
+
     if not card:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Card not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
         )
-    
+
     # Check if similar alert already exists
     from sqlalchemy import and_
-    
+
     existing_query = select(UserAlert).where(
         and_(
             UserAlert.user_id == current_user.id,
@@ -96,23 +94,20 @@ async def create_price_alert(
     )
     result = await db.execute(existing_query)
     existing_alert = result.scalar_one_or_none()
-    
+
     if existing_alert:
         # Update existing alert
         existing_alert.target_price = alert_data.target_price
         await db.commit()
         await db.refresh(existing_alert, ["card"])
         return existing_alert
-    
+
     # Create new alert
-    new_alert = PriceAlert(
-        user_id=current_user.id,
-        **alert_data.model_dump()
-    )
+    new_alert = PriceAlert(user_id=current_user.id, **alert_data.model_dump())
     db.add(new_alert)
     await db.commit()
     await db.refresh(new_alert, ["card"])
-    
+
     return new_alert
 
 
@@ -124,19 +119,19 @@ async def get_price_alerts(
 ) -> List[UserAlert]:
     """Get user's price alerts."""
     from sqlalchemy.orm import selectinload
-    
+
     query = (
         select(UserAlert)
         .options(selectinload(UserAlert.card))
         .where(UserAlert.user_id == current_user.id)
     )
-    
+
     if active_only:
         query = query.where(UserAlert.is_active == True)
-    
+
     result = await db.execute(query)
     alerts = result.scalars().all()
-    
+
     return alerts
 
 
@@ -148,7 +143,7 @@ async def delete_price_alert(
 ) -> None:
     """Delete a price alert."""
     from sqlalchemy import and_
-    
+
     result = await db.execute(
         select(UserAlert).where(
             and_(
@@ -158,13 +153,12 @@ async def delete_price_alert(
         )
     )
     alert = result.scalar_one_or_none()
-    
+
     if not alert:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Alert not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
         )
-    
+
     await db.delete(alert)
     await db.commit()
 
@@ -177,7 +171,7 @@ async def toggle_price_alert(
 ) -> UserAlert:
     """Toggle a price alert active/inactive."""
     from sqlalchemy import and_
-    
+
     result = await db.execute(
         select(UserAlert).where(
             and_(
@@ -187,17 +181,16 @@ async def toggle_price_alert(
         )
     )
     alert = result.scalar_one_or_none()
-    
+
     if not alert:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Alert not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
         )
-    
+
     alert.is_active = not alert.is_active
     await db.commit()
     await db.refresh(alert, ["card"])
-    
+
     return alert
 
 
@@ -209,25 +202,25 @@ async def get_user_stats(
     """Get user statistics."""
     from sqlalchemy import func
     from tcgtracker.database.models import Card
-    
+
     # Get collection stats
     collection_query = select(
         func.count(Card.id).label("total_items"),
         func.sum(Card.quantity).label("total_cards"),
     ).where(Card.user_id == current_user.id)
-    
+
     result = await db.execute(collection_query)
     collection_stats = result.one()
-    
+
     # Get alert stats
     alert_query = select(
         func.count(UserAlert.id).label("total_alerts"),
         func.sum(func.cast(UserAlert.is_active, int)).label("active_alerts"),
     ).where(UserAlert.user_id == current_user.id)
-    
+
     result = await db.execute(alert_query)
     alert_stats = result.one()
-    
+
     return {
         "user": {
             "id": current_user.id,

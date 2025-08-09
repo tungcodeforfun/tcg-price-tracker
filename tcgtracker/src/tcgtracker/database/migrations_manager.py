@@ -56,36 +56,38 @@ class MigrationsManager:
 
     def _validate_migration_message(self, message: str) -> str:
         """Validate and sanitize migration message with strict allowlist approach.
-        
+
         Args:
             message: The migration message to validate
-            
+
         Returns:
             Sanitized migration message
-            
+
         Raises:
             ValueError: If message is invalid or contains disallowed characters
         """
         if not message or not message.strip():
             raise ValueError("Migration message cannot be empty")
-        
+
         # Strip and check length
         clean_message = message.strip()
         if len(clean_message) > 100:
             raise ValueError("Migration message must be 100 characters or less")
-        
+
         # Strict allowlist: only allow alphanumeric, spaces, hyphens, underscores
         # This prevents any potential injection attacks
-        if not re.match(r'^[a-zA-Z0-9\s\-_]+$', clean_message):
+        if not re.match(r"^[a-zA-Z0-9\s\-_]+$", clean_message):
             raise ValueError(
                 "Migration message can only contain letters, numbers, spaces, "
                 "hyphens, and underscores"
             )
-        
+
         # Additional validation: ensure it's not just whitespace/special chars
-        if not re.search(r'[a-zA-Z0-9]', clean_message):
-            raise ValueError("Migration message must contain at least one alphanumeric character")
-        
+        if not re.search(r"[a-zA-Z0-9]", clean_message):
+            raise ValueError(
+                "Migration message must contain at least one alphanumeric character"
+            )
+
         return clean_message
 
     def upgrade_database(self, revision: str = "head") -> None:
@@ -172,10 +174,14 @@ async def init_database() -> None:
         logger.info("Database initialization completed")
     except FileNotFoundError as e:
         logger.error(f"Alembic configuration not found: {e}")
-        raise ConnectionError("Migration configuration missing. Please ensure alembic.ini exists.")
+        raise ConnectionError(
+            "Migration configuration missing. Please ensure alembic.ini exists."
+        )
     except PermissionError as e:
         logger.error(f"Database permission error: {e}")
-        raise ConnectionError("Insufficient database permissions for migration operations.")
+        raise ConnectionError(
+            "Insufficient database permissions for migration operations."
+        )
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise

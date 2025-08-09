@@ -31,29 +31,30 @@ async def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         payload = jwt.decode(
-            token, settings.security.secret_key, algorithms=[settings.security.algorithm]
+            token,
+            settings.security.secret_key,
+            algorithms=[settings.security.algorithm],
         )
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     result = await db.execute(select(User).where(User.id == int(user_id)))
     user = result.scalar_one_or_none()
-    
+
     if user is None:
         raise credentials_exception
-    
+
     if not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
         )
-    
+
     return user
 
 

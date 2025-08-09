@@ -127,7 +127,7 @@ async def exponential_backoff(
 ) -> None:
     """
     Perform exponential backoff with optional jitter.
-    
+
     Args:
         attempt: Current attempt number (0-based)
         base_delay: Base delay in seconds
@@ -135,14 +135,14 @@ async def exponential_backoff(
         jitter: Whether to add random jitter
     """
     delay = min(base_delay * (2**attempt), max_delay)
-    
+
     if jitter:
         # Add random jitter (±25% of the delay)
         jitter_range = delay * 0.25
         delay += random.uniform(-jitter_range, jitter_range)
-    
+
     delay = max(0, delay)  # Ensure non-negative delay
-    
+
     if delay > 0:
         logger.info(f"Backing off for {delay:.2f} seconds", attempt=attempt + 1)
         await asyncio.sleep(delay)
@@ -158,7 +158,7 @@ def retry_on_transient_error(
 ) -> Callable[[F], F]:
     """
     Decorator to retry functions on transient errors with exponential backoff.
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         base_delay: Base delay between retries in seconds
@@ -174,16 +174,18 @@ def retry_on_transient_error(
         @wraps(func)
         async def wrapper(*args, **kwargs):
             last_exception = None
-            
+
             for attempt in range(max_attempts):
                 try:
                     return await func(*args, **kwargs)
                 except Exception as exc:
                     last_exception = exc
-                    
+
                     # Check if this exception should be retried
-                    should_retry = any(isinstance(exc, exc_type) for exc_type in exceptions)
-                    
+                    should_retry = any(
+                        isinstance(exc, exc_type) for exc_type in exceptions
+                    )
+
                     if not should_retry or attempt == max_attempts - 1:
                         # Don't retry permanent errors or on last attempt
                         logger.error(
@@ -195,7 +197,7 @@ def retry_on_transient_error(
                             exc_info=exc,
                         )
                         raise
-                    
+
                     # Handle rate limiting with special backoff
                     if isinstance(exc, RateLimitError) and exc.retry_after:
                         retry_delay = exc.retry_after
@@ -213,7 +215,7 @@ def retry_on_transient_error(
                             jitter_range = delay * 0.25
                             delay += random.uniform(-jitter_range, jitter_range)
                         delay = max(0, delay)
-                        
+
                         logger.warning(
                             "Function failed, retrying",
                             func_name=func.__name__,
@@ -222,46 +224,47 @@ def retry_on_transient_error(
                             delay=delay,
                             error=str(exc),
                         )
-                        
+
                         if delay > 0:
                             await asyncio.sleep(delay)
-            
+
             # This should never be reached, but just in case
             if last_exception:
                 raise last_exception
-            
+
         return wrapper
+
     return decorator
 
 
 def handle_http_error(response: httpx.Response) -> None:
     """
     Handle HTTP error responses by raising appropriate exceptions.
-    
+
     Args:
         response: HTTP response object
-        
+
     Raises:
         APIError: Appropriate error based on response status
     """
     if response.is_success:
         return
-    
+
     status_code = response.status_code
-    
+
     try:
         response_data = response.json()
         error_message = response_data.get("message") or response_data.get("error")
     except Exception:
         response_data = None
         error_message = None
-    
+
     if not error_message:
         error_message = f"HTTP {status_code}: {response.reason_phrase}"
-    
+
     # Determine error type
     error_class = classify_http_error(response)
-    
+
     # Handle specific error types
     if error_class == RateLimitError:
         retry_after = None
@@ -271,14 +274,14 @@ def handle_http_error(response: httpx.Response) -> None:
                 retry_after = int(retry_header)
             except ValueError:
                 pass
-        
+
         raise RateLimitError(
             message=error_message,
             status_code=status_code,
             response_data=response_data,
             retry_after=retry_after,
         )
-    
+
     # Raise appropriate error
     raise error_class(
         message=error_message,
@@ -295,16 +298,16 @@ async def safe_request(
 ) -> httpx.Response:
     """
     Make a safe HTTP request with proper error handling.
-    
+
     Args:
         client: HTTP client instance
         method: HTTP method
         url: Request URL
         **kwargs: Additional request parameters
-        
+
     Returns:
         HTTP response object
-        
+
     Raises:
         APIError: On request failures
     """

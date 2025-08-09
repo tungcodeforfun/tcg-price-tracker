@@ -187,6 +187,7 @@ def create_app() -> FastAPI:
 
     # Add API routers
     from tcgtracker.api import v1_router
+
     app.include_router(v1_router)
 
     logger.info("FastAPI application created successfully")

@@ -144,11 +144,16 @@ class SecuritySettings(BaseSettings):
     """Security configuration."""
 
     secret_key: str = Field(
-        default_factory=lambda: os.getenv("SECRET_KEY", os.getenv("SECURITY_SECRET_KEY", "INSECURE-DEV-KEY-DO-NOT-USE-IN-PRODUCTION!!!")),
+        default_factory=lambda: os.getenv(
+            "SECRET_KEY",
+            os.getenv(
+                "SECURITY_SECRET_KEY", "INSECURE-DEV-KEY-DO-NOT-USE-IN-PRODUCTION!!!"
+            ),
+        ),
         description="Secret key for JWT signing (must be at least 32 characters)",
         min_length=32,
     )
-    
+
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
@@ -161,15 +166,26 @@ class SecuritySettings(BaseSettings):
         if len(v) < 32:
             raise ValueError("Secret key must be at least 32 characters long")
         # Warn if using common insecure patterns
-        insecure_patterns = ["dev", "test", "change", "example", "secret", "key", "123", "abc"]
+        insecure_patterns = [
+            "dev",
+            "test",
+            "change",
+            "example",
+            "secret",
+            "key",
+            "123",
+            "abc",
+        ]
         if any(pattern in v.lower() for pattern in insecure_patterns):
             import warnings
+
             warnings.warn(
                 "Secret key appears to contain insecure patterns. "
                 "Please use a cryptographically secure random string in production.",
-                UserWarning
+                UserWarning,
             )
         return v
+
     algorithm: str = Field(default="HS256", description="JWT algorithm")
     access_token_expire_minutes: int = Field(
         default=60, description="Access token expiration in minutes"
@@ -206,13 +222,29 @@ class AppSettings(BaseSettings):
     debug: bool = Field(default=False, description="Debug mode")
     reload: bool = Field(default=False, description="Auto-reload on changes")
 
-    # CORS settings
-    allow_origins: list[str] = Field(default=["*"], description="Allowed CORS origins")
+    # CORS settings - SECURITY: Never use wildcards in production!
+    allow_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",  # React dev server
+            "http://localhost:5173",  # Vite dev server
+            "http://localhost:8000",  # FastAPI dev server
+            # Add your production domains here:
+            # "https://yourdomain.com",
+            # "https://app.yourdomain.com"
+        ],
+        description="Allowed CORS origins - NEVER use wildcard (*) in production!",
+    )
     allow_credentials: bool = Field(
         default=True, description="Allow credentials in CORS"
     )
-    allow_methods: list[str] = Field(default=["*"], description="Allowed HTTP methods")
-    allow_headers: list[str] = Field(default=["*"], description="Allowed HTTP headers")
+    allow_methods: list[str] = Field(
+        default=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        description="Allowed HTTP methods",
+    )
+    allow_headers: list[str] = Field(
+        default=["Authorization", "Content-Type", "X-Requested-With"],
+        description="Allowed HTTP headers",
+    )
 
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")

@@ -12,7 +12,7 @@ from .circuit_breaker import CircuitBreaker
 
 __all__ = [
     "APIError",
-    "RateLimitError", 
+    "RateLimitError",
     "AuthenticationError",
     "TransientError",
     "PermanentError",

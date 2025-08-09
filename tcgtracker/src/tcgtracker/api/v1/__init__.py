@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from tcgtracker.api.v1.auth import router as auth_router
 from tcgtracker.api.v1.cards import router as cards_router
+
 # from tcgtracker.api.v1.collections import router as collections_router  # TODO: Fix collection models
 from tcgtracker.api.v1.prices import router as prices_router
 from tcgtracker.api.v1.search import router as search_router
