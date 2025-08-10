@@ -16,7 +16,7 @@ from tcgtracker.api.schemas import (
     CardUpdate,
     TCGType,
 )
-from tcgtracker.database.connection import get_session
+from tcgtracker.api.dependencies import get_session
 from tcgtracker.database.models import Card, PriceHistory, User
 
 router = APIRouter()
@@ -73,10 +73,16 @@ async def get_card(
             status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
         )
 
-    # Get latest price
+    # Get latest price with proper null checks
     if card.price_history:
-        latest_price = max(card.price_history, key=lambda p: p.timestamp)
-        card.latest_price = latest_price.market_price
+        price_history_list = list(card.price_history)
+        if price_history_list:
+            latest_price = max(price_history_list, key=lambda p: p.timestamp)
+            card.latest_price = latest_price.market_price
+        else:
+            card.latest_price = None
+    else:
+        card.latest_price = None
 
     return card
 
@@ -126,11 +132,17 @@ async def list_cards(
     result = await db.execute(query)
     cards = result.scalars().all()
 
-    # Add latest prices
+    # Add latest prices with proper null checks
     for card in cards:
         if card.price_history:
-            latest_price = max(card.price_history, key=lambda p: p.timestamp)
-            card.latest_price = latest_price.market_price
+            price_history_list = list(card.price_history)
+            if price_history_list:
+                latest_price = max(price_history_list, key=lambda p: p.timestamp)
+                card.latest_price = latest_price.market_price
+            else:
+                card.latest_price = None
+        else:
+            card.latest_price = None
 
     return cards
 
@@ -232,20 +244,32 @@ async def search_cards(
     result = await db.execute(query)
     cards = result.scalars().all()
 
-    # Add latest prices and trend
+    # Add latest prices and trend with proper null checks
     for card in cards:
         if card.price_history:
-            sorted_prices = sorted(card.price_history, key=lambda p: p.timestamp)
-            latest_price = sorted_prices[-1]
-            card.latest_price = latest_price.market_price
+            price_history_list = list(card.price_history)
+            if price_history_list:
+                sorted_prices = sorted(price_history_list, key=lambda p: p.timestamp)
+                latest_price = sorted_prices[-1]
+                card.latest_price = latest_price.market_price
 
-            # Calculate simple trend
-            if len(sorted_prices) > 1:
-                prev_price = sorted_prices[-2].market_price
-                if latest_price.market_price > prev_price:
-                    card.price_trend = "up"
-                elif latest_price.market_price < prev_price:
-                    card.price_trend = "down"
+                # Calculate simple trend
+                if len(sorted_prices) > 1:
+                    prev_price = sorted_prices[-2].market_price
+                    if latest_price.market_price > prev_price:
+                        card.price_trend = "up"
+                    elif latest_price.market_price < prev_price:
+                        card.price_trend = "down"
+                    else:
+                        card.price_trend = "stable"
+                else:
+                    card.price_trend = "stable"
+            else:
+                card.latest_price = None
+                card.price_trend = "no_data"
+        else:
+            card.latest_price = None
+            card.price_trend = "no_data"
                 else:
                     card.price_trend = "stable"
 

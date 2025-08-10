@@ -13,7 +13,7 @@ from tcgtracker.api.schemas import (
     SearchRequest,
     SearchResult,
 )
-from tcgtracker.database.connection import get_session
+from tcgtracker.api.dependencies import get_session
 from tcgtracker.database.models import Card, User
 from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.justtcg import JustTCGClient
@@ -332,14 +332,9 @@ async def import_card_from_search(
                 CardConditionEnum,
             )
 
-            # Map source from API to database enum
-            source_map = {
-                "tcgplayer": DataSourceEnum.TCGPLAYER,
-                "ebay": DataSourceEnum.EBAY,
-            }
-            db_source = source_map.get(
-                search_result.source.lower(), DataSourceEnum.MANUAL
-            )
+            # Map source from API enum to database enum
+            from tcgtracker.utils.enum_mappings import map_price_source_to_db
+            db_source = map_price_source_to_db(search_result.source)
 
             price = PriceHistory(
                 card_id=new_card.id,  # Now new_card.id will have a value

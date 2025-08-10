@@ -18,7 +18,7 @@ from tcgtracker.api.schemas import (
     CollectionStats,
     TCGType,
 )
-from tcgtracker.database.connection import get_session
+from tcgtracker.api.dependencies import get_session
 from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
 
 router = APIRouter()
@@ -100,14 +100,17 @@ async def get_collection_items(
     result = await db.execute(query)
     items = result.scalars().all()
 
-    # Calculate current values
+    # Calculate current values efficiently
+    from decimal import Decimal
     for item in items:
         if item.card and item.card.price_history:
-            try:
+            # Price history is already loaded via selectinload
+            price_history = list(item.card.price_history)
+            if price_history:
                 # Calculate value based on latest price
-                latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
+                latest_price = max(price_history, key=lambda p: p.timestamp)
                 item.current_value = latest_price.market_price * item.quantity
-            except ValueError:  # Empty price_history
+            else:
                 item.current_value = Decimal(0)
         else:
             item.current_value = Decimal(0)

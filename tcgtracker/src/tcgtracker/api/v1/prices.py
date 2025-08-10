@@ -21,14 +21,16 @@ from tcgtracker.api.schemas import (
     PriceResponse,
     PriceSource,
 )
-from tcgtracker.database.connection import get_session
+from tcgtracker.api.dependencies import get_session
 from tcgtracker.database.models import (
     Card,
     PriceHistory,
     UserAlert,
     User,
     CardConditionEnum,
+    AlertTypeEnum,
     DataSourceEnum,
+    TCGTypeEnum,
 )
 from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.justtcg import JustTCGClient
@@ -67,7 +69,7 @@ async def fetch_and_update_price(
         # Fetch from JustTCG
         client = JustTCGClient()
         try:
-            game = "pokemon" if card.tcg_type.value == "POKEMON" else "onepiece"
+            game = "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
             result = await client.get_card_price(card.name, game=game)
             if result:
                 price_data = result.get("market_price", 0)
@@ -145,35 +147,43 @@ async def create_price(
             status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
         )
 
-    # Create price entry
-    new_price = PriceHistory(**price_data.model_dump())
-    db.add(new_price)
+    try:
+        # Create price entry
+        new_price = PriceHistory(**price_data.model_dump())
+        db.add(new_price)
 
-    # Check price alerts
-    alerts_query = select(UserAlert).where(
-        and_(
-            UserAlert.card_id == price_data.card_id,
-            UserAlert.is_active == True,
+        # Check price alerts
+        alerts_query = select(UserAlert).where(
+            and_(
+                UserAlert.card_id == price_data.card_id,
+                UserAlert.is_active == True,
+            )
         )
-    )
-    result = await db.execute(alerts_query)
-    alerts = result.scalars().all()
+        result = await db.execute(alerts_query)
+        alerts = result.scalars().all()
 
-    for alert in alerts:
-        if (
-            alert.alert_type == "above"
-            and price_data.market_price >= alert.target_price
-        ) or (
-            alert.alert_type == "below"
-            and price_data.market_price <= alert.target_price
-        ):
-            alert.triggered_at = datetime.now(timezone.utc)
-            # TODO: Send notification to user
+        for alert in alerts:
+            if (
+                alert.alert_type == AlertTypeEnum.PRICE_INCREASE
+                and price_data.market_price >= alert.price_threshold
+            ) or (
+                alert.alert_type == AlertTypeEnum.PRICE_DROP
+                and price_data.market_price <= alert.price_threshold
+            ):
+                alert.last_triggered = datetime.now(timezone.utc)
+                # TODO: Send notification to user
 
-    await db.commit()
-    await db.refresh(new_price)
+        await db.commit()
+        await db.refresh(new_price)
 
-    return new_price
+        return new_price
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to create price update: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create price update"
+        )
 
 
 @router.get("/card/{card_id}", response_model=PriceHistorySchema)
@@ -183,7 +193,7 @@ async def get_price_history(
     source: Optional[PriceSource] = Query(None),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> PriceHistory:
+) -> PriceHistorySchema:
     """Get price history for a specific card."""
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == card_id))
@@ -245,7 +255,6 @@ async def get_price_history(
             market_price=p.market_price,
             currency=p.currency,
             condition=p.condition,
-            listing_url=None,  # PriceHistory model doesn't have listing_url
             timestamp=p.timestamp,
         )
         for p in prices
