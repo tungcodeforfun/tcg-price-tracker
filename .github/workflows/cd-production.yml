@@ -28,7 +28,7 @@ jobs:
       is-rollback: ${{ steps.validation.outputs.is-rollback }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Validate deployment
       id: validation
@@ -75,7 +75,7 @@ jobs:
       image-digest: ${{ steps.build.outputs.digest }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -133,7 +133,7 @@ jobs:
       url: https://tcg.yourdomain.com
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -185,7 +185,7 @@ jobs:
       url: https://tcg.yourdomain.com
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Setup deployment variables
       run: |
