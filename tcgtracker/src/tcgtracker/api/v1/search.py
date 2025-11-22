@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tcgtracker.api.dependencies import get_current_active_user
+from tcgtracker.api.dependencies import get_current_active_user, get_session
 from tcgtracker.api.schemas import (
     CardCreate,
     CardResponse,
@@ -13,7 +13,6 @@ from tcgtracker.api.schemas import (
     SearchRequest,
     SearchResult,
 )
-from tcgtracker.api.dependencies import get_session
 from tcgtracker.database.models import Card, User
 from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.justtcg import JustTCGClient
@@ -103,9 +102,9 @@ async def search_pricecharting(
     except DataValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid search parameters: {str(e)}"
+            detail=f"Invalid search parameters: {str(e)}",
         )
-    
+
     client = PriceChartingClient()
 
     try:
@@ -135,7 +134,9 @@ async def search_pricecharting(
         for product in products:
             # Transform PriceCharting data to SearchResult
             result = SearchResult(
-                external_id=str(product.get("pricecharting_id") or product.get("id", "")),
+                external_id=str(
+                    product.get("pricecharting_id") or product.get("id", "")
+                ),
                 name=product.get("name", "Unknown"),
                 set_name=product.get("set_name", "Unknown Set"),
                 tcg_type=search_request.tcg_type or "pokemon",
@@ -169,15 +170,15 @@ async def search_justtcg(
     except DataValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid search parameters: {str(e)}"
+            detail=f"Invalid search parameters: {str(e)}",
         )
-    
+
     client = JustTCGClient()
 
     try:
         # Determine game type
         game = "pokemon" if validated_tcg_type == "pokemon" else "onepiece"
-        
+
         # Search JustTCG
         products = await client.search_cards(
             query=validated_query,
@@ -326,14 +327,12 @@ async def import_card_from_search(
         # Add initial price if available (after card is committed)
         if search_result.price:
             from datetime import datetime, timezone
-            from tcgtracker.database.models import (
-                PriceHistory,
-                DataSourceEnum,
-                CardConditionEnum,
-            )
+
+            from tcgtracker.database.models import CardConditionEnum, PriceHistory
 
             # Map source from API enum to database enum
             from tcgtracker.utils.enum_mappings import map_price_source_to_db
+
             db_source = map_price_source_to_db(search_result.source)
 
             price = PriceHistory(
@@ -367,11 +366,13 @@ async def get_search_suggestions(
     current_user: User = Depends(get_current_active_user),
 ) -> List[str]:
     """Get search suggestions based on existing cards."""
-    from sqlalchemy import distinct, or_, select
+    from sqlalchemy import distinct, select
 
     # Build query for card names
     sanitized_query = sanitize_search_input(query)
-    name_query = select(distinct(Card.name)).where(Card.name.ilike(f"%{sanitized_query}%"))
+    name_query = select(distinct(Card.name)).where(
+        Card.name.ilike(f"%{sanitized_query}%")
+    )
 
     if tcg_type:
         name_query = name_query.where(Card.tcg_type == tcg_type)

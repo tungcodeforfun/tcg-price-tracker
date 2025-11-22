@@ -3,7 +3,7 @@
 import asyncio
 import random
 from functools import wraps
-from typing import Any, Callable, List, Optional, Type, TypeVar, Union
+from typing import Any, Callable, List, Optional, Type, TypeVar
 
 import httpx
 import structlog
@@ -33,13 +33,9 @@ class APIError(Exception):
 class TransientError(APIError):
     """Error that might succeed if retried."""
 
-    pass
-
 
 class PermanentError(APIError):
     """Error that will not succeed if retried."""
-
-    pass
 
 
 class RateLimitError(TransientError):

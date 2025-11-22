@@ -1,7 +1,6 @@
 """Command-line interface for TCG Price Tracker."""
 
 import asyncio
-from typing import Optional
 
 import click
 import nest_asyncio
@@ -11,8 +10,12 @@ from sqlalchemy import text
 # Allow nested event loops for better async handling
 nest_asyncio.apply()
 
-from tcgtracker.database.connection import get_db_manager, create_tables, drop_tables
-from tcgtracker.database.migrations_manager import (
+from tcgtracker.database.connection import (  # noqa: E402
+    create_tables,
+    drop_tables,
+    get_db_manager,
+)
+from tcgtracker.database.migrations_manager import (  # noqa: E402
     MigrationsManager,
     init_database,
     reset_database,
@@ -44,13 +47,11 @@ def run_async(coro):
 @click.group()
 def cli():
     """TCG Price Tracker CLI."""
-    pass
 
 
 @cli.group()
 def db():
     """Database management commands."""
-    pass
 
 
 @db.command()
@@ -169,8 +170,8 @@ def reset():
         raise click.ClickException(str(e))
 
 
-@db.command()
-def create_tables():
+@db.command(name="create-tables")
+def create_tables_cmd():
     """Create all database tables without migrations."""
     try:
         run_async(create_tables())
@@ -180,9 +181,9 @@ def create_tables():
         raise click.ClickException(str(e))
 
 
-@db.command()
+@db.command(name="drop-tables")
 @click.confirmation_option(prompt="Are you sure you want to drop all tables?")
-def drop_tables():
+def drop_tables_cmd():
     """Drop all database tables."""
     try:
         run_async(drop_tables())
@@ -233,7 +234,6 @@ async def _test_connection_async():
 def serve(host: str, port: int, reload: bool, debug: bool):
     """Start the TCG Price Tracker server."""
     import uvicorn
-    from tcgtracker.main import app
 
     uvicorn.run(
         "tcgtracker.main:app",

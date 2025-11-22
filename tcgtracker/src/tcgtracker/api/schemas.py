@@ -156,8 +156,6 @@ class CardBase(BaseModel):
 class CardCreate(CardBase):
     """Card creation schema."""
 
-    pass
-
 
 class CardUpdate(BaseModel):
     """Card update schema."""

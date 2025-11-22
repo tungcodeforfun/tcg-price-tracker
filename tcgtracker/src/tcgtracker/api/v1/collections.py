@@ -1,7 +1,7 @@
 """Collection management endpoints."""
 
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func
@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from tcgtracker.api.dependencies import get_current_active_user
+from tcgtracker.api.dependencies import get_current_active_user, get_session
 from tcgtracker.api.schemas import (
     CardCondition,
     CollectionItemCreate,
@@ -18,7 +18,6 @@ from tcgtracker.api.schemas import (
     CollectionStats,
     TCGType,
 )
-from tcgtracker.api.dependencies import get_session
 from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
 
 router = APIRouter()
@@ -97,11 +96,12 @@ async def get_collection_items(
 
     query = query.limit(limit).offset(offset)
 
-    result = await db.execute(query)
-    items = result.scalars().all()
+    result_items = await db.execute(query)
+    items = result_items.scalars().all()
 
     # Calculate current values efficiently
     from decimal import Decimal
+
     for item in items:
         if item.card and item.card.price_history:
             # Price history is already loaded via selectinload
@@ -115,7 +115,7 @@ async def get_collection_items(
         else:
             item.current_value = Decimal(0)
 
-    return items
+    return cast(List[CollectionItem], items)
 
 
 @router.get("/items/{item_id}", response_model=CollectionItemResponse)

@@ -1,7 +1,7 @@
 """Circuit breaker implementation for external API integrations."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, TypeVar
 
@@ -199,7 +199,7 @@ class CircuitBreaker:
             await self._record_success()
             return result
 
-        except self.expected_exception as exc:
+        except self.expected_exception:
             await self._record_failure()
             raise
         except Exception as exc:

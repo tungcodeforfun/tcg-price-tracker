@@ -1,7 +1,7 @@
 """External API integrations for TCG Price Tracker."""
 
 from .base import BaseAPIClient
-from .tcgplayer import TCGPlayerClient
 from .ebay import eBayClient
+from .tcgplayer import TCGPlayerClient
 
 __all__ = ["BaseAPIClient", "TCGPlayerClient", "eBayClient"]

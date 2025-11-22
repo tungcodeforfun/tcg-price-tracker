@@ -1,6 +1,6 @@
 """Card management endpoints."""
 
-from typing import List, Optional
+from typing import List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, or_
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from tcgtracker.api.dependencies import get_current_active_user
+from tcgtracker.api.dependencies import get_current_active_user, get_session
 from tcgtracker.api.schemas import (
     CardCreate,
     CardResponse,
@@ -16,7 +16,6 @@ from tcgtracker.api.schemas import (
     CardUpdate,
     TCGType,
 )
-from tcgtracker.api.dependencies import get_session
 from tcgtracker.database.models import Card, PriceHistory, User
 
 router = APIRouter()
@@ -144,7 +143,7 @@ async def list_cards(
         else:
             card.latest_price = None
 
-    return cards
+    return cast(List[Card], cards)
 
 
 @router.put("/{card_id}", response_model=CardResponse)
@@ -256,9 +255,17 @@ async def search_cards(
                 # Calculate simple trend
                 if len(sorted_prices) > 1:
                     prev_price = sorted_prices[-2].market_price
-                    if latest_price.market_price > prev_price:
+                    if (
+                        latest_price.market_price
+                        and prev_price
+                        and latest_price.market_price > prev_price
+                    ):
                         card.price_trend = "up"
-                    elif latest_price.market_price < prev_price:
+                    elif (
+                        latest_price.market_price
+                        and prev_price
+                        and latest_price.market_price < prev_price
+                    ):
                         card.price_trend = "down"
                     else:
                         card.price_trend = "stable"
@@ -270,7 +277,5 @@ async def search_cards(
         else:
             card.latest_price = None
             card.price_trend = "no_data"
-                else:
-                    card.price_trend = "stable"
 
-    return cards
+    return cast(List[Card], cards)

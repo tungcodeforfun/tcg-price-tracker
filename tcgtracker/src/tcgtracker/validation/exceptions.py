@@ -1,6 +1,6 @@
 """Custom exception hierarchy for validation errors."""
 
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 
 class ValidationError(Exception):
@@ -18,13 +18,9 @@ class ValidationError(Exception):
 class SecurityValidationError(ValidationError):
     """Security-related validation errors."""
 
-    pass
-
 
 class BusinessRuleError(ValidationError):
     """Business rule validation errors."""
-
-    pass
 
 
 class RateLimitError(ValidationError):

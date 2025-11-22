@@ -1,9 +1,8 @@
 """Input sanitization functions for security and data integrity."""
 
 import html
-import re
-from typing import Optional, Dict, Any, List
 import json
+import re
 
 
 def sanitize_user_text(text: str) -> str:

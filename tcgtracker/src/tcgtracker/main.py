@@ -1,5 +1,7 @@
 """Main FastAPI application for TCG Price Tracker."""
 
+# Configure structured logging
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -9,10 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from tcgtracker.config import get_settings
-
-
-# Configure structured logging
-import logging
 
 # Set up basic logging level
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +31,7 @@ def configure_logging() -> None:
 
     log_level = level_map.get(settings.app.log_level.upper(), logging.INFO)
 
-    processors = [
+    processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.StackInfoRenderer(),
@@ -166,9 +164,13 @@ def create_app() -> FastAPI:
             status_code=200,
         )
 
+    from fastapi import Request
+
     # Global exception handler
     @app.exception_handler(Exception)
-    async def global_exception_handler(request, exc):
+    async def global_exception_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         """Global exception handler."""
         logger.error(
             "Unhandled exception occurred",

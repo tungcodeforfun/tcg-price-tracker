@@ -1,8 +1,9 @@
 """Business rule validation for TCG Price Tracker."""
 
-from decimal import Decimal
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Optional
+
 from .exceptions import BusinessRuleError
 
 

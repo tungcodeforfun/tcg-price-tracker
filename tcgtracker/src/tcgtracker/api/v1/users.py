@@ -1,21 +1,24 @@
 """User management endpoints."""
 
-from typing import List
+from typing import List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from tcgtracker.api.dependencies import get_current_active_user, get_password_hash
+from tcgtracker.api.dependencies import (
+    get_current_active_user,
+    get_password_hash,
+    get_session,
+)
 from tcgtracker.api.schemas import (
+    PasswordChange,
     PriceAlertCreate,
     PriceAlertResponse,
     UserResponse,
     UserUpdate,
-    PasswordChange,
 )
-from tcgtracker.api.dependencies import get_session
-from tcgtracker.database.models import Card, UserAlert, User, CollectionItem, AlertTypeEnum
+from tcgtracker.database.models import Card, CollectionItem, User, UserAlert
 
 router = APIRouter()
 
@@ -28,15 +31,19 @@ async def get_current_user_profile(
     return current_user
 
 
-def _convert_alert_schema_to_model_data(alert_data: PriceAlertCreate, user_id: int) -> dict:
+def _convert_alert_schema_to_model_data(
+    alert_data: PriceAlertCreate, user_id: int
+) -> dict:
     """Convert PriceAlertCreate schema to UserAlert model data."""
     from tcgtracker.utils.enum_mappings import map_alert_type_to_db
-    
+
     try:
         alert_type_enum, comparison_op = map_alert_type_to_db(alert_data.alert_type)
     except KeyError:
-        raise ValueError(f"Invalid alert_type: {alert_data.alert_type}. Must be 'above' or 'below'")
-    
+        raise ValueError(
+            f"Invalid alert_type: {alert_data.alert_type}. Must be 'above' or 'below'"
+        )
+
     return {
         "user_id": user_id,
         "card_id": alert_data.card_id,
@@ -91,19 +98,18 @@ async def change_password(
 ) -> User:
     """Change user password."""
     from tcgtracker.api.dependencies import verify_password
-    
+
     # Verify current password
     if not verify_password(password_data.current_password, current_user.password_hash):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect current password"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password"
         )
-    
+
     # Update password
     current_user.password_hash = get_password_hash(password_data.new_password)
     await db.commit()
     await db.refresh(current_user)
-    
+
     return current_user
 
 
@@ -127,7 +133,7 @@ async def create_price_alert(
 
     # Check if similar alert already exists
     from sqlalchemy import and_
-    
+
     # Convert alert_type string to enum for comparison
     converted_data = _convert_alert_schema_to_model_data(alert_data, current_user.id)
 
@@ -136,11 +142,11 @@ async def create_price_alert(
             UserAlert.user_id == current_user.id,
             UserAlert.card_id == alert_data.card_id,
             UserAlert.alert_type == converted_data["alert_type"],
-            UserAlert.is_active == True,
+            UserAlert.is_active,  # Fixed E712: comparison to True should be `is True` or `is not False`
         )
     )
     result = await db.execute(existing_query)
-    existing_alert = result.scalar_one_or_none()
+    existing_alert = cast(UserAlert | None, result.scalar_one_or_none())
 
     if existing_alert:
         # Update existing alert with proper field mapping
@@ -179,10 +185,10 @@ async def get_price_alerts(
     )
 
     if active_only:
-        query = query.where(UserAlert.is_active == True)
+        query = query.where(UserAlert.is_active)
 
-    result = await db.execute(query)
-    alerts = result.scalars().all()
+    result_alerts = await db.execute(query)
+    alerts = cast(List[UserAlert], result_alerts.scalars().all())
 
     return alerts
 
@@ -252,7 +258,8 @@ async def get_user_stats(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Get user statistics."""
-    from sqlalchemy import func
+    from sqlalchemy import Integer, func
+
     # Get collection stats
     collection_query = select(
         func.count(CollectionItem.id).label("total_items"),
@@ -265,7 +272,7 @@ async def get_user_stats(
     # Get alert stats
     alert_query = select(
         func.count(UserAlert.id).label("total_alerts"),
-        func.sum(func.cast(UserAlert.is_active, int)).label("active_alerts"),
+        func.sum(func.cast(UserAlert.is_active, Integer)).label("active_alerts"),
     ).where(UserAlert.user_id == current_user.id)
 
     result = await db.execute(alert_query)

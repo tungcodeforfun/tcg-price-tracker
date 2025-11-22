@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from urllib.parse import urljoin
 
 import httpx
@@ -10,9 +10,6 @@ import structlog
 
 from tcgtracker.utils.circuit_breaker import CircuitBreaker, get_circuit_breaker
 from tcgtracker.utils.errors import (
-    APIError,
-    AuthenticationError,
-    RateLimitError,
     TransientError,
     retry_on_transient_error,
     safe_request,

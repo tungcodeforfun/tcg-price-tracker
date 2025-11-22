@@ -1,7 +1,6 @@
 """Centralized enum mapping utilities."""
-from tcgtracker.api.schemas import PriceSource, AlertType
-from tcgtracker.database.models import DataSourceEnum, AlertTypeEnum
-
+from tcgtracker.api.schemas import PriceSource
+from tcgtracker.database.models import AlertTypeEnum, DataSourceEnum
 
 # Price source mappings
 PRICE_SOURCE_TO_DB_SOURCE = {
@@ -33,10 +32,10 @@ def map_price_source_to_db(api_source: PriceSource) -> DataSourceEnum:
 def map_alert_type_to_db(alert_type: str) -> tuple[AlertTypeEnum, str]:
     """
     Convert alert type string to database enum and operator.
-    
+
     Args:
         alert_type: "above" or "below"
-        
+
     Returns:
         Tuple of (AlertTypeEnum, comparison_operator)
     """

@@ -44,33 +44,34 @@ async def get_current_user(
             token,
             settings.security.secret_key,
             algorithms=[settings.security.algorithm],
-            options={"verify_exp": True, "verify_iat": True}
+            options={"verify_exp": True, "verify_iat": True},
         )
-        
+
         # Validate required claims
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-            
+
         # Validate token expiration explicitly
         exp = payload.get("exp")
         if exp is None:
             raise credentials_exception
-        
+
         from datetime import datetime
+
         if datetime.utcnow().timestamp() > exp:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-            
+
         # Validate issued at time (iat) is not in the future
         iat = payload.get("iat")
         if iat and datetime.utcnow().timestamp() < iat:
             raise credentials_exception
-            
-    except JWTError as e:
+
+    except JWTError:
         # Log JWT errors for debugging (in production, use proper logging)
         raise credentials_exception
     except Exception:
@@ -81,7 +82,7 @@ async def get_current_user(
         user_id_int = int(user_id)
     except (ValueError, TypeError):
         raise credentials_exception
-    
+
     result = await db.execute(select(User).where(User.id == user_id_int))
     user = result.scalar_one_or_none()
 

@@ -117,11 +117,21 @@ class ExternalAPISettings(BaseSettings):
         default="https://api.justtcg.com/v1", description="JustTCG API base URL"
     )
 
+    # TCGPlayer API
+    tcgplayer_client_id: str = Field(default="", description="TCGPlayer Client ID")
+    tcgplayer_client_secret: str = Field(
+        default="", description="TCGPlayer Client Secret"
+    )
+    tcgplayer_base_url: str = Field(
+        default="https://api.tcgplayer.com", description="TCGPlayer API base URL"
+    )
+    tcgplayer_auth_code: str = Field(default="", description="TCGPlayer Auth Code")
+
     # eBay API
     ebay_environment: str = Field(
         default="production", description="eBay environment (sandbox or production)"
     )
-    
+
     @field_validator("ebay_environment")
     @classmethod
     def validate_ebay_environment(cls, v: str) -> str:
@@ -129,12 +139,19 @@ class ExternalAPISettings(BaseSettings):
         if v.lower() not in ["sandbox", "production"]:
             raise ValueError('eBay environment must be "sandbox" or "production"')
         return v.lower()
+
     # Production credentials
     ebay_client_id: str = Field(default="", description="eBay Production Client ID")
-    ebay_client_secret: str = Field(default="", description="eBay Production Client Secret")
+    ebay_client_secret: str = Field(
+        default="", description="eBay Production Client Secret"
+    )
     # Sandbox credentials
-    ebay_sandbox_client_id: str = Field(default="", description="eBay Sandbox Client ID")
-    ebay_sandbox_client_secret: str = Field(default="", description="eBay Sandbox Client Secret")
+    ebay_sandbox_client_id: str = Field(
+        default="", description="eBay Sandbox Client ID"
+    )
+    ebay_sandbox_client_secret: str = Field(
+        default="", description="eBay Sandbox Client Secret"
+    )
     # Base URLs (automatically set based on environment)
     ebay_base_url: str = Field(
         default="https://api.ebay.com", description="eBay API base URL"
@@ -146,12 +163,17 @@ class ExternalAPISettings(BaseSettings):
     # PriceCharting API
     pricecharting_api_key: str = Field(default="", description="PriceCharting API Key")
     pricecharting_base_url: str = Field(
-        default="https://www.pricecharting.com/api", description="PriceCharting API base URL"
+        default="https://www.pricecharting.com/api",
+        description="PriceCharting API base URL",
     )
 
     # Rate limiting
     justtcg_rate_limit: int = Field(
-        default=30, description="JustTCG requests per minute (API key: ~40/min from 1000/day quota, free tier: ~4/hour from 100/day quota)"
+        default=30,
+        description="JustTCG requests per minute (API key: ~40/min from 1000/day quota, free tier: ~4/hour from 100/day quota)",
+    )
+    tcgplayer_rate_limit: int = Field(
+        default=300, description="TCGPlayer requests per minute"
     )
     ebay_rate_limit: int = Field(default=1000, description="eBay requests per hour")
     pricecharting_rate_limit: int = Field(
@@ -168,9 +190,7 @@ class SecuritySettings(BaseSettings):
     secret_key: str = Field(
         default_factory=lambda: os.getenv(
             "SECRET_KEY",
-            os.getenv(
-                "SECURITY_SECRET_KEY", ""
-            ),
+            os.getenv("SECURITY_SECRET_KEY", ""),
         ),
         description="Secret key for JWT signing (must be at least 32 characters)",
         min_length=32,
@@ -182,7 +202,7 @@ class SecuritySettings(BaseSettings):
         """Validate that secret key is properly configured."""
         # Allow empty secret key only in development mode
         app_env = os.getenv("APP_ENVIRONMENT", "development")
-        
+
         if not v or v == "":
             if app_env == "production":
                 raise ValueError(
@@ -192,10 +212,10 @@ class SecuritySettings(BaseSettings):
             else:
                 # Use a development-only key
                 v = "development-only-key-not-for-production-use-" + "x" * 20
-        
+
         if len(v) < 32:
             raise ValueError("Secret key must be at least 32 characters long")
-        
+
         # Enforce strict validation in production
         if app_env == "production":
             # Reject common insecure patterns in production
@@ -231,6 +251,7 @@ class SecuritySettings(BaseSettings):
                 ]
                 if any(pattern in v.lower() for pattern in insecure_patterns):
                     import warnings
+
                     warnings.warn(
                         "Secret key appears to contain insecure patterns. "
                         "Please use a cryptographically secure random string in production.",

@@ -12,17 +12,11 @@ from tcgtracker.api.dependencies import (
     create_access_token,
     create_refresh_token,
     get_password_hash,
+    get_session,
     verify_password,
 )
-from tcgtracker.api.schemas import (
-    LoginRequest,
-    Token,
-    TokenRefresh,
-    UserCreate,
-    UserResponse,
-)
+from tcgtracker.api.schemas import Token, TokenRefresh, UserCreate, UserResponse
 from tcgtracker.config import get_settings
-from tcgtracker.database.connection import get_session
 from tcgtracker.database.models import User
 
 router = APIRouter()
