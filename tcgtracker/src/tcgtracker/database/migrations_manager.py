@@ -1,12 +1,13 @@
 """Database migrations management utilities."""
 
-import asyncio
+import re
 from pathlib import Path
 from typing import Optional
 
 import structlog
 from alembic import command
 from alembic.config import Config
+from sqlalchemy.pool import NullPool
 
 from tcgtracker.config import get_settings
 from tcgtracker.database.connection import get_db_manager
@@ -16,11 +17,11 @@ logger = structlog.get_logger(__name__)
 
 class MigrationsManager:
     """Manager for database migrations using Alembic."""
-    
+
     def __init__(self) -> None:
         self.settings = get_settings()
         self.alembic_cfg = self._get_alembic_config()
-    
+
     def _get_alembic_config(self) -> Config:
         """Get Alembic configuration."""
         # Search for alembic.ini starting from current directory and moving up
@@ -32,21 +33,62 @@ class MigrationsManager:
                 break
         else:
             raise FileNotFoundError("alembic.ini not found in project hierarchy")
-        
+
         cfg = Config(str(alembic_ini))
         cfg.set_main_option("sqlalchemy.url", self.settings.database.url)
         return cfg
-    
+
     def create_migration(self, message: str, autogenerate: bool = True) -> None:
-        """Create a new migration."""
+        """Create a new migration with strict input validation."""
+        # Validate migration message with strict allowlist approach
+        sanitized_message = self._validate_migration_message(message)
+
         try:
-            logger.info(f"Creating migration: {message}")
-            command.revision(self.alembic_cfg, message=message, autogenerate=autogenerate)
+            logger.info(f"Creating migration: {sanitized_message}")
+            command.revision(
+                self.alembic_cfg, message=sanitized_message, autogenerate=autogenerate
+            )
             logger.info("Migration created successfully")
         except Exception as e:
             logger.error(f"Failed to create migration: {e}")
             raise
-    
+
+    def _validate_migration_message(self, message: str) -> str:
+        """Validate and sanitize migration message with strict allowlist approach.
+
+        Args:
+            message: The migration message to validate
+
+        Returns:
+            Sanitized migration message
+
+        Raises:
+            ValueError: If message is invalid or contains disallowed characters
+        """
+        if not message or not message.strip():
+            raise ValueError("Migration message cannot be empty")
+
+        # Strip and check length
+        clean_message = message.strip()
+        if len(clean_message) > 100:
+            raise ValueError("Migration message must be 100 characters or less")
+
+        # Strict allowlist: only allow alphanumeric, spaces, hyphens, underscores
+        # This prevents any potential injection attacks
+        if not re.match(r"^[a-zA-Z0-9\s\-_]+$", clean_message):
+            raise ValueError(
+                "Migration message can only contain letters, numbers, spaces, "
+                "hyphens, and underscores"
+            )
+
+        # Additional validation: ensure it's not just whitespace/special chars
+        if not re.search(r"[a-zA-Z0-9]", clean_message):
+            raise ValueError(
+                "Migration message must contain at least one alphanumeric character"
+            )
+
+        return clean_message
+
     def upgrade_database(self, revision: str = "head") -> None:
         """Upgrade database to specified revision."""
         try:
@@ -56,7 +98,7 @@ class MigrationsManager:
         except Exception as e:
             logger.error(f"Failed to upgrade database: {e}")
             raise
-    
+
     def downgrade_database(self, revision: str) -> None:
         """Downgrade database to specified revision."""
         try:
@@ -66,33 +108,30 @@ class MigrationsManager:
         except Exception as e:
             logger.error(f"Failed to downgrade database: {e}")
             raise
-    
-    async def get_current_revision(self) -> Optional[str]:
+
+    def get_current_revision(self) -> Optional[str]:
         """Get current database revision."""
         try:
             from alembic.runtime.migration import MigrationContext
-            
-            db_manager = get_db_manager()
-            
-            async def _get_revision():
-                try:
-                    async with db_manager.get_write_session() as session:
-                        async with session.begin():
-                            connection = await session.connection()
-                            context = MigrationContext.configure(connection.sync_connection)
-                            return context.get_current_revision()
-                except Exception as e:
-                    logger.error(f"Database error while getting revision: {e}")
-                    raise
-            
-            return await asyncio.wait_for(_get_revision(), timeout=30.0)
-        except asyncio.TimeoutError:
-            logger.error("Timeout while getting current revision")
-            return None
+            from sqlalchemy import create_engine
+
+            # Create a dedicated engine with restricted pooling for migration context
+            # This prevents connection exposure and limits resource usage
+            engine = create_engine(
+                self.settings.database.url,
+                poolclass=NullPool,  # No connection pooling for one-off operations
+            )
+
+            try:
+                with engine.connect() as connection:
+                    context = MigrationContext.configure(connection)
+                    return context.get_current_revision()
+            finally:
+                engine.dispose()
         except Exception as e:
             logger.warning(f"Failed to get current revision: {e}")
             return None
-    
+
     def show_history(self) -> None:
         """Show migration history."""
         try:
@@ -100,7 +139,7 @@ class MigrationsManager:
         except Exception as e:
             logger.error(f"Failed to show history: {e}")
             raise
-    
+
     def show_current(self) -> None:
         """Show current revision."""
         try:
@@ -113,16 +152,16 @@ class MigrationsManager:
 async def init_database() -> None:
     """Initialize database with all tables and initial data."""
     logger.info("Initializing database")
-    
+
     db_manager = get_db_manager()
     await db_manager.initialize()
-    
+
     migrations_manager = MigrationsManager()
-    
+
     try:
         # Check if this is a fresh database
-        current_revision = await migrations_manager.get_current_revision()
-        
+        current_revision = migrations_manager.get_current_revision()
+
         if current_revision is None:
             logger.info("Fresh database detected, running migrations")
             migrations_manager.upgrade_database("head")
@@ -130,19 +169,31 @@ async def init_database() -> None:
             logger.info(f"Database exists at revision: {current_revision}")
             # Optionally upgrade to latest
             migrations_manager.upgrade_database("head")
-            
+
         logger.info("Database initialization completed")
+    except FileNotFoundError as e:
+        logger.error(f"Alembic configuration not found: {e}")
+        raise ConnectionError(
+            "Migration configuration missing. Please ensure alembic.ini exists."
+        )
+    except PermissionError as e:
+        logger.error(f"Database permission error: {e}")
+        raise ConnectionError(
+            "Insufficient database permissions for migration operations."
+        )
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
         raise
+    finally:
+        await db_manager.close()
 
 
 async def reset_database() -> None:
     """Reset database by dropping and recreating all tables."""
     logger.warning("Resetting database - all data will be lost!")
-    
-    from tcgtracker.database.connection import drop_tables, create_tables
-    
+
+    from tcgtracker.database.connection import create_tables, drop_tables
+
     try:
         await drop_tables()
         await create_tables()

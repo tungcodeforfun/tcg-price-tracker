@@ -130,8 +130,18 @@ def upgrade() -> None:
     op.create_index('idx_cards_tcg_set', 'cards', ['tcg_type', 'set_identifier'])
     op.create_index('idx_cards_popularity', 'cards', ['search_count'])
     
-    # Create GIN index for full-text search on card names
-    op.execute('CREATE INDEX idx_cards_name_search ON cards USING gin (card_name gin_trgm_ops)')
+    # Enable pg_trgm extension for trigram search (required for GIN index)
+    # Handle cases where database user doesn't have superuser privileges
+    try:
+        op.execute('CREATE EXTENSION IF NOT EXISTS pg_trgm')
+        # Create GIN index for full-text search on card names
+        op.execute('CREATE INDEX idx_cards_name_search ON cards USING gin (card_name gin_trgm_ops)')
+    except Exception as e:
+        # Log warning but don't fail the migration
+        print(f"Warning: Could not create pg_trgm extension or GIN index: {e}")
+        print("Please ensure pg_trgm extension is created by a database administrator")
+        # Create a regular B-tree index as fallback
+        op.execute('CREATE INDEX idx_cards_name_search ON cards (card_name)')
 
     # Create price_history table with partitioning consideration
     op.create_table(
