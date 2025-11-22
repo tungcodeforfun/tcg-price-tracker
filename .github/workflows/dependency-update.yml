@@ -133,7 +133,7 @@ jobs:
         echo "update-summary=$SUMMARY" >> $GITHUB_OUTPUT
 
     - name: Upload reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dependency-reports
         path: |
@@ -388,7 +388,7 @@ jobs:
         poetry run bandit -r src/ -f json -o bandit-report.json
 
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-monitoring-reports
         path: |
