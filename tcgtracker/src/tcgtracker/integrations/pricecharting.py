@@ -1,14 +1,11 @@
 """PriceCharting API client for price data."""
 
-import asyncio
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 
 import structlog
 
 from tcgtracker.config import get_settings
-from tcgtracker.utils.errors import APIError, ValidationError
 
 from .base import BaseAPIClient
 
@@ -98,7 +95,7 @@ class PriceChartingClient(BaseAPIClient):
         try:
             response = await self.get("/products", params=params)
             products = response.get("products", [])
-            
+
             # Transform to consistent format
             return [self._transform_product(p) for p in products]
         except Exception as e:
@@ -157,7 +154,7 @@ class PriceChartingClient(BaseAPIClient):
             List of price history entries
         """
         params = {"days": days}
-        
+
         try:
             response = await self.get(f"/product/{product_id}/history", params=params)
             history = response.get("price_history", [])
@@ -167,9 +164,7 @@ class PriceChartingClient(BaseAPIClient):
             return []
 
     async def get_pokemon_products(
-        self, 
-        set_name: Optional[str] = None,
-        limit: int = 100
+        self, set_name: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
         Get Pokemon card products.
@@ -183,15 +178,11 @@ class PriceChartingClient(BaseAPIClient):
         """
         query = set_name if set_name else ""
         return await self.search_products(
-            query=query, 
-            console="pokemon-cards",
-            limit=limit
+            query=query, console="pokemon-cards", limit=limit
         )
 
     async def get_one_piece_products(
-        self, 
-        set_name: Optional[str] = None,
-        limit: int = 100
+        self, set_name: Optional[str] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
         Get One Piece card products.
@@ -205,9 +196,7 @@ class PriceChartingClient(BaseAPIClient):
         """
         query = set_name if set_name else ""
         return await self.search_products(
-            query=query,
-            console="one-piece-cards", 
-            limit=limit
+            query=query, console="one-piece-cards", limit=limit
         )
 
     async def get_card_price(self, card_identifier: str) -> Optional[Dict[str, Any]]:
@@ -222,15 +211,15 @@ class PriceChartingClient(BaseAPIClient):
         """
         # First search for the card
         results = await self.search_products(card_identifier, limit=1)
-        
+
         if not results:
             return None
-            
+
         # Get detailed price data for the first result
         product_id = results[0].get("id")
         if product_id:
             return await self.get_product_prices(product_id)
-        
+
         return None
 
     async def get_sets(self, tcg_type: str) -> List[Dict[str, Any]]:
@@ -244,7 +233,7 @@ class PriceChartingClient(BaseAPIClient):
             List of set objects
         """
         console = f"{tcg_type.replace('_', '-')}-cards"
-        
+
         try:
             response = await self.get(f"/consoles/{console}/sets")
             sets = response.get("sets", [])
@@ -311,20 +300,20 @@ class PriceChartingClient(BaseAPIClient):
         """Transform price data to internal format."""
         # Calculate market price (average of available prices)
         prices = []
-        
+
         loose = self._parse_price(data.get("loose-price"))
         complete = self._parse_price(data.get("cib-price"))
         new = self._parse_price(data.get("new-price"))
-        
+
         if loose:
             prices.append(loose)
         if complete:
             prices.append(complete)
         if new:
             prices.append(new)
-            
+
         market_price = sum(prices) / len(prices) if prices else Decimal("0")
-        
+
         return {
             "market_price": market_price,
             "low_price": min(prices) if prices else Decimal("0"),
@@ -363,7 +352,7 @@ class PriceChartingClient(BaseAPIClient):
         """Parse price string to Decimal with validation."""
         if price_str is None:
             return None
-        
+
         try:
             if isinstance(price_str, (int, float)):
                 price = Decimal(str(price_str))
@@ -375,20 +364,24 @@ class PriceChartingClient(BaseAPIClient):
                 price = Decimal(cleaned)
             else:
                 return None
-            
+
             # Validate price range (sanity check)
             if price < 0:
-                logger.warning(f"Negative price detected: {price} for input: {price_str}")
+                logger.warning(
+                    f"Negative price detected: {price} for input: {price_str}"
+                )
                 return None
             elif price > 100000:  # $100,000 max for a single card
-                logger.warning(f"Unreasonably high price detected: {price} for input: {price_str}")
+                logger.warning(
+                    f"Unreasonably high price detected: {price} for input: {price_str}"
+                )
                 return None
             elif price == 0:
                 return None  # Zero prices are not useful
-                
+
             return price
         except Exception as e:
             logger.warning(f"Could not parse price '{price_str}': {e}")
             return None
-                
+
         return None

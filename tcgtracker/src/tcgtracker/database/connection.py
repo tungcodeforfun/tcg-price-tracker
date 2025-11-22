@@ -1,17 +1,17 @@
 """Database connection management for TCG Price Tracker."""
 
-import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Optional
 
 import structlog
-from sqlalchemy import event, pool
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+
 from tcgtracker.config import get_settings
 
 logger = structlog.get_logger(__name__)

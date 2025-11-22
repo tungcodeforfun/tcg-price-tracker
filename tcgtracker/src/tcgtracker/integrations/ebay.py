@@ -3,7 +3,6 @@
 import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 
 import structlog
 
@@ -44,12 +43,16 @@ class eBayClient(BaseAPIClient):
         if is_sandbox:
             # Use sandbox credentials
             self.client_id = client_id or settings.external_apis.ebay_sandbox_client_id
-            self.client_secret = client_secret or settings.external_apis.ebay_sandbox_client_secret
+            self.client_secret = (
+                client_secret or settings.external_apis.ebay_sandbox_client_secret
+            )
             api_base_url = base_url or settings.external_apis.ebay_sandbox_base_url
         else:
             # Use production credentials
             self.client_id = client_id or settings.external_apis.ebay_client_id
-            self.client_secret = client_secret or settings.external_apis.ebay_client_secret
+            self.client_secret = (
+                client_secret or settings.external_apis.ebay_client_secret
+            )
             api_base_url = base_url or settings.external_apis.ebay_base_url
 
         if not self.client_id or not self.client_secret:
@@ -124,9 +127,9 @@ class eBayClient(BaseAPIClient):
             return token_response["access_token"]
 
         except Exception as exc:
-            logger.error(f"Failed to get eBay application token: {str(exc)}")
+            logger.warning("Failed to get eBay application token: %s", exc)
             raise AuthenticationError(
-                f"Failed to get eBay application token: {str(exc)}"
+                "Failed to get eBay application token: %s" % str(exc)
             )
 
     async def _ensure_valid_token(self) -> None:
@@ -143,7 +146,13 @@ class eBayClient(BaseAPIClient):
                     return  # Token is still valid
 
             # Get new application token
-            self._access_token = await self._get_application_token()
+            try:
+                self._access_token = await self._get_application_token()
+            except Exception as e:
+                if isinstance(e, AuthenticationError):
+                    raise
+                raise AuthenticationError(f"Failed to ensure valid token: {e}")
+
             # eBay application tokens typically last 2 hours
             self._token_expires_at = datetime.utcnow() + timedelta(
                 hours=2, minutes=-5
@@ -263,12 +272,12 @@ class eBayClient(BaseAPIClient):
             ebay_condition = condition_map.get(condition.lower(), condition.upper())
             filters.append(f"conditions:{ebay_condition}")
 
-        if price_min is not None:
+        if price_min is not None and price_max is not None:
+            filters.append(f"price:[{price_min}..{price_max}]")
+        elif price_min is not None:
             filters.append(f"price:[{price_min}..]")
         elif price_max is not None:
             filters.append(f"price:[..{price_max}]")
-        elif price_min is not None and price_max is not None:
-            filters.append(f"price:[{price_min}..{price_max}]")
 
         if sold_items:
             filters.append("buyingOptions:AUCTION")  # Include auctions (sold items)
@@ -301,7 +310,7 @@ class eBayClient(BaseAPIClient):
             Items in the group
         """
         return await self.get(
-            f"/buy/browse/v1/item_summary/get_items_by_item_group",
+            "/buy/browse/v1/item_summary/get_items_by_item_group",
             params={"item_group_id": item_group_id},
         )
 

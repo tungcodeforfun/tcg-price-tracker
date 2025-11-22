@@ -4,7 +4,6 @@ import enum
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
-from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
@@ -20,15 +19,12 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
     """Base class for all database models."""
-
-    pass
 
 
 class TCGTypeEnum(enum.Enum):
@@ -147,6 +143,8 @@ class TCGSet(Base, TimestampMixin):
 class Card(Base, TimestampMixin):
     """Card model for TCG cards."""
 
+    __allow_unmapped__ = True
+
     __tablename__ = "cards"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -159,7 +157,9 @@ class Card(Base, TimestampMixin):
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
     # Deprecated: Use external_id instead for all external systems
-    tcgplayer_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True)  # TODO: Remove in future migration
+    tcgplayer_id: Mapped[Optional[int]] = mapped_column(
+        Integer, unique=True
+    )  # TODO: Remove in future migration
     # Unified external ID field for all pricing sources (TCGPlayer, PriceCharting, JustTCG, etc.)
     external_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -203,6 +203,10 @@ class Card(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<Card(id={self.id}, name='{self.name}', set='{self.set_name}')>"
+
+    # Runtime attributes for API responses
+    latest_price: Optional[Decimal] = None
+    price_trend: Optional[str] = None
 
 
 class PriceHistory(Base):
@@ -263,6 +267,8 @@ class PriceHistory(Base):
 class CollectionItem(Base, TimestampMixin):
     """Collection item model for user's card collections."""
 
+    __allow_unmapped__ = True
+
     __tablename__ = "collection_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -297,6 +303,9 @@ class CollectionItem(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<CollectionItem(id={self.id}, user_id={self.user_id}, card_id={self.card_id}, quantity={self.quantity})>"
+
+    # Runtime attributes for API responses
+    current_value: Optional[Decimal] = None
 
 
 class UserAlert(Base, TimestampMixin):

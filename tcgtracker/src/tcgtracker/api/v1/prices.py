@@ -3,37 +3,33 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Sequence, cast
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-logger = logging.getLogger(__name__)
-from sqlalchemy.orm import selectinload
-
-from tcgtracker.api.dependencies import get_current_active_user
-from tcgtracker.api.schemas import (
-    BulkPriceUpdate,
-    PriceCreate,
-    PriceHistory as PriceHistorySchema,
-    PriceResponse,
-    PriceSource,
-)
-from tcgtracker.database.connection import get_session
+from tcgtracker.api.dependencies import get_current_active_user, get_session
+from tcgtracker.api.schemas import BulkPriceUpdate, PriceCreate
+from tcgtracker.api.schemas import PriceHistory as PriceHistorySchema
+from tcgtracker.api.schemas import PriceResponse, PriceSource
 from tcgtracker.database.models import (
+    AlertTypeEnum,
     Card,
-    PriceHistory,
-    UserAlert,
-    User,
     CardConditionEnum,
     DataSourceEnum,
+    PriceHistory,
+    TCGTypeEnum,
+    User,
+    UserAlert,
 )
 from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.justtcg import JustTCGClient
 from tcgtracker.integrations.pricecharting import PriceChartingClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -67,7 +63,7 @@ async def fetch_and_update_price(
         # Fetch from JustTCG
         client = JustTCGClient()
         try:
-            game = "pokemon" if card.tcg_type.value == "POKEMON" else "onepiece"
+            game = "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
             result = await client.get_card_price(card.name, game=game)
             if result:
                 price_data = result.get("market_price", 0)
@@ -111,7 +107,7 @@ async def fetch_and_update_price(
             PriceSource.EBAY: DataSourceEnum.EBAY,
             PriceSource.CARDMARKET: DataSourceEnum.CARDMARKET,
         }
-        
+
         new_price = PriceHistory(
             card_id=card.id,
             source=source_mapping.get(source, DataSourceEnum.MANUAL),
@@ -145,35 +141,45 @@ async def create_price(
             status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
         )
 
-    # Create price entry
-    new_price = PriceHistory(**price_data.model_dump())
-    db.add(new_price)
+    try:
+        # Create price entry
+        new_price = PriceHistory(**price_data.model_dump())
+        db.add(new_price)
 
-    # Check price alerts
-    alerts_query = select(UserAlert).where(
-        and_(
-            UserAlert.card_id == price_data.card_id,
-            UserAlert.is_active == True,
+        # Check price alerts
+        alerts_query = select(UserAlert).where(
+            and_(
+                UserAlert.card_id == price_data.card_id,
+                UserAlert.is_active,
+            )
         )
-    )
-    result = await db.execute(alerts_query)
-    alerts = result.scalars().all()
+        from typing import Sequence
 
-    for alert in alerts:
-        if (
-            alert.alert_type == "above"
-            and price_data.market_price >= alert.target_price
-        ) or (
-            alert.alert_type == "below"
-            and price_data.market_price <= alert.target_price
-        ):
-            alert.triggered_at = datetime.now(timezone.utc)
-            # TODO: Send notification to user
+        result_alerts = await db.execute(alerts_query)
+        alerts: Sequence[UserAlert] = result_alerts.scalars().all()
 
-    await db.commit()
-    await db.refresh(new_price)
+        for alert in alerts:
+            if (
+                alert.alert_type == AlertTypeEnum.PRICE_INCREASE
+                and price_data.market_price >= alert.price_threshold
+            ) or (
+                alert.alert_type == AlertTypeEnum.PRICE_DROP
+                and price_data.market_price <= alert.price_threshold
+            ):
+                alert.last_triggered = datetime.now(timezone.utc)
+                # TODO: Send notification to user
 
-    return new_price
+        await db.commit()
+        await db.refresh(new_price)
+
+        return new_price
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to create price update: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create price update",
+        )
 
 
 @router.get("/card/{card_id}", response_model=PriceHistorySchema)
@@ -183,7 +189,7 @@ async def get_price_history(
     source: Optional[PriceSource] = Query(None),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> PriceHistory:
+) -> PriceHistorySchema:
     """Get price history for a specific card."""
     # Verify card exists
     result = await db.execute(select(Card).where(Card.id == card_id))
@@ -209,7 +215,7 @@ async def get_price_history(
     price_query = price_query.order_by(PriceHistory.timestamp)
 
     result = await db.execute(price_query)
-    prices = result.scalars().all()
+    prices = cast(Sequence[PriceHistory], result.scalars().all())
 
     # Calculate statistics
     if prices:
@@ -245,7 +251,6 @@ async def get_price_history(
             market_price=p.market_price,
             currency=p.currency,
             condition=p.condition,
-            listing_url=None,  # PriceHistory model doesn't have listing_url
             timestamp=p.timestamp,
         )
         for p in prices

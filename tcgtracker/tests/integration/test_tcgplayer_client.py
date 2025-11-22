@@ -1,12 +1,12 @@
 """Tests for TCGPlayer API client."""
 
-import pytest
-from unittest.mock import AsyncMock, patch
-import httpx
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
-from tcgtracker.utils.errors import AuthenticationError, RateLimitError
+from tcgtracker.utils.errors import AuthenticationError, ValidationError
 
 
 class TestTCGPlayerClient:
@@ -39,7 +39,7 @@ class TestTCGPlayerClient:
                     "nonSealedLabel": "Singles",
                     "conditionGuideUrl": "https://help.tcgplayer.com/hc/en-us/articles/221430307-Pokemon-Card-Condition-Guide",
                     "isScannable": True,
-                    "popularity": 1
+                    "popularity": 1,
                 },
                 {
                     "categoryId": 83,
@@ -51,10 +51,10 @@ class TestTCGPlayerClient:
                     "nonSealedLabel": "Singles",
                     "conditionGuideUrl": "https://help.tcgplayer.com/hc/en-us/articles/360035624674",
                     "isScannable": False,
-                    "popularity": 15
-                }
+                    "popularity": 15,
+                },
             ],
-            "totalItems": 2
+            "totalItems": 2,
         }
 
     @pytest.fixture
@@ -76,10 +76,10 @@ class TestTCGPlayerClient:
                     "productLineId": 1,
                     "productLineName": "Pokemon",
                     "setName": "Base Set",
-                    "setUrlName": "base-set"
+                    "setUrlName": "base-set",
                 }
             ],
-            "totalItems": 1
+            "totalItems": 1,
         }
 
     @pytest.fixture
@@ -96,9 +96,9 @@ class TestTCGPlayerClient:
                     "highPrice": 300.00,
                     "marketPrice": 180.00,
                     "directLowPrice": 160.00,
-                    "subTypeName": "Normal"
+                    "subTypeName": "Normal",
                 }
-            ]
+            ],
         }
 
     @pytest.fixture
@@ -108,7 +108,7 @@ class TestTCGPlayerClient:
             client_id="test_client_id",
             client_secret="test_client_secret",
             auth_code="test_auth_code",
-            base_url="https://api.tcgplayer.com"
+            base_url="https://api.tcgplayer.com",
         )
         yield client
         await client.close()
@@ -125,14 +125,15 @@ class TestTCGPlayerClient:
     @pytest.mark.asyncio
     async def test_oauth_token_exchange(self, client, mock_token_response):
         """Test OAuth token exchange."""
-        with patch.object(client, '_make_request', new_callable=AsyncMock) as mock_request:
-            mock_response = AsyncMock()
+        with patch.object(
+            client, "_make_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_response = MagicMock()
             mock_response.json.return_value = mock_token_response
             mock_request.return_value = mock_response
 
             result = await client._exchange_auth_code_for_tokens(
-                "test_auth_code", 
-                "http://localhost:8000/callback"
+                "test_auth_code", "http://localhost:8000/callback"
             )
 
             assert result == mock_token_response
@@ -157,7 +158,7 @@ class TestTCGPlayerClient:
         assert client._access_token == "mock_access_token"
         assert client._refresh_token == "mock_refresh_token"
         assert client._token_expires_at is not None
-        
+
         # Token should expire in about 1 hour minus 60 seconds buffer
         expected_expiry = datetime.utcnow() + timedelta(seconds=3600 - 60)
         time_diff = abs((client._token_expires_at - expected_expiry).total_seconds())
@@ -168,9 +169,11 @@ class TestTCGPlayerClient:
         """Test access token refresh."""
         # Set up initial token state
         client._refresh_token = "mock_refresh_token"
-        
-        with patch.object(client, '_make_request', new_callable=AsyncMock) as mock_request:
-            mock_response = AsyncMock()
+
+        with patch.object(
+            client, "_make_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_response = MagicMock()
             mock_response.json.return_value = mock_token_response
             mock_request.return_value = mock_response
 
@@ -197,20 +200,26 @@ class TestTCGPlayerClient:
         client._token_expires_at = datetime.utcnow() + timedelta(minutes=30)
 
         # Should not make any requests
-        with patch.object(client, '_make_request', new_callable=AsyncMock) as mock_request:
+        with patch.object(
+            client, "_make_request", new_callable=AsyncMock
+        ) as mock_request:
             await client._ensure_valid_token()
             mock_request.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_ensure_valid_token_with_expired_token(self, client, mock_token_response):
+    async def test_ensure_valid_token_with_expired_token(
+        self, client, mock_token_response
+    ):
         """Test token validation when token is expired."""
         # Set up expired token with refresh token
         client._access_token = "expired_token"
         client._token_expires_at = datetime.utcnow() - timedelta(minutes=5)
         client._refresh_token = "valid_refresh_token"
 
-        with patch.object(client, '_make_request', new_callable=AsyncMock) as mock_request:
-            mock_response = AsyncMock()
+        with patch.object(
+            client, "_make_request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_response = MagicMock()
             mock_response.json.return_value = mock_token_response
             mock_request.return_value = mock_response
 
@@ -223,7 +232,7 @@ class TestTCGPlayerClient:
     @pytest.mark.asyncio
     async def test_get_categories(self, client, mock_categories_response):
         """Test get categories API call."""
-        with patch.object(client, 'get', new_callable=AsyncMock) as mock_get:
+        with patch.object(client, "get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_categories_response
 
             categories = await client.get_categories()
@@ -239,7 +248,9 @@ class TestTCGPlayerClient:
     @pytest.mark.asyncio
     async def test_get_pokemon_category_id(self, client, mock_categories_response):
         """Test getting Pokemon category ID."""
-        with patch.object(client, 'get_categories', new_callable=AsyncMock) as mock_get_categories:
+        with patch.object(
+            client, "get_categories", new_callable=AsyncMock
+        ) as mock_get_categories:
             mock_get_categories.return_value = mock_categories_response["results"]
 
             category_id = await client.get_pokemon_category_id()
@@ -250,7 +261,9 @@ class TestTCGPlayerClient:
     @pytest.mark.asyncio
     async def test_get_one_piece_category_id(self, client, mock_categories_response):
         """Test getting One Piece category ID."""
-        with patch.object(client, 'get_categories', new_callable=AsyncMock) as mock_get_categories:
+        with patch.object(
+            client, "get_categories", new_callable=AsyncMock
+        ) as mock_get_categories:
             mock_get_categories.return_value = mock_categories_response["results"]
 
             category_id = await client.get_one_piece_category_id()
@@ -261,7 +274,7 @@ class TestTCGPlayerClient:
     @pytest.mark.asyncio
     async def test_get_products(self, client, mock_products_response):
         """Test get products API call."""
-        with patch.object(client, 'get', new_callable=AsyncMock) as mock_get:
+        with patch.object(client, "get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_products_response
 
             products = await client.get_products(category_id=3, set_id=1)
@@ -274,13 +287,13 @@ class TestTCGPlayerClient:
                     "setId": 1,
                     "offset": 0,
                     "limit": 100,
-                }
+                },
             )
 
     @pytest.mark.asyncio
     async def test_get_product_pricing(self, client, mock_pricing_response):
         """Test get product pricing API call."""
-        with patch.object(client, 'get', new_callable=AsyncMock) as mock_get:
+        with patch.object(client, "get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_pricing_response
 
             pricing = await client.get_product_pricing([12345, 67890])
@@ -293,16 +306,20 @@ class TestTCGPlayerClient:
         """Test product pricing with too many IDs."""
         product_ids = list(range(251))  # 251 IDs, exceeds limit of 250
 
-        with pytest.raises(ValueError, match="Cannot request pricing for more than 250 products"):
+        with pytest.raises(
+            ValidationError, match="Cannot request pricing for more than 250 products"
+        ):
             await client.get_product_pricing(product_ids)
 
     @pytest.mark.asyncio
     async def test_search_products(self, client, mock_products_response):
         """Test search products API call."""
-        with patch.object(client, 'get', new_callable=AsyncMock) as mock_get:
+        with patch.object(client, "get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_products_response
 
-            products = await client.search_products("Charizard", category_id=3, limit=25)
+            products = await client.search_products(
+                "Charizard", category_id=3, limit=25
+            )
 
             assert products == mock_products_response["results"]
             mock_get.assert_called_once_with(
@@ -311,7 +328,7 @@ class TestTCGPlayerClient:
                     "q": "Charizard",
                     "categoryId": 3,
                     "limit": 25,
-                }
+                },
             )
 
     @pytest.mark.asyncio
@@ -337,8 +354,9 @@ class TestTCGPlayerClient:
         """Test circuit breaker integration."""
         # Wait a bit for circuit breaker initialization
         import asyncio
+
         await asyncio.sleep(0.1)
-        
+
         assert client._circuit_breaker_enabled
         # Circuit breaker should be initialized after async initialization
         if client._circuit_breaker:
@@ -348,9 +366,9 @@ class TestTCGPlayerClient:
     async def test_request_headers(self, client):
         """Test request header preparation."""
         client._access_token = "test_token"
-        
+
         headers = client._prepare_headers({"Custom-Header": "value"})
-        
+
         assert headers["Authorization"] == "Bearer test_token"
         assert headers["Custom-Header"] == "value"
         assert headers["User-Agent"] == "TCGTracker/tcgplayer"

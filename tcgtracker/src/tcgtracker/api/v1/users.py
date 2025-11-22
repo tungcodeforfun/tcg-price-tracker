@@ -1,20 +1,24 @@
 """User management endpoints."""
 
-from typing import List
+from typing import List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from tcgtracker.api.dependencies import get_current_active_user, get_password_hash
+from tcgtracker.api.dependencies import (
+    get_current_active_user,
+    get_password_hash,
+    get_session,
+)
 from tcgtracker.api.schemas import (
+    PasswordChange,
     PriceAlertCreate,
     PriceAlertResponse,
     UserResponse,
     UserUpdate,
 )
-from tcgtracker.database.connection import get_session
-from tcgtracker.database.models import Card, UserAlert, User
+from tcgtracker.database.models import Card, CollectionItem, User, UserAlert
 
 router = APIRouter()
 
@@ -25,6 +29,29 @@ async def get_current_user_profile(
 ) -> User:
     """Get current user's profile."""
     return current_user
+
+
+def _convert_alert_schema_to_model_data(
+    alert_data: PriceAlertCreate, user_id: int
+) -> dict:
+    """Convert PriceAlertCreate schema to UserAlert model data."""
+    from tcgtracker.utils.enum_mappings import map_alert_type_to_db
+
+    try:
+        alert_type_enum, comparison_op = map_alert_type_to_db(alert_data.alert_type)
+    except KeyError:
+        raise ValueError(
+            f"Invalid alert_type: {alert_data.alert_type}. Must be 'above' or 'below'"
+        )
+
+    return {
+        "user_id": user_id,
+        "card_id": alert_data.card_id,
+        "price_threshold": alert_data.target_price,
+        "alert_type": alert_type_enum,
+        "comparison_operator": comparison_op,
+        "is_active": alert_data.is_active,
+    }
 
 
 @router.put("/me", response_model=UserResponse)
@@ -52,11 +79,34 @@ async def update_current_user(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken"
             )
 
-    # Update fields
+    # Update fields - password is not included in UserUpdate schema
     update_data = user_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(current_user, field, value)
 
+    await db.commit()
+    await db.refresh(current_user)
+
+    return current_user
+
+
+@router.put("/me/password", response_model=UserResponse)
+async def change_password(
+    password_data: PasswordChange,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_session),
+) -> User:
+    """Change user password."""
+    from tcgtracker.api.dependencies import verify_password
+
+    # Verify current password
+    if not verify_password(password_data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password"
+        )
+
+    # Update password
+    current_user.password_hash = get_password_hash(password_data.new_password)
     await db.commit()
     await db.refresh(current_user)
 
@@ -84,26 +134,34 @@ async def create_price_alert(
     # Check if similar alert already exists
     from sqlalchemy import and_
 
+    # Convert alert_type string to enum for comparison
+    converted_data = _convert_alert_schema_to_model_data(alert_data, current_user.id)
+
     existing_query = select(UserAlert).where(
         and_(
             UserAlert.user_id == current_user.id,
             UserAlert.card_id == alert_data.card_id,
-            UserAlert.alert_type == alert_data.alert_type,
-            UserAlert.is_active == True,
+            UserAlert.alert_type == converted_data["alert_type"],
+            UserAlert.is_active,  # Fixed E712: comparison to True should be `is True` or `is not False`
         )
     )
     result = await db.execute(existing_query)
-    existing_alert = result.scalar_one_or_none()
+    existing_alert = cast(UserAlert | None, result.scalar_one_or_none())
 
     if existing_alert:
-        # Update existing alert
-        existing_alert.target_price = alert_data.target_price
+        # Update existing alert with proper field mapping
+        model_data = _convert_alert_schema_to_model_data(alert_data, current_user.id)
+        existing_alert.price_threshold = model_data["price_threshold"]
+        existing_alert.alert_type = model_data["alert_type"]
+        existing_alert.comparison_operator = model_data["comparison_operator"]
+        existing_alert.is_active = model_data["is_active"]
         await db.commit()
         await db.refresh(existing_alert, ["card"])
         return existing_alert
 
-    # Create new alert
-    new_alert = PriceAlert(user_id=current_user.id, **alert_data.model_dump())
+    # Create new alert with proper field mapping
+    model_data = _convert_alert_schema_to_model_data(alert_data, current_user.id)
+    new_alert = UserAlert(**model_data)
     db.add(new_alert)
     await db.commit()
     await db.refresh(new_alert, ["card"])
@@ -127,10 +185,10 @@ async def get_price_alerts(
     )
 
     if active_only:
-        query = query.where(UserAlert.is_active == True)
+        query = query.where(UserAlert.is_active)
 
-    result = await db.execute(query)
-    alerts = result.scalars().all()
+    result_alerts = await db.execute(query)
+    alerts = cast(List[UserAlert], result_alerts.scalars().all())
 
     return alerts
 
@@ -200,14 +258,13 @@ async def get_user_stats(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Get user statistics."""
-    from sqlalchemy import func
-    from tcgtracker.database.models import Card
+    from sqlalchemy import Integer, func
 
     # Get collection stats
     collection_query = select(
-        func.count(Card.id).label("total_items"),
-        func.sum(Card.quantity).label("total_cards"),
-    ).where(Card.user_id == current_user.id)
+        func.count(CollectionItem.id).label("total_items"),
+        func.sum(CollectionItem.quantity).label("total_cards"),
+    ).where(CollectionItem.user_id == current_user.id)
 
     result = await db.execute(collection_query)
     collection_stats = result.one()
@@ -215,7 +272,7 @@ async def get_user_stats(
     # Get alert stats
     alert_query = select(
         func.count(UserAlert.id).label("total_alerts"),
-        func.sum(func.cast(UserAlert.is_active, int)).label("active_alerts"),
+        func.sum(func.cast(UserAlert.is_active, Integer)).label("active_alerts"),
     ).where(UserAlert.user_id == current_user.id)
 
     result = await db.execute(alert_query)

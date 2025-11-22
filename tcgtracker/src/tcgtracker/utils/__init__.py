@@ -1,14 +1,14 @@
 """Utility modules for TCG Price Tracker."""
 
+from .circuit_breaker import CircuitBreaker
 from .errors import (
     APIError,
-    RateLimitError,
     AuthenticationError,
-    TransientError,
     PermanentError,
+    RateLimitError,
+    TransientError,
     retry_on_transient_error,
 )
-from .circuit_breaker import CircuitBreaker
 
 __all__ = [
     "APIError",

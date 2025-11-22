@@ -1,6 +1,7 @@
 """Example tests for the TCG Price Tracker."""
 
 import pytest
+
 from tcgtracker.config import get_settings
 
 
@@ -36,9 +37,9 @@ def test_database_url_generation():
 async def test_imports():
     """Test that critical modules can be imported."""
     # Test core imports
+    from tcgtracker.config import get_settings
     from tcgtracker.database import models
     from tcgtracker.database.connection import get_db_manager
-    from tcgtracker.config import get_settings
 
     # Basic smoke test - ensure imports work
     assert models is not None

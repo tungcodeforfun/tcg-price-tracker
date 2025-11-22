@@ -1,9 +1,8 @@
 """Input sanitization functions for security and data integrity."""
 
 import html
-import re
-from typing import Optional, Dict, Any, List
 import json
+import re
 
 
 def sanitize_user_text(text: str) -> str:
@@ -75,11 +74,15 @@ def sanitize_external_api_response(data: dict) -> dict:
         elif isinstance(value, list):
             # Sanitize list items
             sanitized[key] = [
-                sanitize_user_text(item)
-                if isinstance(item, str)
-                else sanitize_external_api_response(item)
-                if isinstance(item, dict)
-                else item
+                (
+                    sanitize_user_text(item)
+                    if isinstance(item, str)
+                    else (
+                        sanitize_external_api_response(item)
+                        if isinstance(item, dict)
+                        else item
+                    )
+                )
                 for item in value
             ]
         else:

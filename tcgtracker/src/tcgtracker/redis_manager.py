@@ -35,13 +35,13 @@ class RedisManager:
                 socket_timeout=self.settings.socket_timeout,
                 decode_responses=True,
             )
-            
+
             # Create Redis client
             self._client = redis.Redis(connection_pool=self._pool)
-            
+
             # Test the connection
             await self._client.ping()
-            
+
             logger.info(
                 "Redis connection pool initialized",
                 host=self.settings.host,
@@ -61,7 +61,7 @@ class RedisManager:
         if self._client:
             await self._client.close()
             logger.info("Redis client closed")
-        
+
         if self._pool:
             await self._pool.disconnect()
             logger.info("Redis connection pool closed")
@@ -87,20 +87,15 @@ class RedisManager:
             logger.error(f"Error getting key {key} from cache: {e}")
             return None
 
-    async def set(
-        self, 
-        key: str, 
-        value: Any, 
-        ttl: Optional[int] = None
-    ) -> bool:
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """Set value in cache with optional TTL."""
         try:
             ttl = ttl or self.settings.default_ttl
-            
+
             # Convert complex objects to JSON
             if not isinstance(value, str):
                 value = json.dumps(value)
-            
+
             await self.client.set(key, value, ex=ttl)
             logger.debug(f"Cache set for key: {key} with TTL: {ttl}")
             return True
@@ -144,12 +139,7 @@ class RedisManager:
                 logger.error(f"Error decoding JSON for key {key}: {e}")
         return None
 
-    async def set_json(
-        self, 
-        key: str, 
-        value: dict, 
-        ttl: Optional[int] = None
-    ) -> bool:
+    async def set_json(self, key: str, value: dict, ttl: Optional[int] = None) -> bool:
         """Set JSON value in cache."""
         return await self.set(key, value, ttl)
 
@@ -160,7 +150,7 @@ class RedisManager:
             keys = []
             async for key in self.client.scan_iter(pattern):
                 keys.append(key)
-            
+
             if keys:
                 deleted = await self.client.delete(*keys)
                 logger.info(f"Deleted {deleted} keys matching pattern: {pattern}")

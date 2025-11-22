@@ -1,11 +1,8 @@
 """Core validation classes and functions for TCG Price Tracker."""
 
-from typing import Any, Dict, List, Optional, Type, Union
-from pydantic import BaseModel, validator
 import re
-import html
-from urllib.parse import urlparse
 from decimal import Decimal
+from urllib.parse import urlparse
 
 
 class BaseValidator:

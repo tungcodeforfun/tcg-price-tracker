@@ -1,6 +1,5 @@
 """Database migrations management utilities."""
 
-import asyncio
 import re
 from pathlib import Path
 from typing import Optional
@@ -193,7 +192,7 @@ async def reset_database() -> None:
     """Reset database by dropping and recreating all tables."""
     logger.warning("Resetting database - all data will be lost!")
 
-    from tcgtracker.database.connection import drop_tables, create_tables
+    from tcgtracker.database.connection import create_tables, drop_tables
 
     try:
         await drop_tables()

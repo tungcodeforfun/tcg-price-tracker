@@ -13,8 +13,6 @@ class TCGType(str, Enum):
 
     POKEMON = "pokemon"
     ONEPIECE = "onepiece"  # Note: no underscore to match database
-    MAGIC = "magic"
-    YUGIOH = "yugioh"
 
 
 class CardCondition(str, Enum):
@@ -26,6 +24,7 @@ class CardCondition(str, Enum):
     MODERATELY_PLAYED = "moderately_played"
     HEAVILY_PLAYED = "heavily_played"
     DAMAGED = "damaged"
+    POOR = "poor"
 
 
 class PriceSource(str, Enum):
@@ -36,6 +35,7 @@ class PriceSource(str, Enum):
     CARDMARKET = "cardmarket"
     JUSTTCG = "justtcg"
     PRICECHARTING = "pricecharting"
+    MANUAL = "manual"
 
 
 # User schemas
@@ -80,6 +80,13 @@ class UserUpdate(BaseModel):
 
             return SecurityValidator.validate_username_format(v)
         return v
+
+
+class PasswordChange(BaseModel):
+    """Password change schema."""
+
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 class UserResponse(UserBase):
@@ -148,8 +155,6 @@ class CardBase(BaseModel):
 
 class CardCreate(CardBase):
     """Card creation schema."""
-
-    pass
 
 
 class CardUpdate(BaseModel):
@@ -252,7 +257,6 @@ class PriceResponse(BaseModel):
     market_price: Decimal
     currency: str
     condition: CardCondition
-    listing_url: Optional[str]
     timestamp: datetime
 
     class Config:
@@ -336,10 +340,10 @@ class PriceAlertResponse(BaseModel):
     id: int
     user_id: int
     card_id: int
-    target_price: Decimal
+    price_threshold: Decimal  # Matches database field name
     alert_type: str
     is_active: bool
-    triggered_at: Optional[datetime]
+    last_triggered: Optional[datetime]  # Matches database field name
     created_at: datetime
     card: Optional[CardResponse] = None
 

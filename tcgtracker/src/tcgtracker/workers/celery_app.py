@@ -8,9 +8,9 @@ from tcgtracker.config import get_celery_config, get_settings
 
 def create_celery_app() -> Celery:
     """Create and configure Celery application."""
-    settings = get_settings()
+    _ = get_settings()
     celery_config = get_celery_config()
-    
+
     # Create Celery instance
     app = Celery(
         "tcgtracker",
@@ -22,17 +22,17 @@ def create_celery_app() -> Celery:
             "tcgtracker.workers.tasks.sync_tasks",
         ],
     )
-    
+
     # Update configuration
     app.conf.update(celery_config)
-    
+
     # Configure task routes
     app.conf.task_routes = {
         "tcgtracker.workers.tasks.price_tasks.*": {"queue": "prices"},
         "tcgtracker.workers.tasks.alert_tasks.*": {"queue": "alerts"},
         "tcgtracker.workers.tasks.sync_tasks.*": {"queue": "sync"},
     }
-    
+
     # Configure periodic tasks (Celery Beat schedule)
     app.conf.beat_schedule = {
         # Update prices every 6 hours
@@ -60,18 +60,20 @@ def create_celery_app() -> Celery:
             "args": (),
         },
     }
-    
+
     # Configure task time limits
     app.conf.task_time_limit = 3600  # 1 hour hard limit
     app.conf.task_soft_time_limit = 3000  # 50 minutes soft limit
-    
+
     # Configure result expiration
     app.conf.result_expires = 3600  # Results expire after 1 hour
-    
+
     # Configure worker settings
-    app.conf.worker_log_format = "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
+    app.conf.worker_log_format = (
+        "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
+    )
     app.conf.worker_task_log_format = "[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s"
-    
+
     return app
 
 

@@ -80,3 +80,13 @@ secrets/.env.sandbox
 .env.staging
 .env.test
 *.env.*
+
+# Claude AI configuration
+.claude/
+*.claude
+
+# Documentation and test files
+docs/
+test.html
+test*.json
+*.pyc

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from tcgtracker.config import get_settings
-from tcgtracker.database.connection import get_session
+from tcgtracker.database.connection import get_session as _get_session
 from tcgtracker.database.models import User
 
 settings = get_settings()
@@ -19,6 +19,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 # Create a global password context to avoid recreation on every call
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+async def get_session():
+    """Dependency to get database session."""
+    async with _get_session() as session:
+        yield session
 
 
 async def get_current_user(
@@ -33,18 +39,51 @@ async def get_current_user(
     )
 
     try:
+        # Decode and validate JWT token with full verification
         payload = jwt.decode(
             token,
             settings.security.secret_key,
             algorithms=[settings.security.algorithm],
+            options={"verify_exp": True, "verify_iat": True},
         )
+
+        # Validate required claims
         user_id: Optional[str] = payload.get("sub")
         if user_id is None:
             raise credentials_exception
+
+        # Validate token expiration explicitly
+        exp = payload.get("exp")
+        if exp is None:
+            raise credentials_exception
+
+        from datetime import datetime
+
+        if datetime.utcnow().timestamp() > exp:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # Validate issued at time (iat) is not in the future
+        iat = payload.get("iat")
+        if iat and datetime.utcnow().timestamp() < iat:
+            raise credentials_exception
+
     except JWTError:
+        # Log JWT errors for debugging (in production, use proper logging)
+        raise credentials_exception
+    except Exception:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.id == int(user_id)))
+    # Validate user_id is a valid integer
+    try:
+        user_id_int = int(user_id)
+    except (ValueError, TypeError):
+        raise credentials_exception
+
+    result = await db.execute(select(User).where(User.id == user_id_int))
     user = result.scalar_one_or_none()
 
     if user is None:
@@ -59,7 +98,7 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """Get current active user."""
     if not current_user.is_active:

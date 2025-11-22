@@ -1,14 +1,11 @@
 """JustTCG API client for TCG price data."""
 
-import asyncio
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
 
 import structlog
 
 from tcgtracker.config import get_settings
-from tcgtracker.utils.errors import APIError, ValidationError
 
 from .base import BaseAPIClient
 
@@ -103,7 +100,7 @@ class JustTCGClient(BaseAPIClient):
         try:
             response = await self.get("/cards/search", params=params)
             cards = response.get("data", [])
-            
+
             # Transform to consistent format
             return [self._transform_card(c) for c in cards]
         except Exception as e:
@@ -131,10 +128,7 @@ class JustTCGClient(BaseAPIClient):
             return None
 
     async def get_card_prices(
-        self, 
-        card_ids: List[str], 
-        game: str,
-        condition: str = "nm"
+        self, card_ids: List[str], game: str, condition: str = "nm"
     ) -> List[Dict[str, Any]]:
         """
         Get current price data for multiple cards (batch).
@@ -149,13 +143,9 @@ class JustTCGClient(BaseAPIClient):
         """
         # Limit to 20 cards for free tier
         card_ids = card_ids[:20]
-        
-        params = {
-            "ids": ",".join(card_ids),
-            "game": game,
-            "condition": condition
-        }
-        
+
+        params = {"ids": ",".join(card_ids), "game": game, "condition": condition}
+
         try:
             response = await self.get("/prices/batch", params=params)
             prices = response.get("data", [])
@@ -165,10 +155,7 @@ class JustTCGClient(BaseAPIClient):
             return []
 
     async def get_price_history(
-        self, 
-        card_id: str, 
-        game: str,
-        days: int = 30
+        self, card_id: str, game: str, days: int = 30
     ) -> List[Dict[str, Any]]:
         """
         Get price history for a card.
@@ -181,11 +168,8 @@ class JustTCGClient(BaseAPIClient):
         Returns:
             List of price history entries
         """
-        params = {
-            "days": min(days, 90),  # Limit history
-            "game": game
-        }
-        
+        params = {"days": min(days, 90), "game": game}  # Limit history
+
         try:
             response = await self.get(f"/prices/history/{card_id}", params=params)
             history = response.get("data", [])
@@ -213,10 +197,7 @@ class JustTCGClient(BaseAPIClient):
             return []
 
     async def get_cards_in_set(
-        self, 
-        set_code: str, 
-        game: str,
-        limit: int = 100
+        self, set_code: str, game: str, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
         Get all cards in a specific set.
@@ -229,11 +210,8 @@ class JustTCGClient(BaseAPIClient):
         Returns:
             List of cards in the set
         """
-        params = {
-            "limit": limit,
-            "game": game
-        }
-        
+        params = {"limit": limit, "game": game}
+
         try:
             response = await self.get(f"/sets/{set_code}/cards", params=params)
             cards = response.get("data", [])
@@ -243,10 +221,10 @@ class JustTCGClient(BaseAPIClient):
             return []
 
     async def get_pokemon_cards(
-        self, 
+        self,
         query: Optional[str] = None,
         set_code: Optional[str] = None,
-        limit: int = 20
+        limit: int = 20,
     ) -> List[Dict[str, Any]]:
         """
         Get Pokemon cards.
@@ -260,17 +238,14 @@ class JustTCGClient(BaseAPIClient):
             List of Pokemon cards
         """
         return await self.search_cards(
-            query=query or "",
-            game="pokemon",
-            set_code=set_code,
-            limit=limit
+            query=query or "", game="pokemon", set_code=set_code, limit=limit
         )
 
     async def get_onepiece_cards(
-        self, 
+        self,
         query: Optional[str] = None,
         set_code: Optional[str] = None,
-        limit: int = 20
+        limit: int = 20,
     ) -> List[Dict[str, Any]]:
         """
         Get One Piece cards.
@@ -284,17 +259,11 @@ class JustTCGClient(BaseAPIClient):
             List of One Piece cards
         """
         return await self.search_cards(
-            query=query or "",
-            game="onepiece",
-            set_code=set_code,
-            limit=limit
+            query=query or "", game="onepiece", set_code=set_code, limit=limit
         )
 
     async def get_card_price(
-        self, 
-        card_identifier: str, 
-        game: str,
-        condition: str = "nm"
+        self, card_identifier: str, game: str, condition: str = "nm"
     ) -> Optional[Dict[str, Any]]:
         """
         Get price data for a specific card.
@@ -313,7 +282,7 @@ class JustTCGClient(BaseAPIClient):
             if not results:
                 return None
             card_identifier = results[0].get("id")
-        
+
         # Get detailed price data
         prices = await self.get_card_prices([card_identifier], game, condition)
         return prices[0] if prices else None
@@ -338,18 +307,20 @@ class JustTCGClient(BaseAPIClient):
     def _transform_card_detail(self, card: Dict[str, Any]) -> Dict[str, Any]:
         """Transform detailed card data."""
         base = self._transform_card(card)
-        
+
         # Add price data if available
         prices = card.get("prices", {})
-        base.update({
-            "market_price": self._parse_price(prices.get("market")),
-            "low_price": self._parse_price(prices.get("low")),
-            "mid_price": self._parse_price(prices.get("mid")),
-            "high_price": self._parse_price(prices.get("high")),
-            "foil_market_price": self._parse_price(prices.get("foil_market")),
-            "conditions": prices.get("conditions", {}),
-        })
-        
+        base.update(
+            {
+                "market_price": self._parse_price(prices.get("market")),
+                "low_price": self._parse_price(prices.get("low")),
+                "mid_price": self._parse_price(prices.get("mid")),
+                "high_price": self._parse_price(prices.get("high")),
+                "foil_market_price": self._parse_price(prices.get("foil_market")),
+                "conditions": prices.get("conditions", {}),
+            }
+        )
+
         return base
 
     def _transform_price_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -405,16 +376,16 @@ class JustTCGClient(BaseAPIClient):
         """Parse price value to Decimal."""
         if price_value is None:
             return None
-            
+
         if isinstance(price_value, (int, float)):
             return Decimal(str(price_value))
-            
+
         if isinstance(price_value, str):
             # Remove currency symbols and convert
             cleaned = price_value.replace("$", "").replace(",", "").strip()
             try:
                 return Decimal(cleaned) if cleaned and cleaned != "N/A" else None
-            except:
+            except Exception:
                 return None
-                
+
         return None
