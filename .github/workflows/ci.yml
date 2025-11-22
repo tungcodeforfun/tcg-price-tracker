@@ -294,6 +294,7 @@ jobs:
           -e DB_PASSWORD=test_password \
           -e REDIS_HOST=localhost \
           -e REDIS_PORT=6379 \
+          -e SECRET_KEY=test-secret-key-for-ci-testing-purposes-must-be-32-chars-minimum \
           tcg-price-tracker:latest
 
     - name: Wait for application startup
