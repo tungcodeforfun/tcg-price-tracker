@@ -84,3 +84,9 @@ secrets/.env.sandbox
 # Claude AI configuration
 .claude/
 *.claude
+
+# Documentation and test files
+docs/
+test.html
+test*.json
+*.pyc
