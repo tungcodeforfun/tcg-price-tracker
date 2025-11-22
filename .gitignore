@@ -80,3 +80,7 @@ secrets/.env.sandbox
 .env.staging
 .env.test
 *.env.*
+
+# Claude AI configuration
+.claude/
+*.claude
