@@ -74,11 +74,15 @@ def sanitize_external_api_response(data: dict) -> dict:
         elif isinstance(value, list):
             # Sanitize list items
             sanitized[key] = [
-                sanitize_user_text(item)
-                if isinstance(item, str)
-                else sanitize_external_api_response(item)
-                if isinstance(item, dict)
-                else item
+                (
+                    sanitize_user_text(item)
+                    if isinstance(item, str)
+                    else (
+                        sanitize_external_api_response(item)
+                        if isinstance(item, dict)
+                        else item
+                    )
+                )
                 for item in value
             ]
         else:

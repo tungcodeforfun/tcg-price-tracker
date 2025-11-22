@@ -1,4 +1,5 @@
 """Centralized enum mapping utilities."""
+
 from tcgtracker.api.schemas import PriceSource
 from tcgtracker.database.models import AlertTypeEnum, DataSourceEnum
 

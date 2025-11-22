@@ -351,7 +351,9 @@ class BaseAPIClient:
             "service": self.service_name,
             "base_url": self.base_url,
             "circuit_breaker": circuit_stats,
-            "status": "healthy"
-            if not circuit_stats or circuit_stats["state"] != "open"
-            else "degraded",
+            "status": (
+                "healthy"
+                if not circuit_stats or circuit_stats["state"] != "open"
+                else "degraded"
+            ),
         }

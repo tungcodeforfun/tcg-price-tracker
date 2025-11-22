@@ -340,9 +340,9 @@ async def _sync_card_data_async(task: SyncTask, set_id: int) -> dict:
                         external_id=str(
                             external_id
                         ),  # Use external_id field for new cards
-                        tcgplayer_id=int(external_id)
-                        if external_id.isdigit()
-                        else None,  # Keep for compatibility
+                        tcgplayer_id=(
+                            int(external_id) if external_id.isdigit() else None
+                        ),  # Keep for compatibility
                         image_url=card_data.get("image_url"),
                     )
                     session.add(new_card)
