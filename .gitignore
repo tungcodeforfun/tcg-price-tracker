@@ -64,6 +64,8 @@ logs/
 # Temporary files
 tmp/
 temp/
+*.backup
+*.bak
 
 # Node modules (if using any frontend)
 node_modules/
@@ -84,9 +86,11 @@ secrets/.env.sandbox
 # Claude AI configuration
 .claude/
 *.claude
+.mcp.json
 
 # Documentation and test files
 docs/
 test.html
 test*.json
+postman-collection.json
 *.pyc
