@@ -36,7 +36,7 @@ jobs:
       update-summary: ${{ steps.check.outputs.update-summary }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -148,7 +148,7 @@ jobs:
     if: needs.check-updates.outputs.has-security-updates == 'true'
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -218,7 +218,7 @@ jobs:
     if: always() && (github.event.inputs.update_type == 'minor_updates' || github.event.inputs.update_type == 'all_updates') && needs.check-updates.outputs.has-minor-updates == 'true'
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -280,7 +280,7 @@ jobs:
     if: always() && (needs.security-updates.outputs.has-changes == 'true' || needs.minor-updates.outputs.has-changes == 'true') && (github.event.inputs.create_pr != 'false')
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -362,7 +362,7 @@ jobs:
     if: github.event_name == 'schedule'  # Only run on scheduled runs
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up Python
       uses: actions/setup-python@v6
