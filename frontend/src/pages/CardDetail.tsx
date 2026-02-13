@@ -87,14 +87,19 @@ export function CardDetail() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Skeleton className="aspect-[3/4] rounded-xl" />
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-6 w-32" />
-            <Skeleton className="h-6 w-48" />
-          </div>
-        </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex gap-6">
+              <Skeleton className="w-40 h-56 rounded-lg shrink-0" />
+              <div className="flex-1 space-y-4">
+                <Skeleton className="h-8 w-64" />
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-10 w-48 mt-4" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         <ChartSkeleton />
       </div>
     );
@@ -122,31 +127,29 @@ export function CardDetail() {
         Back
       </Button>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardContent className="p-6">
-            <div className="aspect-[3/4] relative rounded-lg overflow-hidden bg-muted">
-              <ImageWithFallback
-                src={card.image_url ?? undefined}
-                alt={card.name}
-                className="w-full h-full object-cover"
-                fallbackClassName="w-full h-full"
-              />
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex gap-6">
+            <div className="w-40 shrink-0">
+              <div className="aspect-[3/4] relative rounded-lg overflow-hidden bg-muted">
+                <ImageWithFallback
+                  src={card.image_url ?? undefined}
+                  alt={card.name}
+                  className="w-full h-full object-cover"
+                  fallbackClassName="w-full h-full"
+                />
+              </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <div className="space-y-6">
-          <Card>
-            <CardContent className="p-6 space-y-4">
+            <div className="flex-1 min-w-0 space-y-4">
               <div>
-                <div className="flex items-start justify-between gap-4 mb-2">
-                  <h1 className="text-3xl font-medium">{card.name}</h1>
-                  <PriceTrendBadge trend={card.price_trend} />
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <h1 className="text-2xl font-medium">{card.name}</h1>
+                  <PriceTrendBadge trend={card.price_trend} className="shrink-0" />
                 </div>
-                <p className="text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {card.set_name}
-                  {card.card_number ? ` \u2022 ${card.card_number}` : ""}
+                  {card.card_number ? ` · ${card.card_number}` : ""}
                 </p>
                 <div className="flex gap-2 mt-2">
                   {card.rarity && <Badge>{card.rarity}</Badge>}
@@ -154,48 +157,48 @@ export function CardDetail() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground mb-1">Current Market Price</p>
-                <p className="text-4xl font-bold">{formatPrice(card.latest_price)}</p>
+              <div className="pt-3 border-t">
+                <p className="text-xs text-muted-foreground mb-0.5">Current Market Price</p>
+                <p className="text-3xl font-bold">{formatPrice(card.latest_price)}</p>
               </div>
 
               {priceHistory && (
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+                <div className="flex gap-6 pt-3 border-t">
                   <div>
-                    <p className="text-sm text-muted-foreground">Average</p>
-                    <p className="text-xl font-semibold">
+                    <p className="text-xs text-muted-foreground">Average</p>
+                    <p className="text-lg font-semibold">
                       {formatPrice(priceHistory.average_price)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Low</p>
-                    <p className="text-xl font-semibold text-green-500">
+                    <p className="text-xs text-muted-foreground">Low</p>
+                    <p className="text-lg font-semibold text-success">
                       {formatPrice(priceHistory.min_price)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">High</p>
-                    <p className="text-xl font-semibold text-red-500">
+                    <p className="text-xs text-muted-foreground">High</p>
+                    <p className="text-lg font-semibold text-danger">
                       {formatPrice(priceHistory.max_price)}
                     </p>
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-2 pt-4">
-                <Button className="flex-1" onClick={() => setShowAddModal(true)}>
+              <div className="flex gap-2 pt-3">
+                <Button onClick={() => setShowAddModal(true)}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add to Collection
                 </Button>
-                <Button variant="outline" className="flex-1" onClick={() => setShowAlertModal(true)}>
+                <Button variant="outline" onClick={() => setShowAlertModal(true)}>
                   <Bell className="w-4 h-4 mr-2" />
                   Set Alert
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-6">
@@ -217,11 +220,12 @@ export function CardDetail() {
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis
                   dataKey="date"
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--color-muted-foreground)"
                   fontSize={12}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
                   tickFormatter={(v: string) =>
                     new Date(v).toLocaleDateString("en-US", {
                       month: "short",
@@ -230,25 +234,30 @@ export function CardDetail() {
                   }
                 />
                 <YAxis
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--color-muted-foreground)"
                   fontSize={12}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
                   tickFormatter={(v: number) => `$${v}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
                     borderRadius: "8px",
+                    color: "var(--color-foreground)",
                   }}
+                  labelStyle={{ color: "var(--color-muted-foreground)" }}
+                  itemStyle={{ color: "var(--color-foreground)" }}
                   formatter={(value: any) => [formatPrice(value), "Price"]}
                   labelFormatter={(label: any) => formatDate(label)}
                 />
                 <Line
                   type="monotone"
                   dataKey="price"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--color-primary)"
                   strokeWidth={2}
                   dot={false}
+                  activeDot={{ r: 5, fill: "var(--color-primary)", stroke: "var(--color-card)", strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>

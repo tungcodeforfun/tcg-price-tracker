@@ -41,6 +41,9 @@ import {
   Package,
   Hash,
   AlertCircle,
+  Bell,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 
 export function Dashboard() {
@@ -87,8 +90,8 @@ export function Dashboard() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-medium">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's your portfolio overview.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Welcome back! Here&apos;s your portfolio overview.</p>
         </div>
         <StatsCardsSkeleton />
         <ChartSkeleton />
@@ -102,69 +105,95 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-medium">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back! Here's your portfolio overview.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">Welcome back! Here&apos;s your portfolio overview.</p>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        {/* Total Value */}
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-info-muted to-transparent pointer-events-none" />
+          <CardHeader className="relative flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-info-muted">
+              <Wallet className="h-4 w-4 text-info" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatPrice(stats?.total_value ?? 0)}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold text-foreground">{formatPrice(stats?.total_value ?? 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Current market value</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        {/* Invested */}
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent pointer-events-none" />
+          <CardHeader className="relative flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Invested</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15">
+              <Package className="h-4 w-4 text-primary" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatPrice(stats?.total_invested ?? 0)}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold text-foreground">{formatPrice(stats?.total_invested ?? 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Total amount spent</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        {/* Profit/Loss */}
+        <Card className="relative overflow-hidden">
+          <div
+            className={`absolute inset-0 bg-gradient-to-br pointer-events-none ${
+              isProfitable ? "from-success-muted to-transparent" : "from-danger-muted to-transparent"
+            }`}
+          />
+          <CardHeader className="relative flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Profit/Loss</CardTitle>
-            {isProfitable ? (
-              <TrendingUp className="h-4 w-4 text-green-500" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-500" />
-            )}
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                isProfitable ? "bg-success-muted" : "bg-danger-muted"
+              }`}
+            >
+              {isProfitable ? (
+                <ArrowUpRight className="h-4 w-4 text-success" />
+              ) : (
+                <ArrowDownRight className="h-4 w-4 text-danger" />
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${isProfitable ? "text-green-500" : "text-red-500"}`}>
+          <CardContent className="relative">
+            <div className={`text-3xl font-bold ${isProfitable ? "text-success" : "text-danger"}`}>
               {isProfitable ? "+" : ""}{formatPrice(profitLoss)}
             </div>
-            <p className={`text-xs mt-1 ${isProfitable ? "text-green-500" : "text-red-500"}`}>
+            <p className={`text-xs mt-1 ${isProfitable ? "text-success" : "text-danger"}`}>
               {formatPercent(stats?.profit_loss_percentage ?? 0)} return
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        {/* Cards */}
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-warning-muted to-transparent pointer-events-none" />
+          <CardHeader className="relative flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Cards</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning-muted">
+              <Hash className="h-4 w-4 text-warning" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats?.total_cards ?? 0}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold text-foreground">{stats?.total_cards ?? 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              <Hash className="inline h-3 w-3" /> {stats?.unique_cards ?? 0} unique
+              {stats?.unique_cards ?? 0} unique cards
             </p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Portfolio Value Chart */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Portfolio Value (Last {historyDays} Days)</CardTitle>
+          <CardTitle className="text-foreground">Portfolio Value (Last {historyDays} Days)</CardTitle>
           <Select value={historyDays} onValueChange={setHistoryDays}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -181,11 +210,12 @@ export function Dashboard() {
           {valueHistory && valueHistory.history.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={valueHistory.history}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis
                   dataKey="date"
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--color-muted-foreground)"
                   fontSize={12}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
                   tickFormatter={(v: string) =>
                     new Date(v).toLocaleDateString("en-US", {
                       month: "short",
@@ -194,18 +224,22 @@ export function Dashboard() {
                   }
                 />
                 <YAxis
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--color-muted-foreground)"
                   fontSize={12}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
                   tickFormatter={(v: number) => `$${v}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
                     borderRadius: "8px",
+                    color: "var(--color-foreground)",
                   }}
-                  formatter={(value: any) => [formatPrice(value), "Value"]}
-                  labelFormatter={(label: any) =>
+                  labelStyle={{ color: "var(--color-muted-foreground)" }}
+                  itemStyle={{ color: "var(--color-foreground)" }}
+                  formatter={(value: number) => [formatPrice(value), "Value"]}
+                  labelFormatter={(label: string) =>
                     new Date(label).toLocaleDateString("en-US", {
                       month: "long",
                       day: "numeric",
@@ -216,9 +250,10 @@ export function Dashboard() {
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--color-primary)"
                   strokeWidth={2}
                   dot={false}
+                  activeDot={{ r: 5, fill: "var(--color-primary)", stroke: "var(--color-card)", strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -230,33 +265,50 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* Alerts & Trending */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Active Price Alerts */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warning-muted">
+                <Bell className="h-4 w-4 text-warning" />
+              </div>
               Active Price Alerts
             </CardTitle>
           </CardHeader>
           <CardContent>
             {alerts.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {alerts.slice(0, 5).map((a) => (
                   <div
                     key={a.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/50"
+                    className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-secondary/30 hover:bg-secondary/50 transition-colors"
                   >
-                    <div className="flex-1">
-                      <p className="font-medium">
-                        {a.card?.name ?? `Card #${a.card_id}`}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {a.alert_type === "above" ? "Above" : "Below"}{" "}
-                        {formatPrice(a.price_threshold)}
-                      </p>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          a.alert_type === "above" ? "bg-success-muted" : "bg-danger-muted"
+                        }`}
+                      >
+                        {a.alert_type === "above" ? (
+                          <TrendingUp className="h-4 w-4 text-success" />
+                        ) : (
+                          <TrendingDown className="h-4 w-4 text-danger" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground truncate">
+                          {a.card?.name ?? `Card #${a.card_id}`}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {a.alert_type === "above" ? "Above" : "Below"}{" "}
+                          {formatPrice(a.price_threshold)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold">
+                    <div className="text-right shrink-0 ml-2">
+                      <p className="font-semibold text-foreground">
                         {formatPrice(a.card?.latest_price)}
                       </p>
                     </div>
@@ -264,27 +316,35 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No active alerts triggered. Create alerts to get notified of price changes.
-              </p>
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                  <AlertCircle className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  No active alerts triggered. Create alerts to get notified of price changes.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
 
+        {/* Trending Cards */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-muted">
+                <TrendingUp className="h-4 w-4 text-success" />
+              </div>
               Trending Cards
             </CardTitle>
           </CardHeader>
           <CardContent>
             {trends.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {trends.slice(0, 5).map((t) => (
                   <div
                     key={t.card_id}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 cursor-pointer hover:bg-secondary transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
                     onClick={() => navigate(`/cards/${t.card_id}`)}
                   >
                     <ImageWithFallback
@@ -294,20 +354,25 @@ export function Dashboard() {
                       fallbackClassName="w-12 h-16 rounded"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{t.card_name}</p>
+                      <p className="font-medium text-foreground truncate">{t.card_name}</p>
                       <p className="text-sm text-muted-foreground">{t.set_name}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{formatPrice(t.current_price)}</p>
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-foreground">{formatPrice(t.current_price)}</p>
                       <PriceTrendBadge trend={t.trend} />
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No price trends available yet.
-              </p>
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                  <TrendingUp className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  No price trends available yet.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

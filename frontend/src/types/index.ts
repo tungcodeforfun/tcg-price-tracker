@@ -187,6 +187,8 @@ export interface SearchResult {
 export interface SearchAllResponse {
   tcgplayer: SearchResult[];
   ebay: SearchResult[];
+  pricecharting: SearchResult[];
+  justtcg: SearchResult[];
   errors: string[];
 }
 
@@ -207,6 +209,11 @@ export interface PriceTrendsResponse {
   since_date: string;
   trends: Record<string, PriceTrend[]>;
 }
+
+// Unified Search
+export type UnifiedSearchResult =
+  | { kind: "library"; card: Card }
+  | { kind: "external"; result: SearchResult };
 
 // User Stats
 export interface UserStats {

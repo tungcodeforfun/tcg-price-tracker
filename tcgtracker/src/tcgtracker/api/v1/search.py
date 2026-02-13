@@ -348,8 +348,12 @@ async def import_card_from_search(
             new_card.latest_price_updated_at = now
 
             await db.commit()
+            await db.refresh(new_card)
 
-        return new_card
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content=CardResponse.model_validate(new_card).model_dump(mode="json"),
+        )
 
     except Exception:
         # Rollback the transaction on any error

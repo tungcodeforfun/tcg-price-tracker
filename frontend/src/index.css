@@ -114,7 +114,13 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-success: oklch(0.7 0.12 155);
+  --color-success-muted: oklch(0.7 0.12 155 / 0.15);
   --color-warning: oklch(0.78 0.1 75);
+  --color-warning-muted: oklch(0.78 0.1 75 / 0.15);
+  --color-danger: oklch(0.7 0.15 25);
+  --color-danger-muted: oklch(0.7 0.15 25 / 0.15);
+  --color-info: oklch(0.72 0.1 240);
+  --color-info-muted: oklch(0.72 0.1 240 / 0.15);
 }
 
 @layer base {

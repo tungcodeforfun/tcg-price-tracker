@@ -291,6 +291,19 @@ class JustTCGClient(BaseAPIClient):
 
     def _transform_card(self, card: Dict[str, Any]) -> Dict[str, Any]:
         """Transform JustTCG card to internal format."""
+        tcgplayer_id = card.get("tcgplayerId")
+        image_url = (
+            f"https://product-images.tcgplayer.com/fit-in/437x437/{tcgplayer_id}.jpg"
+            if tcgplayer_id
+            else None
+        )
+
+        # Extract price from first variant if available
+        variants = card.get("variants", [])
+        market_price = None
+        if variants:
+            market_price = self._parse_price(variants[0].get("price"))
+
         return {
             "id": card.get("id"),
             "name": card.get("name"),
@@ -298,7 +311,8 @@ class JustTCGClient(BaseAPIClient):
             "set_code": card.get("set_code"),
             "number": card.get("collector_number"),
             "rarity": card.get("rarity"),
-            "image_url": card.get("image_url"),
+            "image_url": image_url,
+            "market_price": market_price,
             "justtcg_id": card.get("id"),
             "game": card.get("game"),
             "tcg_type": self._map_game_to_tcg_type(card.get("game")),
