@@ -83,7 +83,7 @@ async def get_collection_items(
     """Get user's collection items."""
     query = (
         select(CollectionItem)
-        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
+        .options(selectinload(CollectionItem.card))
         .where(CollectionItem.user_id == current_user.id)
     )
 
@@ -99,20 +99,10 @@ async def get_collection_items(
     result_items = await db.execute(query)
     items = result_items.scalars().all()
 
-    # Calculate current values efficiently
+    # Calculate current values from denormalized price column
     for item in items:
-        if item.card and item.card.price_history:
-            # Price history is already loaded via selectinload
-            price_history = list(item.card.price_history)
-            if price_history:
-                # Calculate value based on latest price
-                latest_price = max(price_history, key=lambda p: p.timestamp)
-                if latest_price.market_price is not None:
-                    item.current_value = latest_price.market_price * item.quantity
-                else:
-                    item.current_value = Decimal(0)
-            else:
-                item.current_value = Decimal(0)
+        if item.card and item.card.latest_market_price is not None:
+            item.current_value = item.card.latest_market_price * item.quantity
         else:
             item.current_value = Decimal(0)
 
@@ -128,7 +118,7 @@ async def get_collection_item(
     """Get a specific collection item."""
     result = await db.execute(
         select(CollectionItem)
-        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
+        .options(selectinload(CollectionItem.card))
         .where(
             and_(
                 CollectionItem.id == item_id,
@@ -143,17 +133,9 @@ async def get_collection_item(
             status_code=status.HTTP_404_NOT_FOUND, detail="Collection item not found"
         )
 
-    # Calculate current value
-    if item.card and item.card.price_history:
-        try:
-            # Calculate value based on latest price
-            latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
-            if latest_price.market_price is not None:
-                item.current_value = latest_price.market_price * item.quantity
-            else:
-                item.current_value = Decimal(0)
-        except ValueError:  # Empty price_history
-            item.current_value = Decimal(0)
+    # Calculate current value from denormalized price column
+    if item.card and item.card.latest_market_price is not None:
+        item.current_value = item.card.latest_market_price * item.quantity
     else:
         item.current_value = Decimal(0)
 
@@ -235,7 +217,7 @@ async def get_collection_stats(
 
     result = await db.execute(
         query.options(
-            selectinload(CollectionItem.card).selectinload(Card.price_history)
+            selectinload(CollectionItem.card)
         )
     )
     items = result.scalars().all()
@@ -251,14 +233,9 @@ async def get_collection_stats(
         if item.purchase_price:
             total_invested += item.purchase_price * item.quantity
 
-        # Calculate current value
-        if item.card and item.card.price_history:
-            try:
-                latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
-                if latest_price.market_price is not None:
-                    total_value += latest_price.market_price * item.quantity
-            except ValueError:  # Empty price_history
-                pass  # Skip this item's value
+        # Calculate current value from denormalized price column
+        if item.card and item.card.latest_market_price is not None:
+            total_value += item.card.latest_market_price * item.quantity
 
     profit_loss = total_value - total_invested
     profit_loss_percentage = (
@@ -287,7 +264,7 @@ async def get_collection_value_history(
     # Get user's collection items
     result = await db.execute(
         select(CollectionItem)
-        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
+        .options(selectinload(CollectionItem.card))
         .where(CollectionItem.user_id == current_user.id)
     )
     items = result.scalars().all()

@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 
 from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.schemas import (
@@ -16,7 +15,7 @@ from tcgtracker.api.schemas import (
     CardUpdate,
     TCGType,
 )
-from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
+from tcgtracker.database.models import Card, CollectionItem, User
 
 router = APIRouter()
 
@@ -63,7 +62,7 @@ async def get_card(
 ) -> Card:
     """Get a specific card by ID."""
     result = await db.execute(
-        select(Card).options(selectinload(Card.price_history)).where(Card.id == card_id)
+        select(Card).where(Card.id == card_id)
     )
     card = result.scalar_one_or_none()
 
@@ -72,16 +71,7 @@ async def get_card(
             status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
         )
 
-    # Get latest price with proper null checks
-    if card.price_history:
-        price_history_list = list(card.price_history)
-        if price_history_list:
-            latest_price = max(price_history_list, key=lambda p: p.timestamp)
-            card.latest_price = latest_price.market_price
-        else:
-            card.latest_price = None
-    else:
-        card.latest_price = None
+    card.latest_price = card.latest_market_price
 
     return card
 
@@ -98,7 +88,7 @@ async def list_cards(
     current_user: User = Depends(get_current_user),
 ) -> List[Card]:
     """List cards with optional filters."""
-    query = select(Card).options(selectinload(Card.price_history))
+    query = select(Card)
 
     # Apply filters
     filters = []
@@ -131,17 +121,8 @@ async def list_cards(
     result = await db.execute(query)
     cards = result.scalars().all()
 
-    # Add latest prices with proper null checks
     for card in cards:
-        if card.price_history:
-            price_history_list = list(card.price_history)
-            if price_history_list:
-                latest_price = max(price_history_list, key=lambda p: p.timestamp)
-                card.latest_price = latest_price.market_price
-            else:
-                card.latest_price = None
-        else:
-            card.latest_price = None
+        card.latest_price = card.latest_market_price
 
     return cast(List[Card], cards)
 
@@ -209,7 +190,7 @@ async def search_cards(
     current_user: User = Depends(get_current_user),
 ) -> List[Card]:
     """Advanced card search with multiple parameters."""
-    query = select(Card).options(selectinload(Card.price_history))
+    query = select(Card)
 
     filters = []
 
@@ -233,59 +214,22 @@ async def search_cards(
     if search_params.rarity:
         filters.append(Card.rarity == search_params.rarity)
 
+    # Handle price filters using denormalized column
+    if search_params.min_price is not None:
+        filters.append(Card.latest_market_price >= search_params.min_price)
+
+    if search_params.max_price is not None:
+        filters.append(Card.latest_market_price <= search_params.max_price)
+
     if filters:
         query = query.where(and_(*filters))
-
-    # Handle price filters by joining with price_history table
-    if search_params.min_price is not None or search_params.max_price is not None:
-        query = query.join(PriceHistory)
-
-        if search_params.min_price is not None:
-            query = query.where(PriceHistory.market_price >= search_params.min_price)
-
-        if search_params.max_price is not None:
-            query = query.where(PriceHistory.market_price <= search_params.max_price)
-
-        query = query.distinct()
 
     query = query.limit(search_params.limit).offset(search_params.offset)
 
     result = await db.execute(query)
     cards = result.scalars().all()
 
-    # Add latest prices and trend with proper null checks
     for card in cards:
-        if card.price_history:
-            price_history_list = list(card.price_history)
-            if price_history_list:
-                sorted_prices = sorted(price_history_list, key=lambda p: p.timestamp)
-                latest_price = sorted_prices[-1]
-                card.latest_price = latest_price.market_price
-
-                # Calculate simple trend
-                if len(sorted_prices) > 1:
-                    prev_price = sorted_prices[-2].market_price
-                    if (
-                        latest_price.market_price
-                        and prev_price
-                        and latest_price.market_price > prev_price
-                    ):
-                        card.price_trend = "up"
-                    elif (
-                        latest_price.market_price
-                        and prev_price
-                        and latest_price.market_price < prev_price
-                    ):
-                        card.price_trend = "down"
-                    else:
-                        card.price_trend = "stable"
-                else:
-                    card.price_trend = "stable"
-            else:
-                card.latest_price = None
-                card.price_trend = "no_data"
-        else:
-            card.latest_price = None
-            card.price_trend = "no_data"
+        card.latest_price = card.latest_market_price
 
     return cast(List[Card], cards)

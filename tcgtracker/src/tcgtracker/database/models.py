@@ -127,9 +127,6 @@ class TCGSet(Base, TimestampMixin):
     total_cards: Mapped[Optional[int]] = mapped_column(Integer)
     series: Mapped[Optional[str]] = mapped_column(String(100))
 
-    # Relationships
-    cards: Mapped[List["Card"]] = relationship("Card", back_populates="tcg_set")
-
     # Constraints
     __table_args__ = (
         UniqueConstraint("tcg_type", "set_code", name="uq_tcg_sets_type_code"),
@@ -164,8 +161,15 @@ class Card(Base, TimestampMixin):
         Integer, ForeignKey("tcg_sets.id", ondelete="SET NULL"), index=True
     )
 
+    # Denormalized price columns (maintained on price insert/update)
+    latest_market_price: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2), nullable=True
+    )
+    latest_price_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Relationships
-    tcg_set: Mapped[Optional["TCGSet"]] = relationship("TCGSet", back_populates="cards")
     price_history: Mapped[List["PriceHistory"]] = relationship(
         "PriceHistory", back_populates="card"
     )
@@ -292,8 +296,6 @@ class CollectionItem(Base, TimestampMixin):
             "condition",
             name="uq_collection_items_user_card_condition",
         ),
-        Index("idx_collection_items_user", "user_id"),
-        Index("idx_collection_items_card", "card_id"),
     )
 
     def __repr__(self) -> str:

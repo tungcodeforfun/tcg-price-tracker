@@ -319,17 +319,23 @@ async def import_card_from_search(
             from tcgtracker.utils.enum_mappings import map_price_source_to_db
 
             db_source = map_price_source_to_db(search_result.source)
+            now = datetime.now(timezone.utc)
 
             price = PriceHistory(
-                card_id=new_card.id,  # Now new_card.id will have a value
+                card_id=new_card.id,
                 source=db_source,
                 market_price=search_result.price,
                 currency="USD",
                 condition=CardConditionEnum.NEAR_MINT,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now,
             )
             db.add(price)
-            await db.commit()  # Commit the price record
+
+            # Update denormalized price columns on card
+            new_card.latest_market_price = search_result.price
+            new_card.latest_price_updated_at = now
+
+            await db.commit()
 
         return new_card
 

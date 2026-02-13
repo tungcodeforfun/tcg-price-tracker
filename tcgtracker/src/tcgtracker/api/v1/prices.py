@@ -108,17 +108,24 @@ async def fetch_and_update_price(
             PriceSource.CARDMARKET: DataSourceEnum.CARDMARKET,
         }
 
+        now = datetime.now(timezone.utc)
+        market = Decimal(str(price_data))
         new_price = PriceHistory(
             card_id=card.id,
             source=source_mapping.get(source, DataSourceEnum.MANUAL),
-            market_price=Decimal(str(price_data)),
+            market_price=market,
             price_low=Decimal(str(low_price)) if low_price else None,
             price_high=Decimal(str(high_price)) if high_price else None,
             price_avg=Decimal(str(avg_price)) if avg_price else None,
             condition=CardConditionEnum.NEAR_MINT,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now,
         )
         db.add(new_price)
+
+        # Update denormalized price columns on card
+        card.latest_market_price = market
+        card.latest_price_updated_at = now
+
         await db.commit()
         return new_price
 
@@ -145,13 +152,18 @@ async def create_price(
         # Map API PriceSource enum to database DataSourceEnum
         from tcgtracker.utils.enum_mappings import map_price_source_to_db
 
+        now = datetime.now(timezone.utc)
         price_dict = price_data.model_dump(exclude={"listing_url"})
         price_dict["source"] = map_price_source_to_db(price_data.source)
-        price_dict["timestamp"] = datetime.now(timezone.utc)
+        price_dict["timestamp"] = now
 
         # Create price entry
         new_price = PriceHistory(**price_dict)
         db.add(new_price)
+
+        # Update denormalized price columns on card
+        card.latest_market_price = price_data.market_price
+        card.latest_price_updated_at = now
 
         # Check price alerts
         alerts_query = select(UserAlert).where(
@@ -335,6 +347,7 @@ async def bulk_update_prices(
             if new_price:
                 updated_prices.append(new_price)
         except Exception as e:
+            await db.rollback()
             logger.error(f"Error updating price for card {card.id}", exc_info=e)
             errors.append({"card_id": card.id, "error": str(e)})
             continue

@@ -18,8 +18,8 @@ class DatabaseSettings(BaseSettings):
     password: str = Field(default="", description="Database password")
 
     # Connection pool settings
-    pool_size: int = Field(default=20, description="Connection pool size")
-    max_overflow: int = Field(default=0, description="Maximum overflow connections")
+    pool_size: int = Field(default=5, description="Connection pool size")
+    max_overflow: int = Field(default=10, description="Maximum overflow connections")
     pool_timeout: int = Field(default=30, description="Pool timeout in seconds")
 
     @property
