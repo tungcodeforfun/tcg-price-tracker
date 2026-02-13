@@ -85,6 +85,13 @@ class ExternalAPISettings(BaseSettings):
     ebay_sandbox_base_url: str = Field(
         default="https://api.sandbox.ebay.com", description="eBay Sandbox API base URL"
     )
+    # eBay Marketplace Account Deletion
+    ebay_verification_token: str = Field(
+        default="", description="eBay verification token (32-80 chars, set in eBay portal)"
+    )
+    ebay_deletion_endpoint: str = Field(
+        default="", description="Full public URL of the account deletion endpoint"
+    )
 
     # PriceCharting API
     pricecharting_api_key: str = Field(default="", description="PriceCharting API Key")
