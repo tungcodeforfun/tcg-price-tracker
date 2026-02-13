@@ -54,7 +54,6 @@ export interface Card {
   set_name: string;
   card_number: string | null;
   rarity: string | null;
-  tcgplayer_id: number | null;
   external_id: string | null;
   image_url: string | null;
   created_at: string;
