@@ -3,19 +3,15 @@
 import asyncio
 
 import click
-import nest_asyncio
 import structlog
 from sqlalchemy import text
 
-# Allow nested event loops for better async handling
-nest_asyncio.apply()
-
-from tcgtracker.database.connection import (  # noqa: E402
+from tcgtracker.database.connection import (
     create_tables,
     drop_tables,
     get_db_manager,
 )
-from tcgtracker.database.migrations_manager import (  # noqa: E402
+from tcgtracker.database.migrations_manager import (
     MigrationsManager,
     init_database,
     reset_database,
@@ -25,23 +21,8 @@ logger = structlog.get_logger(__name__)
 
 
 def run_async(coro):
-    """Run async function with proper event loop handling.
-
-    Uses nest_asyncio to handle nested event loops cleanly,
-    avoiding thread-based workarounds.
-    """
-    try:
-        # Get existing loop if available
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Use nest_asyncio to handle nested loops
-            return loop.run_until_complete(coro)
-        else:
-            # No loop running, use standard asyncio.run
-            return asyncio.run(coro)
-    except RuntimeError:
-        # No loop exists, create new one
-        return asyncio.run(coro)
+    """Run async function."""
+    return asyncio.run(coro)
 
 
 @click.group()
@@ -217,7 +198,7 @@ async def _test_connection_async():
     db_manager = get_db_manager()
     await db_manager.initialize()
 
-    async with db_manager.get_write_session() as session:
+    async with db_manager.get_session() as session:
         result = await session.execute(text("SELECT 1 as test"))
         row = result.fetchone()
         if not (row and row.test == 1):

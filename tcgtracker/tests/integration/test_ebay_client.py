@@ -1,6 +1,6 @@
 """Tests for eBay API client."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -154,6 +154,7 @@ class TesteBayClient:
             client_id="test_client_id",
             client_secret="test_client_secret",
             base_url="https://api.ebay.com",
+            environment="production",
         )
         yield client
         await client.close()
@@ -206,7 +207,7 @@ class TesteBayClient:
         """Test ensuring valid token when valid token exists."""
         # Set up valid token
         client._access_token = "valid_token"
-        client._token_expires_at = datetime.utcnow() + timedelta(hours=1)
+        client._token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
         with patch.object(
             client, "_get_application_token", new_callable=AsyncMock
@@ -221,7 +222,7 @@ class TesteBayClient:
         """Test ensuring valid token when token is expired."""
         # Set up expired token
         client._access_token = "expired_token"
-        client._token_expires_at = datetime.utcnow() - timedelta(minutes=5)
+        client._token_expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
 
         with patch.object(
             client, "_get_application_token", new_callable=AsyncMock

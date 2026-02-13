@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationInfo, field_validator
 
 
 class TCGType(str, Enum):
@@ -45,8 +45,9 @@ class UserBase(BaseModel):
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=30)
 
-    @validator("username")
-    def validate_username(cls, v):
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
         """Validate username format and security."""
         from tcgtracker.validation.validators import SecurityValidator
 
@@ -58,8 +59,9 @@ class UserCreate(UserBase):
 
     password: str = Field(..., min_length=8, max_length=128)
 
-    @validator("password")
-    def validate_password_strength(cls, v):
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
         """Validate password complexity requirements."""
         from tcgtracker.validation.validators import SecurityValidator
 
@@ -72,8 +74,9 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     username: Optional[str] = Field(None, min_length=3, max_length=30)
 
-    @validator("username")
-    def validate_username(cls, v):
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: Optional[str]) -> Optional[str]:
         """Validate username format if provided."""
         if v is not None:
             from tcgtracker.validation.validators import SecurityValidator
@@ -88,8 +91,9 @@ class PasswordChange(BaseModel):
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8, max_length=128)
 
-    @validator("new_password")
-    def validate_password_strength(cls, v):
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
         """Validate password complexity requirements."""
         from tcgtracker.validation.validators import SecurityValidator
 
@@ -104,8 +108,7 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Auth schemas
@@ -139,19 +142,20 @@ class CardBase(BaseModel):
     set_name: str = Field(..., min_length=1, max_length=50)
     card_number: Optional[str] = Field(None, max_length=20)
     rarity: Optional[str] = Field(None, max_length=50)
-    tcgplayer_id: Optional[int] = None
     external_id: Optional[str] = Field(None, max_length=100)
     image_url: Optional[str] = None
 
-    @validator("name")
-    def sanitize_card_name(cls, v):
+    @field_validator("name")
+    @classmethod
+    def sanitize_card_name(cls, v: str) -> str:
         """Sanitize card name for safe storage."""
         from tcgtracker.validation.sanitizers import sanitize_card_name
 
         return sanitize_card_name(v)
 
-    @validator("image_url")
-    def validate_image_url(cls, v):
+    @field_validator("image_url")
+    @classmethod
+    def validate_image_url(cls, v: Optional[str]) -> Optional[str]:
         """Validate image URL for security."""
         if v:
             from tcgtracker.validation.validators import SecurityValidator
@@ -172,8 +176,9 @@ class CardUpdate(BaseModel):
     rarity: Optional[str] = Field(None, max_length=50)
     image_url: Optional[str] = None
 
-    @validator("name")
-    def sanitize_card_name(cls, v):
+    @field_validator("name")
+    @classmethod
+    def sanitize_card_name(cls, v: Optional[str]) -> Optional[str]:
         """Sanitize card name if provided."""
         if v:
             from tcgtracker.validation.sanitizers import sanitize_card_name
@@ -181,8 +186,9 @@ class CardUpdate(BaseModel):
             return sanitize_card_name(v)
         return v
 
-    @validator("image_url")
-    def validate_image_url(cls, v):
+    @field_validator("image_url")
+    @classmethod
+    def validate_image_url(cls, v: Optional[str]) -> Optional[str]:
         """Validate image URL if provided."""
         if v:
             from tcgtracker.validation.validators import SecurityValidator
@@ -200,8 +206,7 @@ class CardResponse(CardBase):
     latest_price: Optional[Decimal] = None
     price_trend: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CardSearchParams(BaseModel):
@@ -216,8 +221,9 @@ class CardSearchParams(BaseModel):
     limit: int = Field(default=20, gt=0, le=100)
     offset: int = Field(default=0, ge=0)
 
-    @validator("query")
-    def sanitize_search_query(cls, v):
+    @field_validator("query")
+    @classmethod
+    def sanitize_search_query(cls, v: Optional[str]) -> Optional[str]:
         """Sanitize search query to prevent injection."""
         if v:
             from tcgtracker.validation.sanitizers import sanitize_search_input
@@ -225,8 +231,9 @@ class CardSearchParams(BaseModel):
             return sanitize_search_input(v)
         return v
 
-    @validator("set_name")
-    def sanitize_set_name(cls, v):
+    @field_validator("set_name")
+    @classmethod
+    def sanitize_set_name(cls, v: Optional[str]) -> Optional[str]:
         """Sanitize set name for search."""
         if v:
             from tcgtracker.validation.sanitizers import sanitize_search_input
@@ -234,10 +241,11 @@ class CardSearchParams(BaseModel):
             return sanitize_search_input(v)
         return v
 
-    @validator("max_price")
-    def validate_price_range(cls, v, values):
+    @field_validator("max_price")
+    @classmethod
+    def validate_price_range(cls, v: Optional[Decimal], info: ValidationInfo) -> Optional[Decimal]:
         """Ensure max_price >= min_price if both are provided."""
-        min_price = values.get("min_price")
+        min_price = info.data.get("min_price")
         if min_price and v and v < min_price:
             raise ValueError("max_price must be greater than or equal to min_price")
         return v
@@ -266,8 +274,7 @@ class PriceResponse(BaseModel):
     condition: CardCondition
     timestamp: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PriceHistory(BaseModel):
@@ -316,8 +323,7 @@ class CollectionItemResponse(BaseModel):
     card: Optional[CardResponse] = None
     current_value: Optional[Decimal] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CollectionStats(BaseModel):
@@ -354,8 +360,7 @@ class PriceAlertResponse(BaseModel):
     created_at: datetime
     card: Optional[CardResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Search schemas

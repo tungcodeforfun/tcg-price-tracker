@@ -127,9 +127,6 @@ class TCGSet(Base, TimestampMixin):
     total_cards: Mapped[Optional[int]] = mapped_column(Integer)
     series: Mapped[Optional[str]] = mapped_column(String(100))
 
-    # Relationships
-    cards: Mapped[List["Card"]] = relationship("Card", back_populates="tcg_set")
-
     # Constraints
     __table_args__ = (
         UniqueConstraint("tcg_type", "set_code", name="uq_tcg_sets_type_code"),
@@ -156,11 +153,6 @@ class Card(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
-    # Deprecated: Use external_id instead for all external systems
-    tcgplayer_id: Mapped[Optional[int]] = mapped_column(
-        Integer, unique=True
-    )  # TODO: Remove in future migration
-    # Unified external ID field for all pricing sources (TCGPlayer, PriceCharting, JustTCG, etc.)
     external_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -169,8 +161,15 @@ class Card(Base, TimestampMixin):
         Integer, ForeignKey("tcg_sets.id", ondelete="SET NULL"), index=True
     )
 
+    # Denormalized price columns (maintained on price insert/update)
+    latest_market_price: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2), nullable=True
+    )
+    latest_price_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     # Relationships
-    tcg_set: Mapped[Optional["TCGSet"]] = relationship("TCGSet", back_populates="cards")
     price_history: Mapped[List["PriceHistory"]] = relationship(
         "PriceHistory", back_populates="card"
     )
@@ -297,12 +296,13 @@ class CollectionItem(Base, TimestampMixin):
             "condition",
             name="uq_collection_items_user_card_condition",
         ),
-        Index("idx_collection_items_user", "user_id"),
-        Index("idx_collection_items_card", "card_id"),
     )
 
     def __repr__(self) -> str:
-        return f"<CollectionItem(id={self.id}, user_id={self.user_id}, card_id={self.card_id}, quantity={self.quantity})>"
+        return (
+            f"<CollectionItem(id={self.id}, user_id={self.user_id}, "
+            f"card_id={self.card_id}, quantity={self.quantity})>"
+        )
 
     # Runtime attributes for API responses
     current_value: Optional[Decimal] = None
@@ -352,57 +352,3 @@ class UserAlert(Base, TimestampMixin):
         return (
             f"<UserAlert(id={self.id}, user_id={self.user_id}, card_id={self.card_id})>"
         )
-
-
-class DataSource(Base, TimestampMixin):
-    """Data source configuration model."""
-
-    __tablename__ = "data_sources"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    api_endpoint: Mapped[str] = mapped_column(Text, nullable=False)
-    auth_method: Mapped[str] = mapped_column(String(20), nullable=False)
-    rate_limit_per_minute: Mapped[Optional[int]] = mapped_column(Integer)
-    rate_limit_per_hour: Mapped[Optional[int]] = mapped_column(Integer)
-    last_updated: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False, index=True
-    )
-    config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-
-    def __repr__(self) -> str:
-        return (
-            f"<DataSource(id={self.id}, name='{self.name}', active={self.is_active})>"
-        )
-
-
-class APIUsageLog(Base):
-    """API usage logging for monitoring and rate limiting."""
-
-    __tablename__ = "api_usage_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True
-    )
-    api_key: Mapped[Optional[str]] = mapped_column(String(64), index=True)
-    endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
-    method: Mapped[str] = mapped_column(String(10), nullable=False)
-    response_status: Mapped[int] = mapped_column(Integer, nullable=False)
-    response_time_ms: Mapped[Optional[int]] = mapped_column(Integer)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
-    )
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
-    user_agent: Mapped[Optional[str]] = mapped_column(Text)
-
-    # Indexes for performance and monitoring
-    __table_args__ = (
-        Index("idx_api_usage_user_time", "user_id", "timestamp"),
-        Index("idx_api_usage_endpoint_time", "endpoint", "timestamp"),
-        Index("idx_api_usage_status_time", "response_status", "timestamp"),
-    )
-
-    def __repr__(self) -> str:
-        return f"<APIUsageLog(id={self.id}, endpoint='{self.endpoint}', status={self.response_status})>"

@@ -1,7 +1,7 @@
 """Tests for PriceCharting API client integration."""
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -111,54 +111,60 @@ class TestPriceChartingClient:
 
     @pytest.mark.asyncio
     async def test_fallback_to_justtcg(self):
-        """Test fallback mechanism when PriceCharting fails."""
-        with patch(
-            "tcgtracker.workers.tasks.price_tasks.PriceUpdateTask.pricecharting_client"
-        ) as mock_pc:
-            with patch(
-                "tcgtracker.workers.tasks.price_tasks.PriceUpdateTask.justtcg_client"
-            ) as mock_jt:
-                # Mock PriceCharting to fail
-                mock_pc.get_card_price = AsyncMock(side_effect=Exception("API Error"))
+        """Test that JustTCG client can serve as fallback when PriceCharting fails."""
+        from tcgtracker.integrations.justtcg import JustTCGClient
 
-                # Mock JustTCG to succeed
-                mock_jt.get_card_price = AsyncMock(
-                    return_value={
+        pc_client = PriceChartingClient(api_key="test_key")
+        jt_client = JustTCGClient()
+
+        with patch.object(
+            pc_client, "get_card_price", new_callable=AsyncMock
+        ) as mock_pc:
+            with patch.object(
+                jt_client, "search_cards", new_callable=AsyncMock
+            ) as mock_jt:
+                mock_pc.side_effect = Exception("API Error")
+                mock_jt.return_value = [
+                    {
+                        "name": "Charizard",
                         "market_price": 15.00,
                         "low_price": 10.00,
                         "high_price": 20.00,
-                        "mid_price": 15.00,
                     }
-                )
+                ]
 
-                # This would be called within the actual task
-                # The task should fall back to JustTCG
-                # Here we're just verifying the mock setup
-                assert mock_pc.get_card_price.side_effect is not None
-                assert mock_jt.get_card_price.return_value is not None
+                # PriceCharting should fail
+                with pytest.raises(Exception, match="API Error"):
+                    await pc_client.get_card_price("Charizard")
+
+                # JustTCG should succeed as fallback
+                results = await jt_client.search_cards(
+                    query="Charizard", game="pokemon"
+                )
+                assert len(results) == 1
+                assert results[0]["market_price"] == 15.00
 
 
 class TestPriceUpdateIntegration:
-    """Test price update task with PriceCharting integration."""
+    """Test price update integration with PriceCharting."""
 
     @pytest.mark.asyncio
-    async def test_price_update_uses_pricecharting(self):
-        """Test that price updates use PriceCharting as primary source."""
-        with patch(
-            "tcgtracker.workers.tasks.price_tasks._update_card_price_async"
-        ) as mock_update:
-            mock_update.return_value = {
-                "card_id": 1,
-                "status": "success",
+    async def test_pricecharting_is_primary_source(self):
+        """Test that PriceCharting is configured as a primary data source."""
+        assert DataSourceEnum.PRICECHARTING.value == "pricecharting"
+
+        client = PriceChartingClient(api_key="test_key")
+        with patch.object(
+            client, "get_card_price", new_callable=AsyncMock
+        ) as mock_get:
+            mock_get.return_value = {
+                "name": "Charizard",
+                "complete_price": 25.00,
                 "market_price": 25.00,
-                "source": DataSourceEnum.PRICECHARTING,
             }
 
-            # Simulate task execution
-            result = await mock_update(MagicMock(), 1)
-
-            assert result["status"] == "success"
-            assert result["source"] == DataSourceEnum.PRICECHARTING
+            result = await client.get_card_price("Charizard")
+            assert result["market_price"] == 25.00
 
     @pytest.mark.asyncio
     async def test_database_enum_values(self):

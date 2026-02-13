@@ -1,7 +1,7 @@
 """TCGPlayer API client with OAuth implementation."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
@@ -183,7 +183,7 @@ class TCGPlayerClient(BaseAPIClient):
 
         # Calculate expiration time
         expires_in = token_response.get("expires_in", 3600)  # Default to 1 hour
-        self._token_expires_at = datetime.utcnow() + timedelta(
+        self._token_expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=expires_in - 60
         )  # 60s buffer
 
@@ -199,7 +199,7 @@ class TCGPlayerClient(BaseAPIClient):
         async with self._token_lock:
             # Check if we need to refresh the token
             if self._access_token and self._token_expires_at:
-                if datetime.utcnow() < self._token_expires_at:
+                if datetime.now(timezone.utc) < self._token_expires_at:
                     return  # Token is still valid
 
             # Try to refresh if we have a refresh token
@@ -432,6 +432,33 @@ class TCGPlayerClient(BaseAPIClient):
 
         response = await self.get("/v1.39.0/catalog/products", params=params)
         return response.get("results", [])
+
+    async def get_product_prices(
+        self,
+        product_ids: List[int],
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Get prices for products, returned as a dict keyed by string product ID.
+
+        Args:
+            product_ids: List of product IDs
+
+        Returns:
+            Dict mapping string product IDs to price dicts with "market" key
+        """
+        pricing_list = await self.get_product_pricing(product_ids)
+
+        result: Dict[str, Dict[str, Any]] = {}
+        for price_entry in pricing_list:
+            pid = str(price_entry.get("productId", ""))
+            if pid:
+                result[pid] = {
+                    "market": price_entry.get("marketPrice"),
+                    "low": price_entry.get("lowPrice"),
+                    "mid": price_entry.get("midPrice"),
+                    "high": price_entry.get("highPrice"),
+                }
+        return result
 
     async def get_pokemon_category_id(self) -> Optional[int]:
         """Get Pokemon TCG category ID."""

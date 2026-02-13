@@ -10,7 +10,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from tcgtracker.api.dependencies import get_current_active_user, get_session
+from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.schemas import BulkPriceUpdate, PriceCreate
 from tcgtracker.api.schemas import PriceHistory as PriceHistorySchema
 from tcgtracker.api.schemas import PriceResponse, PriceSource
@@ -47,31 +47,35 @@ async def fetch_and_update_price(
 
     if source == PriceSource.PRICECHARTING:
         # Fetch from PriceCharting
-        client = PriceChartingClient()
-        try:
-            result = await client.get_card_price(card.name)
-            if result:
-                # Transform PriceCharting data
-                price_data = result.get("complete_price", result.get("market_price", 0))
-                low_price = result.get("loose_price", result.get("low_price", 0))
-                high_price = result.get("new_price", result.get("high_price", 0))
-                avg_price = result.get("market_price", result.get("mid_price", 0))
-        except Exception as e:
-            logger.error("Error fetching PriceCharting price", exc_info=e)
+        async with PriceChartingClient() as client:
+            try:
+                result = await client.get_card_price(card.name)
+                if result:
+                    # Transform PriceCharting data
+                    price_data = result.get(
+                        "complete_price", result.get("market_price", 0)
+                    )
+                    low_price = result.get("loose_price", result.get("low_price", 0))
+                    high_price = result.get("new_price", result.get("high_price", 0))
+                    avg_price = result.get("market_price", result.get("mid_price", 0))
+            except Exception as e:
+                logger.error("Error fetching PriceCharting price", exc_info=e)
 
     elif source == PriceSource.JUSTTCG:
         # Fetch from JustTCG
-        client = JustTCGClient()
-        try:
-            game = "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
-            result = await client.get_card_price(card.name, game=game)
-            if result:
-                price_data = result.get("market_price", 0)
-                low_price = result.get("low_price", 0)
-                high_price = result.get("high_price", 0)
-                avg_price = result.get("mid_price", 0)
-        except Exception as e:
-            logger.error("Error fetching JustTCG price", exc_info=e)
+        async with JustTCGClient() as client:
+            try:
+                game = (
+                    "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
+                )
+                result = await client.get_card_price(card.name, game=game)
+                if result:
+                    price_data = result.get("market_price", 0)
+                    low_price = result.get("low_price", 0)
+                    high_price = result.get("high_price", 0)
+                    avg_price = result.get("mid_price", 0)
+            except Exception as e:
+                logger.error("Error fetching JustTCG price", exc_info=e)
 
     elif source == PriceSource.TCGPLAYER and card.external_id:
         # Fetch from TCGPlayer
@@ -108,17 +112,24 @@ async def fetch_and_update_price(
             PriceSource.CARDMARKET: DataSourceEnum.CARDMARKET,
         }
 
+        now = datetime.now(timezone.utc)
+        market = Decimal(str(price_data))
         new_price = PriceHistory(
             card_id=card.id,
             source=source_mapping.get(source, DataSourceEnum.MANUAL),
-            market_price=Decimal(str(price_data)),
+            market_price=market,
             price_low=Decimal(str(low_price)) if low_price else None,
             price_high=Decimal(str(high_price)) if high_price else None,
             price_avg=Decimal(str(avg_price)) if avg_price else None,
             condition=CardConditionEnum.NEAR_MINT,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now,
         )
         db.add(new_price)
+
+        # Update denormalized price columns on card
+        card.latest_market_price = market
+        card.latest_price_updated_at = now
+
         await db.commit()
         return new_price
 
@@ -129,7 +140,7 @@ async def fetch_and_update_price(
 async def create_price(
     price_data: PriceCreate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistory:
     """Manually add a price entry for a card."""
     # Verify card exists
@@ -145,13 +156,18 @@ async def create_price(
         # Map API PriceSource enum to database DataSourceEnum
         from tcgtracker.utils.enum_mappings import map_price_source_to_db
 
+        now = datetime.now(timezone.utc)
         price_dict = price_data.model_dump(exclude={"listing_url"})
         price_dict["source"] = map_price_source_to_db(price_data.source)
-        price_dict["timestamp"] = datetime.now(timezone.utc)
+        price_dict["timestamp"] = now
 
         # Create price entry
         new_price = PriceHistory(**price_dict)
         db.add(new_price)
+
+        # Update denormalized price columns on card
+        card.latest_market_price = price_data.market_price
+        card.latest_price_updated_at = now
 
         # Check price alerts
         alerts_query = select(UserAlert).where(
@@ -194,7 +210,7 @@ async def get_price_history(
     days: int = Query(30, ge=1, le=365),
     source: Optional[PriceSource] = Query(None),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistorySchema:
     """Get price history for a specific card."""
     # Verify card exists
@@ -284,7 +300,7 @@ async def update_card_price(
     source: PriceSource = Query(PriceSource.PRICECHARTING),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistory:
     """Fetch and update the latest price for a card."""
     # Get card
@@ -313,7 +329,7 @@ async def bulk_update_prices(
     update_request: BulkPriceUpdate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[PriceHistory]:
     """Bulk update prices for multiple cards."""
     # Get cards
@@ -335,14 +351,21 @@ async def bulk_update_prices(
             if new_price:
                 updated_prices.append(new_price)
         except Exception as e:
-            logger.error(f"Error updating price for card {card.id}", exc_info=e)
+            # Expire session state so subsequent iterations start clean
+            await db.rollback()
+            logger.error(
+                "Error updating price for card",
+                card_id=card.id,
+                exc_info=e,
+            )
             errors.append({"card_id": card.id, "error": str(e)})
             continue
 
-    # Log summary of errors if any occurred
     if errors:
         logger.warning(
-            f"Price update completed with {len(errors)} errors out of {len(cards)} cards"
+            "Price update completed with errors",
+            error_count=len(errors),
+            total_cards=len(cards),
         )
 
     return updated_prices
@@ -353,7 +376,7 @@ async def get_price_trends(
     tcg_type: Optional[str] = Query(None),
     days: int = Query(7, ge=1, le=30),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Get aggregated price trends."""
     since_date = datetime.now(timezone.utc) - timedelta(days=days)
