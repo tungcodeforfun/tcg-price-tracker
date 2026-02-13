@@ -1,5 +1,6 @@
 """Authentication endpoints."""
 
+import asyncio
 from datetime import timedelta
 from typing import Annotated
 
@@ -37,7 +38,7 @@ async def register(
             (User.email == user_data.email) | (User.username == user_data.username)
         )
     )
-    existing_user = result.scalar_one_or_none()
+    existing_user = result.scalars().first()
 
     if existing_user:
         if existing_user.email == user_data.email:
@@ -51,7 +52,7 @@ async def register(
             )
 
     # Create new user
-    hashed_password = get_password_hash(user_data.password)
+    hashed_password = await asyncio.to_thread(get_password_hash, user_data.password)
     new_user = User(
         email=user_data.email,
         username=user_data.username,
@@ -80,7 +81,9 @@ async def login(
     )
     user = result.scalar_one_or_none()
 
-    if not user or not verify_password(form_data.password, user.password_hash):
+    if not user or not await asyncio.to_thread(
+        verify_password, form_data.password, user.password_hash
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -125,13 +128,26 @@ async def refresh_token(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
             )
+
+        # Validate token type is refresh
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+            )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
 
     # Verify user exists and is active
-    result = await db.execute(select(User).where(User.id == int(user_id)))
+    try:
+        user_id_int = int(user_id)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id_int))
     user = result.scalar_one_or_none()
 
     if not user or not user.is_active:

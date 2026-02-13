@@ -1,8 +1,11 @@
 """Search endpoints for external APIs."""
 
-from typing import List
+import asyncio
+import logging
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tcgtracker.api.dependencies import get_current_active_user, get_session
@@ -21,6 +24,8 @@ from tcgtracker.integrations.tcgplayer import TCGPlayerClient
 from tcgtracker.utils.exceptions import DataValidationException
 from tcgtracker.validation.sanitizers import sanitize_search_input
 from tcgtracker.validation.search_validators import SearchValidator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -81,10 +86,11 @@ async def search_tcgplayer(
 
             return results
 
-    except Exception as e:
+    except Exception:
+        logger.error("TCGPlayer search failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"TCGPlayer search failed: {str(e)}",
+            detail="TCGPlayer search is currently unavailable",
         )
 
 
@@ -149,10 +155,11 @@ async def search_pricecharting(
 
         return results
 
-    except Exception as e:
+    except Exception:
+        logger.error("PriceCharting search failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"PriceCharting search failed: {str(e)}",
+            detail="PriceCharting search is currently unavailable",
         )
 
 
@@ -206,10 +213,11 @@ async def search_justtcg(
 
         return results
 
-    except Exception as e:
+    except Exception:
+        logger.error("JustTCG search failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"JustTCG search failed: {str(e)}",
+            detail="JustTCG search is currently unavailable",
         )
 
 
@@ -250,10 +258,11 @@ async def search_ebay(
 
             return results
 
-    except Exception as e:
+    except Exception:
+        logger.error("eBay search failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"eBay search failed: {str(e)}",
+            detail="eBay search is currently unavailable",
         )
 
 
@@ -265,19 +274,24 @@ async def search_all_sources(
     """Search all available sources for cards."""
     results = {"tcgplayer": [], "ebay": [], "errors": []}
 
-    # Search TCGPlayer
-    try:
-        tcg_results = await search_tcgplayer(search_request, current_user)
-        results["tcgplayer"] = tcg_results
-    except Exception as e:
-        results["errors"].append(f"TCGPlayer: {str(e)}")
+    # Run TCGPlayer and eBay searches concurrently
+    tcg_task = search_tcgplayer(search_request, current_user)
+    ebay_task = search_ebay(search_request, current_user)
+    gathered = await asyncio.gather(tcg_task, ebay_task, return_exceptions=True)
 
-    # Search eBay
-    try:
-        ebay_results = await search_ebay(search_request, current_user)
-        results["ebay"] = ebay_results
-    except Exception as e:
-        results["errors"].append(f"eBay: {str(e)}")
+    tcg_result, ebay_result = gathered
+
+    if isinstance(tcg_result, Exception):
+        logger.error("TCGPlayer search failed in all-sources", exc_info=tcg_result)
+        results["errors"].append("TCGPlayer search is currently unavailable")
+    else:
+        results["tcgplayer"] = tcg_result
+
+    if isinstance(ebay_result, Exception):
+        logger.error("eBay search failed in all-sources", exc_info=ebay_result)
+        results["errors"].append("eBay search is currently unavailable")
+    else:
+        results["ebay"] = ebay_result
 
     return results
 
@@ -289,7 +303,7 @@ async def import_card_from_search(
     search_result: SearchResult,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),
-) -> Card:
+):
     """Import a card from search results into the database."""
     # Check if card already exists
     from sqlalchemy import and_, select
@@ -305,7 +319,10 @@ async def import_card_from_search(
     existing_card = result.scalar_one_or_none()
 
     if existing_card:
-        return existing_card
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=CardResponse.model_validate(existing_card).model_dump(mode="json"),
+        )
 
     # Create new card
     card_data = CardCreate(
@@ -348,19 +365,20 @@ async def import_card_from_search(
 
         return new_card
 
-    except Exception as e:
+    except Exception:
         # Rollback the transaction on any error
         await db.rollback()
+        logger.error("Failed to import card", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to import card: {str(e)}",
+            detail="Failed to import card",
         )
 
 
 @router.get("/suggestions", response_model=List[str])
 async def get_search_suggestions(
     query: str,
-    tcg_type: str = None,
+    tcg_type: Optional[str] = None,
     limit: int = 10,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_active_user),

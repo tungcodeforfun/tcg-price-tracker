@@ -1,5 +1,6 @@
 """User management endpoints."""
 
+import asyncio
 from typing import List, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -100,13 +101,17 @@ async def change_password(
     from tcgtracker.api.dependencies import verify_password
 
     # Verify current password
-    if not verify_password(password_data.current_password, current_user.password_hash):
+    if not await asyncio.to_thread(
+        verify_password, password_data.current_password, current_user.password_hash
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Incorrect current password"
         )
 
     # Update password
-    current_user.password_hash = get_password_hash(password_data.new_password)
+    current_user.password_hash = await asyncio.to_thread(
+        get_password_hash, password_data.new_password
+    )
     await db.commit()
     await db.refresh(current_user)
 
@@ -142,7 +147,7 @@ async def create_price_alert(
             UserAlert.user_id == current_user.id,
             UserAlert.card_id == alert_data.card_id,
             UserAlert.alert_type == converted_data["alert_type"],
-            UserAlert.is_active,  # Fixed E712: comparison to True should be `is True` or `is not False`
+            UserAlert.is_active.is_(True),
         )
     )
     result = await db.execute(existing_query)
@@ -185,7 +190,7 @@ async def get_price_alerts(
     )
 
     if active_only:
-        query = query.where(UserAlert.is_active)
+        query = query.where(UserAlert.is_active.is_(True))
 
     result_alerts = await db.execute(query)
     alerts = cast(List[UserAlert], result_alerts.scalars().all())

@@ -88,6 +88,13 @@ class PasswordChange(BaseModel):
     current_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8, max_length=128)
 
+    @validator("new_password")
+    def validate_password_strength(cls, v):
+        """Validate password complexity requirements."""
+        from tcgtracker.validation.validators import SecurityValidator
+
+        return SecurityValidator.validate_password_strength(v)
+
 
 class UserResponse(UserBase):
     """User response schema."""

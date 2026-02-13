@@ -152,7 +152,7 @@ class Card(Base, TimestampMixin):
         Enum(TCGTypeEnum), nullable=False, index=True
     )
     set_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    card_number: Mapped[str] = mapped_column(String(20), nullable=False)
+    card_number: Mapped[Optional[str]] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)

@@ -40,6 +40,7 @@ async def get_current_user(
 
     try:
         # Decode and validate JWT token with full verification
+        # jose.jwt.decode with verify_exp=True already handles expiration
         payload = jwt.decode(
             token,
             settings.security.secret_key,
@@ -52,28 +53,14 @@ async def get_current_user(
         if user_id is None:
             raise credentials_exception
 
-        # Validate token expiration explicitly
-        exp = payload.get("exp")
-        if exp is None:
-            raise credentials_exception
-
-        from datetime import datetime
-
-        if datetime.utcnow().timestamp() > exp:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        # Validate issued at time (iat) is not in the future
-        iat = payload.get("iat")
-        if iat and datetime.utcnow().timestamp() < iat:
+        # Validate token type is access
+        if payload.get("type") != "access":
             raise credentials_exception
 
     except JWTError:
-        # Log JWT errors for debugging (in production, use proper logging)
         raise credentials_exception
+    except HTTPException:
+        raise
     except Exception:
         raise credentials_exception
 
@@ -101,21 +88,20 @@ async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     """Get current active user."""
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token."""
     to_encode = data.copy()
+    now = datetime.now(timezone.utc)
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = now + timedelta(
             minutes=settings.security.access_token_expire_minutes
         )
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "iat": now, "type": "access"})
     encoded_jwt = jwt.encode(
         to_encode, settings.security.secret_key, algorithm=settings.security.algorithm
     )
@@ -125,10 +111,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict) -> str:
     """Create JWT refresh token."""
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(
         days=settings.security.refresh_token_expire_days
     )
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "iat": now, "type": "refresh"})
     encoded_jwt = jwt.encode(
         to_encode, settings.security.secret_key, algorithm=settings.security.algorithm
     )

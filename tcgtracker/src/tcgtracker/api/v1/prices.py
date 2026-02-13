@@ -142,18 +142,24 @@ async def create_price(
         )
 
     try:
+        # Map API PriceSource enum to database DataSourceEnum
+        from tcgtracker.utils.enum_mappings import map_price_source_to_db
+
+        price_dict = price_data.model_dump(exclude={"listing_url"})
+        price_dict["source"] = map_price_source_to_db(price_data.source)
+        price_dict["timestamp"] = datetime.now(timezone.utc)
+
         # Create price entry
-        new_price = PriceHistory(**price_data.model_dump())
+        new_price = PriceHistory(**price_dict)
         db.add(new_price)
 
         # Check price alerts
         alerts_query = select(UserAlert).where(
             and_(
                 UserAlert.card_id == price_data.card_id,
-                UserAlert.is_active,
+                UserAlert.is_active.is_(True),
             )
         )
-        from typing import Sequence
 
         result_alerts = await db.execute(alerts_query)
         alerts: Sequence[UserAlert] = result_alerts.scalars().all()
@@ -219,13 +225,18 @@ async def get_price_history(
 
     # Calculate statistics
     if prices:
-        price_values = [p.market_price for p in prices]
-        avg_price = sum(price_values) / len(price_values)
-        min_price = min(price_values)
-        max_price = max(price_values)
+        price_values = [p.market_price for p in prices if p.market_price is not None]
+        if price_values:
+            avg_price = sum(price_values) / len(price_values)
+            min_price = min(price_values)
+            max_price = max(price_values)
+        else:
+            avg_price = None
+            min_price = None
+            max_price = None
 
         # Determine trend
-        if len(prices) > 1:
+        if len(price_values) > 1:
             recent_avg = sum(price_values[-5:]) / len(price_values[-5:])
             older_avg = sum(price_values[:5]) / len(price_values[:5])
             if recent_avg > older_avg * 1.05:
@@ -254,9 +265,10 @@ async def get_price_history(
             timestamp=p.timestamp,
         )
         for p in prices
+        if p.market_price is not None
     ]
 
-    return PriceHistory(
+    return PriceHistorySchema(
         card_id=card_id,
         prices=price_responses,
         average_price=avg_price,
@@ -344,8 +356,6 @@ async def get_price_trends(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """Get aggregated price trends."""
-    from datetime import timezone
-
     since_date = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Build query for price changes

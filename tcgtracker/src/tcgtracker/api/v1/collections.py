@@ -100,8 +100,6 @@ async def get_collection_items(
     items = result_items.scalars().all()
 
     # Calculate current values efficiently
-    from decimal import Decimal
-
     for item in items:
         if item.card and item.card.price_history:
             # Price history is already loaded via selectinload
@@ -109,7 +107,10 @@ async def get_collection_items(
             if price_history:
                 # Calculate value based on latest price
                 latest_price = max(price_history, key=lambda p: p.timestamp)
-                item.current_value = latest_price.market_price * item.quantity
+                if latest_price.market_price is not None:
+                    item.current_value = latest_price.market_price * item.quantity
+                else:
+                    item.current_value = Decimal(0)
             else:
                 item.current_value = Decimal(0)
         else:
@@ -147,7 +148,10 @@ async def get_collection_item(
         try:
             # Calculate value based on latest price
             latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
-            item.current_value = latest_price.market_price * item.quantity
+            if latest_price.market_price is not None:
+                item.current_value = latest_price.market_price * item.quantity
+            else:
+                item.current_value = Decimal(0)
         except ValueError:  # Empty price_history
             item.current_value = Decimal(0)
     else:
@@ -251,7 +255,8 @@ async def get_collection_stats(
         if item.card and item.card.price_history:
             try:
                 latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
-                total_value += latest_price.market_price * item.quantity
+                if latest_price.market_price is not None:
+                    total_value += latest_price.market_price * item.quantity
             except ValueError:  # Empty price_history
                 pass  # Skip this item's value
 
@@ -319,6 +324,9 @@ async def get_collection_value_history(
     result = await db.execute(price_query)
     price_history = result.all()
 
+    # Build quantity lookup dict to avoid N+1 inner loop
+    card_quantities = {item.card_id: item.quantity for item in items}
+
     # Build daily value history
     daily_values = {}
     for price_record in price_history:
@@ -326,11 +334,9 @@ async def get_collection_value_history(
         if date_str not in daily_values:
             daily_values[date_str] = Decimal("0")
 
-        # Find corresponding collection item
-        for item in items:
-            if item.card_id == price_record.card_id:
-                daily_values[date_str] += price_record.avg_price * item.quantity
-                break
+        qty = card_quantities.get(price_record.card_id, 0)
+        if price_record.avg_price is not None and qty > 0:
+            daily_values[date_str] += price_record.avg_price * qty
 
     # Format response
     history = [

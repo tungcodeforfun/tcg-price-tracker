@@ -16,7 +16,7 @@ from tcgtracker.api.schemas import (
     CardUpdate,
     TCGType,
 )
-from tcgtracker.database.models import Card, PriceHistory, User
+from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
 
 router = APIRouter()
 
@@ -186,6 +186,16 @@ async def delete_card(
     if not card:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
+        )
+
+    # Check if any collection items reference this card
+    collection_result = await db.execute(
+        select(CollectionItem.id).where(CollectionItem.card_id == card_id).limit(1)
+    )
+    if collection_result.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete card that exists in user collections",
         )
 
     await db.delete(card)
