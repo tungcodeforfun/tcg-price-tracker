@@ -57,25 +57,12 @@ jobs:
         ports:
           - 5432:5432
 
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
     env:
       DB_HOST: localhost
       DB_PORT: 5432
       DB_NAME: tcgtracker_test
       DB_USER: tcgtracker_test
       DB_PASSWORD: test_password
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
-      REDIS_DB: 0
       SECRET_KEY: test-secret-key-for-ci-testing-purposes-must-be-32-chars-minimum
       API_TCGPLAYER_CLIENT_ID: test_client_id
       API_TCGPLAYER_CLIENT_SECRET: test_client_secret
