@@ -8,8 +8,36 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
 
 jobs:
+  # Job 0: Frontend Build & Lint
+  frontend:
+    runs-on: ubuntu-latest
+    name: Frontend Build & Lint
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: npm ci
+
+    - name: Lint
+      working-directory: ./frontend
+      run: npm run lint
+
+    - name: Type check & build
+      working-directory: ./frontend
+      run: npm run build
+
   # Job 1: Code Quality and Security Checks
   code-quality:
     runs-on: ubuntu-latest
@@ -363,24 +391,26 @@ jobs:
   ci-summary:
     runs-on: ubuntu-latest
     name: CI Summary
-    needs: [code-quality, test, build, integration-test, security-scan]
+    needs: [frontend, code-quality, test, build, integration-test, security-scan]
     if: always()
     steps:
     - name: Check job status
       run: |
+        echo "Frontend: ${{ needs.frontend.result }}"
         echo "Code Quality: ${{ needs.code-quality.result }}"
         echo "Tests: ${{ needs.test.result }}"
         echo "Build: ${{ needs.build.result }}"
         echo "Integration Tests: ${{ needs.integration-test.result }}"
         echo "Security Scan: ${{ needs.security-scan.result }}"
-        
-        if [[ "${{ needs.code-quality.result }}" != "success" ]] || 
-           [[ "${{ needs.test.result }}" != "success" ]] || 
-           [[ "${{ needs.build.result }}" != "success" ]] || 
-           [[ "${{ needs.integration-test.result }}" != "success" ]] || 
+
+        if [[ "${{ needs.frontend.result }}" != "success" ]] ||
+           [[ "${{ needs.code-quality.result }}" != "success" ]] ||
+           [[ "${{ needs.test.result }}" != "success" ]] ||
+           [[ "${{ needs.build.result }}" != "success" ]] ||
+           [[ "${{ needs.integration-test.result }}" != "success" ]] ||
            [[ "${{ needs.security-scan.result }}" != "success" ]]; then
-          echo "❌ CI Pipeline Failed"
+          echo "CI Pipeline Failed"
           exit 1
         else
-          echo "✅ CI Pipeline Passed"
+          echo "CI Pipeline Passed"
         fi
