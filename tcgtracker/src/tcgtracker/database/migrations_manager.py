@@ -115,11 +115,13 @@ class MigrationsManager:
             from alembic.runtime.migration import MigrationContext
             from sqlalchemy import create_engine
 
-            # Create a dedicated engine with restricted pooling for migration context
-            # This prevents connection exposure and limits resource usage
+            # Use sync driver for this one-off check
+            sync_url = self.settings.database.url.replace(
+                "postgresql+asyncpg://", "postgresql://"
+            )
             engine = create_engine(
-                self.settings.database.url,
-                poolclass=NullPool,  # No connection pooling for one-off operations
+                sync_url,
+                poolclass=NullPool,
             )
 
             try:
