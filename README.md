@@ -1,7 +1,6 @@
 # TCG Price Tracker
 
 [![CI](https://github.com/tungcodeforfun/tcg-price-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/tungcodeforfun/tcg-price-tracker/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A full-stack application for tracking Pokemon and One Piece TCG card prices. Monitor your collection's value, get price alerts, and search across multiple marketplaces.
 
@@ -147,6 +146,3 @@ npm run lint
 npm run build
 ```
 
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
