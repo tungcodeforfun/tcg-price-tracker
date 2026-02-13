@@ -217,7 +217,7 @@ async def _test_connection_async():
     db_manager = get_db_manager()
     await db_manager.initialize()
 
-    async with db_manager.get_write_session() as session:
+    async with db_manager.get_session() as session:
         result = await session.execute(text("SELECT 1 as test"))
         row = result.fetchone()
         if not (row and row.test == 1):

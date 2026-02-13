@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from tcgtracker.api.dependencies import (
-    get_current_active_user,
+    get_current_user,
     get_password_hash,
     get_session,
 )
@@ -26,7 +26,7 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """Get current user's profile."""
     return current_user
@@ -59,7 +59,7 @@ def _convert_alert_schema_to_model_data(
 async def update_current_user(
     user_update: UserUpdate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """Update current user's profile."""
     # Check if email/username already taken
@@ -94,7 +94,7 @@ async def update_current_user(
 @router.put("/me/password", response_model=UserResponse)
 async def change_password(
     password_data: PasswordChange,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
 ) -> User:
     """Change user password."""
@@ -124,7 +124,7 @@ async def change_password(
 async def create_price_alert(
     alert_data: PriceAlertCreate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> UserAlert:
     """Create a price alert for a card."""
     # Verify card exists
@@ -178,7 +178,7 @@ async def create_price_alert(
 async def get_price_alerts(
     active_only: bool = True,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[UserAlert]:
     """Get user's price alerts."""
     from sqlalchemy.orm import selectinload
@@ -202,7 +202,7 @@ async def get_price_alerts(
 async def delete_price_alert(
     alert_id: int,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Delete a price alert."""
     from sqlalchemy import and_
@@ -230,7 +230,7 @@ async def delete_price_alert(
 async def toggle_price_alert(
     alert_id: int,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> UserAlert:
     """Toggle a price alert active/inactive."""
     from sqlalchemy import and_
@@ -260,7 +260,7 @@ async def toggle_price_alert(
 @router.get("/stats", response_model=dict)
 async def get_user_stats(
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Get user statistics."""
     from sqlalchemy import Integer, func

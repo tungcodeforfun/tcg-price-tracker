@@ -2,7 +2,6 @@
 
 import os
 from functools import lru_cache
-from typing import Any, Dict, Optional
 from urllib.parse import quote_plus
 
 from pydantic import Field, field_validator
@@ -18,10 +17,6 @@ class DatabaseSettings(BaseSettings):
     user: str = Field(default="tcgtracker", description="Database user")
     password: str = Field(default="", description="Database password")
 
-    # Read replica configuration
-    read_host: Optional[str] = Field(default=None, description="Read replica host")
-    read_port: Optional[int] = Field(default=None, description="Read replica port")
-
     # Connection pool settings
     pool_size: int = Field(default=20, description="Connection pool size")
     max_overflow: int = Field(default=0, description="Maximum overflow connections")
@@ -34,78 +29,9 @@ class DatabaseSettings(BaseSettings):
         encoded_password = quote_plus(self.password) if self.password else ""
         return f"postgresql+asyncpg://{encoded_user}:{encoded_password}@{self.host}:{self.port}/{self.name}"
 
-    @property
-    def read_url(self) -> Optional[str]:
-        """Get the read replica database URL."""
-        if self.read_host and self.read_port:
-            encoded_user = quote_plus(self.user)
-            encoded_password = quote_plus(self.password) if self.password else ""
-            return f"postgresql+asyncpg://{encoded_user}:{encoded_password}@{self.read_host}:{self.read_port}/{self.name}"
-        return None
-
     class Config:
         env_prefix = "DB_"
 
-
-class RedisSettings(BaseSettings):
-    """Redis configuration."""
-
-    host: str = Field(default="localhost", description="Redis host")
-    port: int = Field(default=6379, description="Redis port")
-    db: int = Field(default=0, description="Redis database number")
-    password: Optional[str] = Field(default=None, description="Redis password")
-
-    # Connection pool settings
-    max_connections: int = Field(default=20, description="Maximum connections in pool")
-    socket_timeout: int = Field(default=30, description="Socket timeout in seconds")
-
-    # Cache settings
-    default_ttl: int = Field(default=300, description="Default cache TTL in seconds")
-
-    @property
-    def url(self) -> str:
-        """Get the Redis URL."""
-        auth_part = f":{self.password}@" if self.password else ""
-        return f"redis://{auth_part}{self.host}:{self.port}/{self.db}"
-
-    class Config:
-        env_prefix = "REDIS_"
-
-
-class CelerySettings(BaseSettings):
-    """Celery configuration."""
-
-    broker_url: str = Field(
-        default="redis://localhost:6379/1", description="Celery broker URL"
-    )
-    result_backend: str = Field(
-        default="redis://localhost:6379/2", description="Celery result backend URL"
-    )
-
-    # Task settings
-    task_serializer: str = Field(
-        default="json", description="Task serialization format"
-    )
-    result_serializer: str = Field(
-        default="json", description="Result serialization format"
-    )
-    accept_content: list[str] = Field(
-        default=["json"], description="Accepted content types"
-    )
-    timezone: str = Field(default="UTC", description="Timezone for scheduled tasks")
-    enable_utc: bool = Field(default=True, description="Enable UTC")
-
-    # Worker settings
-    worker_prefetch_multiplier: int = Field(
-        default=1, description="Worker prefetch multiplier"
-    )
-    task_acks_late: bool = Field(default=True, description="Acknowledge tasks late")
-    worker_max_tasks_per_child: int = Field(
-        default=1000, description="Max tasks per worker child"
-    )
-
-    class Config:
-        env_prefix = "CELERY_"
 
 
 class ExternalAPISettings(BaseSettings):
@@ -200,63 +126,19 @@ class SecuritySettings(BaseSettings):
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
         """Validate that secret key is properly configured."""
-        # Allow empty secret key only in development mode
         app_env = os.getenv("APP_ENVIRONMENT", "development")
 
-        if not v or v == "":
+        if not v:
             if app_env == "production":
                 raise ValueError(
-                    "SECURITY_SECRET_KEY environment variable must be set in production. "
+                    "SECURITY_SECRET_KEY must be set in production. "
                     "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
-            else:
-                # Use a development-only key
-                v = "development-only-key-not-for-production-use-" + "x" * 20
+            return "development-only-key-not-for-production-use-" + "x" * 20
 
         if len(v) < 32:
             raise ValueError("Secret key must be at least 32 characters long")
 
-        # Enforce strict validation in production
-        if app_env == "production":
-            # Reject common insecure patterns in production
-            insecure_patterns = [
-                "dev",
-                "test",
-                "change",
-                "example",
-                "secret",
-                "key",
-                "123",
-                "abc",
-                "insecure",
-                "default",
-            ]
-            if any(pattern in v.lower() for pattern in insecure_patterns):
-                raise ValueError(
-                    "Secret key contains insecure patterns. "
-                    "Production requires a cryptographically secure random string."
-                )
-        else:
-            # Warn in non-production environments
-            if "development-only" not in v:
-                insecure_patterns = [
-                    "dev",
-                    "test",
-                    "change",
-                    "example",
-                    "secret",
-                    "key",
-                    "123",
-                    "abc",
-                ]
-                if any(pattern in v.lower() for pattern in insecure_patterns):
-                    import warnings
-
-                    warnings.warn(
-                        "Secret key appears to contain insecure patterns. "
-                        "Please use a cryptographically secure random string in production.",
-                        UserWarning,
-                    )
         return v
 
     algorithm: str = Field(default="HS256", description="JWT algorithm")
@@ -265,14 +147,6 @@ class SecuritySettings(BaseSettings):
     )
     refresh_token_expire_days: int = Field(
         default=30, description="Refresh token expiration in days"
-    )
-
-    # API Key settings
-    api_key_length: int = Field(default=32, description="API key length")
-
-    # Password hashing
-    password_hash_schemes: list[str] = Field(
-        default=["bcrypt"], description="Password hash schemes"
     )
 
     class Config:
@@ -339,8 +213,6 @@ class Settings:
     def __init__(self) -> None:
         self.app = AppSettings()
         self.database = DatabaseSettings()
-        self.redis = RedisSettings()
-        self.celery = CelerySettings()
         self.external_apis = ExternalAPISettings()
         self.security = SecuritySettings()
 
@@ -351,20 +223,3 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def get_celery_config() -> Dict[str, Any]:
-    """Get Celery configuration dictionary."""
-    settings = get_settings()
-    celery_settings = settings.celery
-
-    return {
-        "broker_url": celery_settings.broker_url,
-        "result_backend": celery_settings.result_backend,
-        "task_serializer": celery_settings.task_serializer,
-        "result_serializer": celery_settings.result_serializer,
-        "accept_content": celery_settings.accept_content,
-        "timezone": celery_settings.timezone,
-        "enable_utc": celery_settings.enable_utc,
-        "worker_prefetch_multiplier": celery_settings.worker_prefetch_multiplier,
-        "task_acks_late": celery_settings.task_acks_late,
-        "worker_max_tasks_per_child": celery_settings.worker_max_tasks_per_child,
-    }

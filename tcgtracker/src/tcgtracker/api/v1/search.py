@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tcgtracker.api.dependencies import get_current_active_user, get_session
+from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.schemas import (
     CardCreate,
     CardResponse,
@@ -21,9 +21,7 @@ from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.justtcg import JustTCGClient
 from tcgtracker.integrations.pricecharting import PriceChartingClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
-from tcgtracker.utils.exceptions import DataValidationException
 from tcgtracker.validation.sanitizers import sanitize_search_input
-from tcgtracker.validation.search_validators import SearchValidator
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +31,7 @@ router = APIRouter()
 @router.post("/tcgplayer", response_model=List[SearchResult])
 async def search_tcgplayer(
     search_request: SearchRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
     """Search TCGPlayer for cards."""
     client = TCGPlayerClient()
@@ -97,39 +95,22 @@ async def search_tcgplayer(
 @router.post("/pricecharting", response_model=List[SearchResult])
 async def search_pricecharting(
     search_request: SearchRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
     """Search PriceCharting for cards."""
-    # Validate input
-    try:
-        validated_query = SearchValidator.validate_search_query(search_request.query)
-        validated_tcg_type = SearchValidator.validate_tcg_type(search_request.tcg_type)
-        validated_limit = SearchValidator.validate_limit(search_request.limit)
-    except DataValidationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid search parameters: {str(e)}",
-        )
-
     client = PriceChartingClient()
 
     try:
         # Determine which method to use based on TCG type
-        if validated_tcg_type == "pokemon":
-            products = await client.get_pokemon_products(
-                search_term=validated_query,
-                limit=validated_limit,
-            )
-        elif validated_tcg_type == "onepiece":
+        if search_request.tcg_type == "onepiece":
             products = await client.get_one_piece_products(
-                search_term=validated_query,
-                limit=validated_limit,
+                search_term=search_request.query,
+                limit=search_request.limit,
             )
         else:
-            # Default to Pokemon if not specified
             products = await client.get_pokemon_products(
-                search_term=validated_query,
-                limit=validated_limit,
+                search_term=search_request.query,
+                limit=search_request.limit,
             )
 
         if not products:
@@ -166,31 +147,18 @@ async def search_pricecharting(
 @router.post("/justtcg", response_model=List[SearchResult])
 async def search_justtcg(
     search_request: SearchRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
     """Search JustTCG for cards."""
-    # Validate input
-    try:
-        validated_query = SearchValidator.validate_search_query(search_request.query)
-        validated_tcg_type = SearchValidator.validate_tcg_type(search_request.tcg_type)
-        validated_limit = SearchValidator.validate_limit(search_request.limit)
-    except DataValidationException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid search parameters: {str(e)}",
-        )
-
     client = JustTCGClient()
 
     try:
-        # Determine game type
-        game = "pokemon" if validated_tcg_type == "pokemon" else "onepiece"
+        game = "pokemon" if search_request.tcg_type != "onepiece" else "onepiece"
 
-        # Search JustTCG
         products = await client.search_cards(
-            query=validated_query,
+            query=search_request.query,
             game=game,
-            limit=validated_limit,
+            limit=search_request.limit,
         )
 
         if not products:
@@ -224,7 +192,7 @@ async def search_justtcg(
 @router.post("/ebay", response_model=List[SearchResult])
 async def search_ebay(
     search_request: SearchRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
     """Search eBay for cards."""
     client = eBayClient()
@@ -269,7 +237,7 @@ async def search_ebay(
 @router.post("/all", response_model=dict)
 async def search_all_sources(
     search_request: SearchRequest,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Search all available sources for cards."""
     results = {"tcgplayer": [], "ebay": [], "errors": []}
@@ -302,7 +270,7 @@ async def search_all_sources(
 async def import_card_from_search(
     search_result: SearchResult,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Import a card from search results into the database."""
     # Check if card already exists
@@ -381,7 +349,7 @@ async def get_search_suggestions(
     tcg_type: Optional[str] = None,
     limit: int = 10,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[str]:
     """Get search suggestions based on existing cards."""
     from sqlalchemy import distinct, select

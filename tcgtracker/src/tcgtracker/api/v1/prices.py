@@ -10,7 +10,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from tcgtracker.api.dependencies import get_current_active_user, get_session
+from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.schemas import BulkPriceUpdate, PriceCreate
 from tcgtracker.api.schemas import PriceHistory as PriceHistorySchema
 from tcgtracker.api.schemas import PriceResponse, PriceSource
@@ -129,7 +129,7 @@ async def fetch_and_update_price(
 async def create_price(
     price_data: PriceCreate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistory:
     """Manually add a price entry for a card."""
     # Verify card exists
@@ -194,7 +194,7 @@ async def get_price_history(
     days: int = Query(30, ge=1, le=365),
     source: Optional[PriceSource] = Query(None),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistorySchema:
     """Get price history for a specific card."""
     # Verify card exists
@@ -284,7 +284,7 @@ async def update_card_price(
     source: PriceSource = Query(PriceSource.PRICECHARTING),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistory:
     """Fetch and update the latest price for a card."""
     # Get card
@@ -313,7 +313,7 @@ async def bulk_update_prices(
     update_request: BulkPriceUpdate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[PriceHistory]:
     """Bulk update prices for multiple cards."""
     # Get cards
@@ -353,7 +353,7 @@ async def get_price_trends(
     tcg_type: Optional[str] = Query(None),
     days: int = Query(7, ge=1, le=30),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Get aggregated price trends."""
     since_date = datetime.now(timezone.utc) - timedelta(days=days)

@@ -76,20 +76,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"Failed to initialize database: {e}")
         # Don't raise here - let the app start even if DB is unavailable
 
-    # Initialize Redis connection pool
-    from tcgtracker.redis_manager import get_redis_manager
-
-    redis_manager = get_redis_manager()
-    try:
-        await redis_manager.initialize()
-        logger.info("Redis connection pool initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize Redis: {e}")
-        # Don't raise here - let the app start even if Redis is unavailable
-
-    # Start background tasks
-    # TODO: Initialize Celery workers
-
     logger.info("Application startup complete")
 
     yield
@@ -102,16 +88,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Database connections closed")
     except Exception as e:
         logger.error(f"Error closing database connections: {e}")
-
-    # Clean up Redis connections
-    try:
-        await redis_manager.close()
-        logger.info("Redis connections closed")
-    except Exception as e:
-        logger.error(f"Error closing Redis connections: {e}")
-
-    # Stop background tasks
-    # TODO: Stop Celery workers
 
     logger.info("Application shutdown complete")
 

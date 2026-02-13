@@ -156,11 +156,6 @@ class Card(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
-    # Deprecated: Use external_id instead for all external systems
-    tcgplayer_id: Mapped[Optional[int]] = mapped_column(
-        Integer, unique=True
-    )  # TODO: Remove in future migration
-    # Unified external ID field for all pricing sources (TCGPlayer, PriceCharting, JustTCG, etc.)
     external_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -354,55 +349,3 @@ class UserAlert(Base, TimestampMixin):
         )
 
 
-class DataSource(Base, TimestampMixin):
-    """Data source configuration model."""
-
-    __tablename__ = "data_sources"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    api_endpoint: Mapped[str] = mapped_column(Text, nullable=False)
-    auth_method: Mapped[str] = mapped_column(String(20), nullable=False)
-    rate_limit_per_minute: Mapped[Optional[int]] = mapped_column(Integer)
-    rate_limit_per_hour: Mapped[Optional[int]] = mapped_column(Integer)
-    last_updated: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, nullable=False, index=True
-    )
-    config: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-
-    def __repr__(self) -> str:
-        return (
-            f"<DataSource(id={self.id}, name='{self.name}', active={self.is_active})>"
-        )
-
-
-class APIUsageLog(Base):
-    """API usage logging for monitoring and rate limiting."""
-
-    __tablename__ = "api_usage_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True
-    )
-    api_key: Mapped[Optional[str]] = mapped_column(String(64), index=True)
-    endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
-    method: Mapped[str] = mapped_column(String(10), nullable=False)
-    response_status: Mapped[int] = mapped_column(Integer, nullable=False)
-    response_time_ms: Mapped[Optional[int]] = mapped_column(Integer)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
-    )
-    ip_address: Mapped[Optional[str]] = mapped_column(String(45))
-    user_agent: Mapped[Optional[str]] = mapped_column(Text)
-
-    # Indexes for performance and monitoring
-    __table_args__ = (
-        Index("idx_api_usage_user_time", "user_id", "timestamp"),
-        Index("idx_api_usage_endpoint_time", "endpoint", "timestamp"),
-        Index("idx_api_usage_status_time", "response_status", "timestamp"),
-    )
-
-    def __repr__(self) -> str:
-        return f"<APIUsageLog(id={self.id}, endpoint='{self.endpoint}', status={self.response_status})>"

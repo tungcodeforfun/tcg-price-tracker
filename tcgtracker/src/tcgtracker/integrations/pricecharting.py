@@ -383,5 +383,3 @@ class PriceChartingClient(BaseAPIClient):
         except Exception as e:
             logger.warning(f"Could not parse price '{price_str}': {e}")
             return None
-
-        return None

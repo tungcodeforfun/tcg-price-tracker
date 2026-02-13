@@ -154,6 +154,7 @@ class TesteBayClient:
             client_id="test_client_id",
             client_secret="test_client_secret",
             base_url="https://api.ebay.com",
+            environment="production",
         )
         yield client
         await client.close()

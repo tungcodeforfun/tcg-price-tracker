@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from tcgtracker.api.dependencies import get_current_active_user, get_session
+from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.schemas import (
     CardCreate,
     CardResponse,
@@ -25,7 +25,7 @@ router = APIRouter()
 async def create_card(
     card_data: CardCreate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> Card:
     """Create a new card."""
     # Check if card already exists
@@ -59,7 +59,7 @@ async def create_card(
 async def get_card(
     card_id: int,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> Card:
     """Get a specific card by ID."""
     result = await db.execute(
@@ -95,7 +95,7 @@ async def list_cards(
     limit: int = Query(20, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[Card]:
     """List cards with optional filters."""
     query = select(Card).options(selectinload(Card.price_history))
@@ -151,7 +151,7 @@ async def update_card(
     card_id: int,
     card_update: CardUpdate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> Card:
     """Update a card."""
     result = await db.execute(select(Card).where(Card.id == card_id))
@@ -177,7 +177,7 @@ async def update_card(
 async def delete_card(
     card_id: int,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Delete a card."""
     result = await db.execute(select(Card).where(Card.id == card_id))
@@ -206,7 +206,7 @@ async def delete_card(
 async def search_cards(
     search_params: CardSearchParams,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[Card]:
     """Advanced card search with multiple parameters."""
     query = select(Card).options(selectinload(Card.price_history))

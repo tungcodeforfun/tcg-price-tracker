@@ -139,7 +139,6 @@ class CardBase(BaseModel):
     set_name: str = Field(..., min_length=1, max_length=50)
     card_number: Optional[str] = Field(None, max_length=20)
     rarity: Optional[str] = Field(None, max_length=50)
-    tcgplayer_id: Optional[int] = None
     external_id: Optional[str] = Field(None, max_length=100)
     image_url: Optional[str] = None
 
