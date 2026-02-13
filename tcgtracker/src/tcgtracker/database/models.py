@@ -347,5 +347,3 @@ class UserAlert(Base, TimestampMixin):
         return (
             f"<UserAlert(id={self.id}, user_id={self.user_id}, card_id={self.card_id})>"
         )
-
-

@@ -33,7 +33,6 @@ class DatabaseSettings(BaseSettings):
         env_prefix = "DB_"
 
 
-
 class ExternalAPISettings(BaseSettings):
     """External API configuration."""
 
@@ -221,5 +220,3 @@ class Settings:
 def get_settings() -> Settings:
     """Get cached application settings."""
     return Settings()
-
-
