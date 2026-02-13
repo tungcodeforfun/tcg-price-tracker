@@ -99,7 +99,7 @@ jobs:
         python -m safety check || echo "Safety scan completed with findings"
 
     - name: Upload security reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       if: always()
       with:
         name: security-reports
@@ -213,7 +213,7 @@ jobs:
         name: codecov-umbrella
 
     - name: Upload coverage artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: coverage-report
         path: tcgtracker/htmlcov/
@@ -247,7 +247,7 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Upload Docker image artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: docker-image
         path: /tmp/tcg-image.tar
