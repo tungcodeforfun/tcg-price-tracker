@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, Download, Loader2 } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageWithFallback } from "./ImageWithFallback";
@@ -86,8 +86,9 @@ export function SearchResultRow({ item, importingId, onImport, onAdd }: SearchRe
       <div className="flex items-center gap-2 shrink-0">
         <p className="text-sm font-semibold">{formatPrice(result.price)}</p>
         <Button
-          size="sm"
+          size="icon"
           variant="secondary"
+          className="h-8 w-8"
           disabled={isImporting}
           onClick={(e) => {
             e.stopPropagation();
@@ -97,10 +98,7 @@ export function SearchResultRow({ item, importingId, onImport, onAdd }: SearchRe
           {isImporting ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <>
-              <Download className="mr-1 h-3 w-3" />
-              Import
-            </>
+            <Plus className="w-4 h-4" />
           )}
         </Button>
       </div>

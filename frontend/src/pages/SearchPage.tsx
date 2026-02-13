@@ -75,15 +75,15 @@ export function SearchPage() {
     performSearch(query);
   }
 
-  async function handleImport(result: SearchResult) {
+  async function handleAddExternal(result: SearchResult) {
     setImportingId(result.external_id);
     try {
       const card = await searchApi.importCard(result);
-      toast.success(`Imported "${card.name}"`);
       setInternalResults((prev) => [card, ...prev]);
       setExternalResults((prev) =>
         prev.filter((r) => r.external_id !== result.external_id),
       );
+      setAddCard(card);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Import failed",
@@ -182,7 +182,7 @@ export function SearchPage() {
                   }
                   item={item}
                   importingId={importingId}
-                  onImport={handleImport}
+                  onImport={handleAddExternal}
                   onAdd={setAddCard}
                 />
               ))}
