@@ -206,7 +206,7 @@ jobs:
         python -m pytest tests/ -v --cov=src/tcgtracker --cov-report=xml --cov-report=html --cov-report=term-missing
 
     - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v5
       with:
         file: ./tcgtracker/coverage.xml
         flags: unittests
