@@ -19,8 +19,6 @@ export function Landing() {
   const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
-
   const [loginData, setLoginData] = useState({ username: "", password: "" });
   const [registerData, setRegisterData] = useState({
     email: "",
@@ -28,7 +26,10 @@ export function Landing() {
     password: "",
     confirmPassword: "",
   });
+
   const [loading, setLoading] = useState(false);
+
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();

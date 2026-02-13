@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,14 +27,7 @@ export function SearchPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [addCard, setAddCard] = useState<CardType | null>(null);
 
-  useEffect(() => {
-    if (urlQuery) {
-      setQuery(urlQuery);
-      performSearch(urlQuery);
-    }
-  }, [urlQuery]);
-
-  async function performSearch(q: string) {
+  const performSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
     setLoading(true);
     setSearchParams({ q: q.trim() });
@@ -54,7 +47,14 @@ export function SearchPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [tcgType, setSearchParams]);
+
+  useEffect(() => {
+    if (urlQuery) {
+      setQuery(urlQuery);
+      performSearch(urlQuery);
+    }
+  }, [urlQuery, performSearch]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
