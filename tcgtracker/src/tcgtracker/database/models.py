@@ -299,7 +299,10 @@ class CollectionItem(Base, TimestampMixin):
     )
 
     def __repr__(self) -> str:
-        return f"<CollectionItem(id={self.id}, user_id={self.user_id}, card_id={self.card_id}, quantity={self.quantity})>"
+        return (
+            f"<CollectionItem(id={self.id}, user_id={self.user_id}, "
+            f"card_id={self.card_id}, quantity={self.quantity})>"
+        )
 
     # Runtime attributes for API responses
     current_value: Optional[Decimal] = None

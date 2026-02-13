@@ -98,7 +98,7 @@ async def list_cards(
         from tcgtracker.validation.sanitizers import sanitize_search_input
 
         sanitized = sanitize_search_input(set_name)
-        filters.append(Card.set_name.ilike(f"%{sanitized}%"))
+        filters.append(Card.set_name.ilike(f"%{sanitized}%", escape="\\"))
     if rarity:
         filters.append(Card.rarity == rarity)
     if search:
@@ -107,9 +107,9 @@ async def list_cards(
         sanitized_search = sanitize_search_input(search)
         filters.append(
             or_(
-                Card.name.ilike(f"%{sanitized_search}%"),
-                Card.set_name.ilike(f"%{sanitized_search}%"),
-                Card.card_number.ilike(f"%{sanitized_search}%"),
+                Card.name.ilike(f"%{sanitized_search}%", escape="\\"),
+                Card.set_name.ilike(f"%{sanitized_search}%", escape="\\"),
+                Card.card_number.ilike(f"%{sanitized_search}%", escape="\\"),
             )
         )
 
@@ -198,9 +198,9 @@ async def search_cards(
         # Query is already sanitized by the schema validator
         filters.append(
             or_(
-                Card.name.ilike(f"%{search_params.query}%"),
-                Card.set_name.ilike(f"%{search_params.query}%"),
-                Card.card_number.ilike(f"%{search_params.query}%"),
+                Card.name.ilike(f"%{search_params.query}%", escape="\\"),
+                Card.set_name.ilike(f"%{search_params.query}%", escape="\\"),
+                Card.card_number.ilike(f"%{search_params.query}%", escape="\\"),
             )
         )
 
@@ -209,7 +209,7 @@ async def search_cards(
 
     if search_params.set_name:
         # Set name is already sanitized by the schema validator
-        filters.append(Card.set_name.ilike(f"%{search_params.set_name}%"))
+        filters.append(Card.set_name.ilike(f"%{search_params.set_name}%", escape="\\"))
 
     if search_params.rarity:
         filters.append(Card.rarity == search_params.rarity)

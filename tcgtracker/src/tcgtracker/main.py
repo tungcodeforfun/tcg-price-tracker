@@ -73,7 +73,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await db_manager.initialize()
         logger.info("Database connection pool initialized")
     except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
+        logger.error("Failed to initialize database", exc_info=e)
         # Don't raise here - let the app start even if DB is unavailable
 
     logger.info("Application startup complete")
@@ -87,7 +87,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await db_manager.close()
         logger.info("Database connections closed")
     except Exception as e:
-        logger.error(f"Error closing database connections: {e}")
+        logger.error("Error closing database connections", exc_info=e)
 
     logger.info("Application shutdown complete")
 
@@ -116,14 +116,29 @@ def create_app() -> FastAPI:
     # Add health check endpoint
     @app.get("/health", tags=["system"])
     async def health_check() -> JSONResponse:
-        """Health check endpoint."""
+        """Health check endpoint with database connectivity verification."""
+        from sqlalchemy import text
+
+        from tcgtracker.database.connection import get_db_manager
+
+        db_status = "unknown"
+        try:
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as session:
+                await session.execute(text("SELECT 1"))
+            db_status = "connected"
+        except Exception:
+            db_status = "disconnected"
+
+        overall = "healthy" if db_status == "connected" else "degraded"
         return JSONResponse(
             content={
-                "status": "healthy",
+                "status": overall,
                 "service": "tcg-price-tracker",
                 "version": settings.app.version,
+                "database": db_status,
             },
-            status_code=200,
+            status_code=200 if overall == "healthy" else 503,
         )
 
     # Add root endpoint

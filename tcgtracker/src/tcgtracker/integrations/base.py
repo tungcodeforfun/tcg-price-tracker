@@ -1,7 +1,7 @@
 """Base API client with retry logic and circuit breaker support."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import urljoin
 
@@ -33,7 +33,7 @@ class RateLimiter:
     async def acquire(self) -> None:
         """Acquire rate limit permission, blocking if necessary."""
         async with self._lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             # Clean old requests
             minute_ago = now - timedelta(minutes=1)

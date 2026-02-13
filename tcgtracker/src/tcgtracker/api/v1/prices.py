@@ -47,31 +47,35 @@ async def fetch_and_update_price(
 
     if source == PriceSource.PRICECHARTING:
         # Fetch from PriceCharting
-        client = PriceChartingClient()
-        try:
-            result = await client.get_card_price(card.name)
-            if result:
-                # Transform PriceCharting data
-                price_data = result.get("complete_price", result.get("market_price", 0))
-                low_price = result.get("loose_price", result.get("low_price", 0))
-                high_price = result.get("new_price", result.get("high_price", 0))
-                avg_price = result.get("market_price", result.get("mid_price", 0))
-        except Exception as e:
-            logger.error("Error fetching PriceCharting price", exc_info=e)
+        async with PriceChartingClient() as client:
+            try:
+                result = await client.get_card_price(card.name)
+                if result:
+                    # Transform PriceCharting data
+                    price_data = result.get(
+                        "complete_price", result.get("market_price", 0)
+                    )
+                    low_price = result.get("loose_price", result.get("low_price", 0))
+                    high_price = result.get("new_price", result.get("high_price", 0))
+                    avg_price = result.get("market_price", result.get("mid_price", 0))
+            except Exception as e:
+                logger.error("Error fetching PriceCharting price", exc_info=e)
 
     elif source == PriceSource.JUSTTCG:
         # Fetch from JustTCG
-        client = JustTCGClient()
-        try:
-            game = "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
-            result = await client.get_card_price(card.name, game=game)
-            if result:
-                price_data = result.get("market_price", 0)
-                low_price = result.get("low_price", 0)
-                high_price = result.get("high_price", 0)
-                avg_price = result.get("mid_price", 0)
-        except Exception as e:
-            logger.error("Error fetching JustTCG price", exc_info=e)
+        async with JustTCGClient() as client:
+            try:
+                game = (
+                    "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
+                )
+                result = await client.get_card_price(card.name, game=game)
+                if result:
+                    price_data = result.get("market_price", 0)
+                    low_price = result.get("low_price", 0)
+                    high_price = result.get("high_price", 0)
+                    avg_price = result.get("mid_price", 0)
+            except Exception as e:
+                logger.error("Error fetching JustTCG price", exc_info=e)
 
     elif source == PriceSource.TCGPLAYER and card.external_id:
         # Fetch from TCGPlayer
@@ -347,15 +351,21 @@ async def bulk_update_prices(
             if new_price:
                 updated_prices.append(new_price)
         except Exception as e:
+            # Expire session state so subsequent iterations start clean
             await db.rollback()
-            logger.error(f"Error updating price for card {card.id}", exc_info=e)
+            logger.error(
+                "Error updating price for card",
+                card_id=card.id,
+                exc_info=e,
+            )
             errors.append({"card_id": card.id, "error": str(e)})
             continue
 
-    # Log summary of errors if any occurred
     if errors:
         logger.warning(
-            f"Price update completed with {len(errors)} errors out of {len(cards)} cards"
+            "Price update completed with errors",
+            error_count=len(errors),
+            total_cards=len(cards),
         )
 
     return updated_prices

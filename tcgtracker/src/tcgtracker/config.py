@@ -5,11 +5,13 @@ from functools import lru_cache
 from urllib.parse import quote_plus
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class DatabaseSettings(BaseSettings):
     """Database configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="DB_")
 
     host: str = Field(default="localhost", description="Database host")
     port: int = Field(default=5432, description="Database port")
@@ -29,12 +31,11 @@ class DatabaseSettings(BaseSettings):
         encoded_password = quote_plus(self.password) if self.password else ""
         return f"postgresql+asyncpg://{encoded_user}:{encoded_password}@{self.host}:{self.port}/{self.name}"
 
-    class Config:
-        env_prefix = "DB_"
-
 
 class ExternalAPISettings(BaseSettings):
     """External API configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="API_")
 
     # JustTCG API
     justtcg_api_key: str = Field(default="", description="JustTCG API Key")
@@ -95,7 +96,7 @@ class ExternalAPISettings(BaseSettings):
     # Rate limiting
     justtcg_rate_limit: int = Field(
         default=30,
-        description="JustTCG requests per minute (API key: ~40/min from 1000/day quota, free tier: ~4/hour from 100/day quota)",
+        description="JustTCG requests per minute (API key: ~40/min, free tier: ~4/hour)",
     )
     tcgplayer_rate_limit: int = Field(
         default=300, description="TCGPlayer requests per minute"
@@ -105,12 +106,11 @@ class ExternalAPISettings(BaseSettings):
         default=60, description="PriceCharting requests per minute"
     )
 
-    class Config:
-        env_prefix = "API_"
-
 
 class SecuritySettings(BaseSettings):
     """Security configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="SECURITY_")
 
     secret_key: str = Field(
         default_factory=lambda: os.getenv(
@@ -148,12 +148,11 @@ class SecuritySettings(BaseSettings):
         default=30, description="Refresh token expiration in days"
     )
 
-    class Config:
-        env_prefix = "SECURITY_"
-
 
 class AppSettings(BaseSettings):
     """Application configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="APP_")
 
     title: str = Field(default="TCG Price Tracker", description="Application title")
     description: str = Field(
@@ -201,9 +200,6 @@ class AppSettings(BaseSettings):
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")
     log_format: str = Field(default="json", description="Log format: json or text")
-
-    class Config:
-        env_prefix = "APP_"
 
 
 class Settings:

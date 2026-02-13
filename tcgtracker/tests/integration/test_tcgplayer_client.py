@@ -1,6 +1,6 @@
 """Tests for TCGPlayer API client."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,7 +37,7 @@ class TestTCGPlayerClient:
                     "seoCategoryName": "pokemon",
                     "sealedLabel": "Sealed Products",
                     "nonSealedLabel": "Singles",
-                    "conditionGuideUrl": "https://help.tcgplayer.com/hc/en-us/articles/221430307-Pokemon-Card-Condition-Guide",
+                    "conditionGuideUrl": "https://help.tcgplayer.com/hc/en-us/articles/221430307",
                     "isScannable": True,
                     "popularity": 1,
                 },
@@ -160,7 +160,7 @@ class TestTCGPlayerClient:
         assert client._token_expires_at is not None
 
         # Token should expire in about 1 hour minus 60 seconds buffer
-        expected_expiry = datetime.utcnow() + timedelta(seconds=3600 - 60)
+        expected_expiry = datetime.now(timezone.utc) + timedelta(seconds=3600 - 60)
         time_diff = abs((client._token_expires_at - expected_expiry).total_seconds())
         assert time_diff < 5  # Allow 5 seconds variance
 
@@ -197,7 +197,7 @@ class TestTCGPlayerClient:
         """Test token validation when token is still valid."""
         # Set up valid token
         client._access_token = "valid_token"
-        client._token_expires_at = datetime.utcnow() + timedelta(minutes=30)
+        client._token_expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
 
         # Should not make any requests
         with patch.object(
@@ -213,7 +213,7 @@ class TestTCGPlayerClient:
         """Test token validation when token is expired."""
         # Set up expired token with refresh token
         client._access_token = "expired_token"
-        client._token_expires_at = datetime.utcnow() - timedelta(minutes=5)
+        client._token_expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
         client._refresh_token = "valid_refresh_token"
 
         with patch.object(
