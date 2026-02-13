@@ -378,7 +378,7 @@ class JustTCGClient(BaseAPIClient):
         """Map JustTCG game names to our TCG types."""
         mapping = {
             "pokemon": "pokemon",
-            "onepiece": "one_piece",
+            "onepiece": "onepiece",
             "magic": "magic",
             "yugioh": "yugioh",
             "lorcana": "lorcana",
