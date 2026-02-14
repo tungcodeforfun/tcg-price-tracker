@@ -93,7 +93,7 @@ class JustTCGClient(BaseAPIClient):
         }
 
         if game:
-            params["game"] = game
+            params["game"] = self._map_tcg_type_to_api_game(game)
         if set_code:
             params["set"] = set_code
 
@@ -374,15 +374,27 @@ class JustTCGClient(BaseAPIClient):
             "justtcg_id": set_data.get("id"),
         }
 
-    def _map_game_to_tcg_type(self, game: str) -> str:
-        """Map JustTCG game names to our TCG types."""
+    def _map_tcg_type_to_api_game(self, tcg_type: str) -> str:
+        """Map internal TCG type to JustTCG API game parameter."""
         mapping = {
             "pokemon": "pokemon",
-            "onepiece": "onepiece",
-            "magic": "magic",
+            "onepiece": "one-piece-card-game",
+            "magic": "magic-the-gathering",
             "yugioh": "yugioh",
-            "lorcana": "lorcana",
-            "digimon": "digimon",
+            "lorcana": "disney-lorcana",
+            "digimon": "digimon-card-game",
+        }
+        return mapping.get(tcg_type, tcg_type)
+
+    def _map_game_to_tcg_type(self, game: str) -> str:
+        """Map JustTCG API game names back to internal TCG types."""
+        mapping = {
+            "pokemon": "pokemon",
+            "one-piece-card-game": "onepiece",
+            "magic-the-gathering": "magic",
+            "yugioh": "yugioh",
+            "disney-lorcana": "lorcana",
+            "digimon-card-game": "digimon",
         }
         return mapping.get(game, game)
 
