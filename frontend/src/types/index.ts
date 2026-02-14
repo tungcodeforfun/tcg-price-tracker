@@ -1,4 +1,4 @@
-export type TCGType = "pokemon" | "onepiece";
+export type TCGType = "pokemon" | "onepiece" | "magic" | "yugioh" | "lorcana" | "digimon";
 
 export type CardCondition =
   | "mint"

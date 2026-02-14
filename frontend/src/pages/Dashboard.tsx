@@ -238,8 +238,8 @@ export function Dashboard() {
                   }}
                   labelStyle={{ color: "var(--color-muted-foreground)" }}
                   itemStyle={{ color: "var(--color-foreground)" }}
-                  formatter={(value: number) => [formatPrice(value), "Value"]}
-                  labelFormatter={(label: string) =>
+                  formatter={(value: any) => [formatPrice(value), "Value"]}
+                  labelFormatter={(label: any) =>
                     new Date(label).toLocaleDateString("en-US", {
                       month: "long",
                       day: "numeric",

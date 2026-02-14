@@ -8,6 +8,7 @@ import { SearchResultRow } from "@/components/shared/SearchResultRow";
 import { AddToCollectionModal } from "@/components/shared/AddToCollectionModal";
 import { SearchResultListSkeleton } from "@/components/shared/Skeletons";
 import { cardsApi, searchApi } from "@/lib/api";
+import { TCG_LABELS } from "@/lib/utils";
 import type { Card as CardType, SearchResult, TCGType, UnifiedSearchResult } from "@/types";
 import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -113,7 +114,7 @@ export function SearchPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-medium">Search Cards</h1>
-        <p className="text-muted-foreground">Find cards from Pokemon and One Piece TCG</p>
+        <p className="text-muted-foreground">Search across {Object.values(TCG_LABELS).join(", ")}</p>
       </div>
 
       <Card className="p-6">
@@ -137,7 +138,7 @@ export function SearchPage() {
           <div className="flex flex-wrap gap-2 items-center">
             <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">TCG Type:</span>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Badge
                 variant={tcgType === "all" ? "default" : "outline"}
                 className="cursor-pointer"
@@ -145,20 +146,16 @@ export function SearchPage() {
               >
                 All
               </Badge>
-              <Badge
-                variant={tcgType === "pokemon" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setTcgType("pokemon")}
-              >
-                Pokemon
-              </Badge>
-              <Badge
-                variant={tcgType === "onepiece" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setTcgType("onepiece")}
-              >
-                One Piece
-              </Badge>
+              {(Object.entries(TCG_LABELS) as [TCGType, string][]).map(([key, label]) => (
+                <Badge
+                  key={key}
+                  variant={tcgType === key ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => setTcgType(key)}
+                >
+                  {label}
+                </Badge>
+              ))}
             </div>
           </div>
         </form>

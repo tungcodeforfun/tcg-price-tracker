@@ -32,6 +32,10 @@ class TCGTypeEnum(enum.Enum):
 
     POKEMON = "pokemon"
     ONEPIECE = "onepiece"
+    MAGIC = "magic"
+    YUGIOH = "yugioh"
+    LORCANA = "lorcana"
+    DIGIMON = "digimon"
 
 
 class CardConditionEnum(enum.Enum):
@@ -155,7 +159,7 @@ class Card(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
-    external_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Foreign Keys

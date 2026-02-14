@@ -388,15 +388,22 @@ class JustTCGClient(BaseAPIClient):
 
     def _map_game_to_tcg_type(self, game: str) -> str:
         """Map JustTCG API game names back to internal TCG types."""
+        # Normalize: lowercase and replace spaces with hyphens to handle
+        # both slug format ("one-piece-card-game") and display format
+        # ("One Piece Card Game") from the API
+        normalized = (game or "").lower().replace(" ", "-")
         mapping = {
             "pokemon": "pokemon",
             "one-piece-card-game": "onepiece",
             "magic-the-gathering": "magic",
+            "magic:-the-gathering": "magic",
             "yugioh": "yugioh",
+            "yu-gi-oh": "yugioh",
+            "yu-gi-oh!": "yugioh",
             "disney-lorcana": "lorcana",
             "digimon-card-game": "digimon",
         }
-        return mapping.get(game, game)
+        return mapping.get(normalized, game)
 
     def _parse_price(self, price_value: Any) -> Optional[Decimal]:
         """Parse price value to Decimal."""

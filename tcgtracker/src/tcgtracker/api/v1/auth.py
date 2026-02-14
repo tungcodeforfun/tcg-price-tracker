@@ -112,7 +112,7 @@ async def register(
         "exp": datetime.now(timezone.utc) + timedelta(hours=24),
         "iat": datetime.now(timezone.utc),
     }
-    verify_token = jwt.encode(
+    jwt.encode(
         verify_payload,
         settings.security.secret_key,
         algorithm=settings.security.algorithm,

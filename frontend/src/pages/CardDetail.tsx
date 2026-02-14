@@ -22,7 +22,7 @@ import { CreateAlertModal } from "@/components/shared/CreateAlertModal";
 import { ChartSkeleton } from "@/components/shared/Skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cardsApi, pricesApi } from "@/lib/api";
-import { formatPrice, formatDate, CONDITION_LABELS } from "@/lib/utils";
+import { formatPrice, formatDate, CONDITION_LABELS, TCG_LABELS } from "@/lib/utils";
 import type { Card as CardType, PriceHistory } from "@/types";
 import {
   LineChart,
@@ -153,7 +153,7 @@ export function CardDetail() {
                 </p>
                 <div className="flex gap-2 mt-2">
                   {card.rarity && <Badge>{card.rarity}</Badge>}
-                  <Badge variant="outline" className="capitalize">{card.tcg_type}</Badge>
+                  <Badge variant="outline">{TCG_LABELS[card.tcg_type] ?? card.tcg_type}</Badge>
                 </div>
               </div>
 

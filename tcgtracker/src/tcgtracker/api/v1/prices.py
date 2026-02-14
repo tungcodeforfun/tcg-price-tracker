@@ -20,7 +20,6 @@ from tcgtracker.database.models import (
     CardConditionEnum,
     DataSourceEnum,
     PriceHistory,
-    TCGTypeEnum,
     User,
     UserAlert,
 )
@@ -65,9 +64,7 @@ async def fetch_and_update_price(
         # Fetch from JustTCG
         async with JustTCGClient() as client:
             try:
-                game = (
-                    "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
-                )
+                game = card.tcg_type.value
                 result = await client.get_card_price(card.name, game=game)
                 if result:
                     price_data = result.get("market_price", 0)

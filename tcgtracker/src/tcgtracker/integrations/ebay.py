@@ -404,10 +404,23 @@ class eBayClient(BaseAPIClient):
             List of card listing dicts with price, itemId, title, imageUrl, viewItemURL
         """
         tcg = (tcg_type or "").lower()
-        if tcg in ("onepiece", "one_piece"):
-            items = await self.search_one_piece_cards(query, limit=limit)
-        else:
-            items = await self.search_pokemon_cards(query, limit=limit)
+        # Map game types to eBay search prefixes and category IDs
+        game_config = {
+            "pokemon": ("Pokemon", "183454"),
+            "onepiece": ("One Piece card", "2536"),
+            "one_piece": ("One Piece card", "2536"),
+            "magic": ("MTG Magic the Gathering", "2536"),
+            "yugioh": ("Yu-Gi-Oh", "2536"),
+            "lorcana": ("Disney Lorcana", "2536"),
+            "digimon": ("Digimon card", "2536"),
+        }
+        prefix, category = game_config.get(tcg, ("Trading card", "2536"))
+        result = await self.search_items(
+            query=f"{prefix} {query}",
+            category_id=category,
+            limit=limit,
+        )
+        items = result.get("itemSummaries", [])
 
         results = []
         for item in items:
@@ -503,17 +516,8 @@ class eBayClient(BaseAPIClient):
         Returns:
             Search results with price analysis
         """
-        # Search for cards based on TCG type
-        if tcg_type.lower() == "pokemon":
-            items = await self.search_pokemon_cards(
-                card_name, set_name, condition, limit
-            )
-        elif tcg_type.lower() in ("onepiece", "one_piece"):
-            items = await self.search_one_piece_cards(
-                card_name, set_name, condition, limit
-            )
-        else:
-            raise ValidationError(f"Unsupported TCG type: {tcg_type}")
+        # Search for cards based on TCG type using the generic search_cards method
+        items = await self.search_cards(card_name, tcg_type=tcg_type, limit=limit)
 
         # Calculate price statistics
         price_stats = await self.get_price_statistics(items)
