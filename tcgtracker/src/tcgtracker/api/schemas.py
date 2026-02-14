@@ -12,7 +12,11 @@ class TCGType(str, Enum):
     """Supported TCG game types - must match database TCGTypeEnum."""
 
     POKEMON = "pokemon"
-    ONEPIECE = "onepiece"  # Note: no underscore to match database
+    ONEPIECE = "onepiece"
+    MAGIC = "magic"
+    YUGIOH = "yugioh"
+    LORCANA = "lorcana"
+    DIGIMON = "digimon"
 
 
 class CardCondition(str, Enum):
@@ -142,7 +146,7 @@ class CardBase(BaseModel):
     set_name: str = Field(..., min_length=1, max_length=50)
     card_number: Optional[str] = Field(None, max_length=20)
     rarity: Optional[str] = Field(None, max_length=50)
-    external_id: Optional[str] = Field(None, max_length=100)
+    external_id: Optional[str] = Field(None, max_length=255)
     image_url: Optional[str] = None
 
     @field_validator("name")

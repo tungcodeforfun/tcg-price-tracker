@@ -6,13 +6,12 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { TableSkeleton } from "@/components/shared/Skeletons";
 import { usersApi } from "@/lib/api";
 import { formatPrice, formatDate } from "@/lib/utils";
 import type { PriceAlert } from "@/types";
-import { Bell, BellOff, Trash2, Plus } from "lucide-react";
+import { Bell, BellOff, Trash2, Plus, TrendingUp, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
 
 export function Alerts() {
@@ -112,94 +111,72 @@ export function Alerts() {
           </Button>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2">
           {filteredAlerts.map((alert) => {
             const isTriggered = checkIfTriggered(alert);
 
             return (
-              <Card key={alert.id} className={isTriggered ? "border-green-500" : ""}>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className="w-20 h-28 flex-shrink-0 rounded overflow-hidden bg-muted cursor-pointer"
-                      onClick={() => alert.card && navigate(`/cards/${alert.card_id}`)}
-                    >
-                      <ImageWithFallback
-                        src={alert.card?.image_url ?? undefined}
-                        alt={alert.card?.name ?? ""}
-                        className="w-full h-full object-cover"
-                        fallbackClassName="w-full h-full"
-                      />
-                    </div>
+              <div
+                key={alert.id}
+                className={`flex items-center gap-3 rounded-lg border px-3 py-3 transition-colors hover:bg-secondary/50 ${isTriggered ? "border-success bg-success-muted" : "border-border/50 bg-secondary/30"}`}
+              >
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${alert.alert_type === "above" ? "bg-success-muted" : "bg-danger-muted"}`}
+                >
+                  {alert.alert_type === "above" ? (
+                    <TrendingUp className="h-4 w-4 text-success" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-danger" />
+                  )}
+                </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <h3
-                            className="font-medium truncate cursor-pointer hover:text-primary"
-                            onClick={() => alert.card && navigate(`/cards/${alert.card_id}`)}
-                          >
-                            {alert.card?.name ?? `Card #${alert.card_id}`}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            {alert.card?.set_name}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={alert.is_active}
-                            onCheckedChange={() => handleToggle(alert.id)}
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(alert.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
+                <ImageWithFallback
+                  src={alert.card?.image_url ?? undefined}
+                  alt={alert.card?.name ?? ""}
+                  className="w-10 h-14 rounded object-cover shrink-0 cursor-pointer"
+                  fallbackClassName="w-10 h-14 rounded shrink-0"
+                  onClick={() => alert.card && navigate(`/cards/${alert.card_id}`)}
+                />
 
-                      <div className="grid grid-cols-3 gap-4 mt-4">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Alert Type</p>
-                          <Badge variant={alert.alert_type === "below" ? "default" : "secondary"}>
-                            {alert.alert_type === "below" ? "Drop Below" : "Rise Above"}
-                          </Badge>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Target Price</p>
-                          <p className="font-semibold">{formatPrice(alert.price_threshold)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Current Price</p>
-                          <p className="font-semibold">
-                            {formatPrice(alert.card?.latest_price)}
-                          </p>
-                        </div>
-                      </div>
+                <div className="flex-1 min-w-0">
+                  <p
+                    className="text-sm font-medium text-foreground truncate cursor-pointer hover:text-primary"
+                    onClick={() => alert.card && navigate(`/cards/${alert.card_id}`)}
+                  >
+                    {alert.card?.name ?? `Card #${alert.card_id}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {alert.card?.set_name} · {alert.alert_type === "below" ? "Below" : "Above"} {formatPrice(alert.price_threshold)}
+                  </p>
+                </div>
 
-                      {isTriggered && (
-                        <div className="mt-4 p-3 bg-green-500/10 border border-green-500 rounded-lg">
-                          <div className="flex items-center gap-2 text-green-500">
-                            <Bell className="w-4 h-4" />
-                            <span className="font-medium">Alert Triggered!</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            This card has reached your target price
-                          </p>
-                        </div>
-                      )}
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    {formatPrice(alert.card?.latest_price)}
+                  </p>
+                  {isTriggered && (
+                    <span className="text-[10px] font-medium text-success">Triggered</span>
+                  )}
+                  {alert.last_triggered && !isTriggered && (
+                    <span className="text-[10px] text-muted-foreground">{formatDate(alert.last_triggered)}</span>
+                  )}
+                </div>
 
-                      {alert.last_triggered && (
-                        <p className="text-xs text-muted-foreground mt-3">
-                          Last triggered: {formatDate(alert.last_triggered)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Switch
+                    checked={alert.is_active}
+                    onCheckedChange={() => handleToggle(alert.id)}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(alert.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
             );
           })}
         </div>

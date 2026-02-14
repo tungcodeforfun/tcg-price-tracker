@@ -38,6 +38,12 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    # Check if token has been blacklisted (logout)
+    from tcgtracker.api.v1.auth import is_token_blacklisted
+
+    if is_token_blacklisted(token):
+        raise credentials_exception
+
     try:
         # Decode and validate JWT token with full verification
         # jose.jwt.decode with verify_exp=True already handles expiration

@@ -49,6 +49,29 @@ export function ChartSkeleton() {
   );
 }
 
+export function SearchResultListSkeleton({ count = 8 }: { count?: number }) {
+  return (
+    <div className="space-y-1">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-3 py-2">
+          <Skeleton className="w-14 h-[74px] rounded shrink-0" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-14 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-8 w-8 rounded-md" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-3">

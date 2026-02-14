@@ -44,11 +44,12 @@ import {
 } from "recharts";
 import {
   Wallet,
-  TrendingUp,
   Package,
   Grid3x3,
   List,
   Trash2,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -136,39 +137,52 @@ export function Collection() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-info-muted to-transparent pointer-events-none" />
+          <CardHeader className="relative flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Value</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-info-muted">
+              <Wallet className="h-4 w-4 text-info" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatPrice(stats?.total_value ?? 0)}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold text-foreground">{formatPrice(stats?.total_value ?? 0)}</div>
             <p className="text-xs text-muted-foreground mt-1">Current market value</p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <Card className="relative overflow-hidden">
+          <div className={`absolute inset-0 bg-gradient-to-br pointer-events-none ${isProfitable ? "from-success-muted to-transparent" : "from-danger-muted to-transparent"}`} />
+          <CardHeader className="relative flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Profit/Loss</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isProfitable ? "bg-success-muted" : "bg-danger-muted"}`}>
+              {isProfitable ? (
+                <ArrowUpRight className="h-4 w-4 text-success" />
+              ) : (
+                <ArrowDownRight className="h-4 w-4 text-danger" />
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${isProfitable ? "text-green-500" : "text-red-500"}`}>
+          <CardContent className="relative">
+            <div className={`text-3xl font-bold ${isProfitable ? "text-success" : "text-danger"}`}>
               {isProfitable ? "+" : ""}{formatPrice(profitLoss)}
             </div>
-            <p className={`text-xs mt-1 ${isProfitable ? "text-green-500" : "text-red-500"}`}>
+            <p className={`text-xs mt-1 ${isProfitable ? "text-success" : "text-danger"}`}>
               {formatPercent(stats?.profit_loss_percentage ?? 0)} return
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-warning-muted to-transparent pointer-events-none" />
+          <CardHeader className="relative flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Cards</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning-muted">
+              <Package className="h-4 w-4 text-warning" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{stats?.total_cards ?? 0}</div>
+          <CardContent className="relative">
+            <div className="text-3xl font-bold text-foreground">{stats?.total_cards ?? 0}</div>
             <p className="text-xs text-muted-foreground mt-1">{stats?.unique_cards ?? 0} unique cards</p>
           </CardContent>
         </Card>
@@ -182,11 +196,12 @@ export function Collection() {
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={valueHistory.history}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                 <XAxis
                   dataKey="date"
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--color-muted-foreground)"
                   fontSize={12}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
                   tickFormatter={(v: string) =>
                     new Date(v).toLocaleDateString("en-US", {
                       month: "short",
@@ -195,25 +210,30 @@ export function Collection() {
                   }
                 />
                 <YAxis
-                  stroke="hsl(var(--muted-foreground))"
+                  stroke="var(--color-muted-foreground)"
                   fontSize={12}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
                   tickFormatter={(v: number) => `$${v}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
                     borderRadius: "8px",
+                    color: "var(--color-foreground)",
                   }}
+                  labelStyle={{ color: "var(--color-muted-foreground)" }}
+                  itemStyle={{ color: "var(--color-foreground)" }}
                   formatter={(value: any) => [formatPrice(value), "Value"]}
                   labelFormatter={(label: any) => new Date(label).toLocaleDateString()}
                 />
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="hsl(var(--primary))"
+                  stroke="var(--color-primary)"
                   strokeWidth={2}
                   dot={false}
+                  activeDot={{ r: 5, fill: "var(--color-primary)", stroke: "var(--color-card)", strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -231,64 +251,59 @@ export function Collection() {
           <Button onClick={() => navigate("/search")}>Browse Cards</Button>
         </Card>
       ) : viewMode === "grid" ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="space-y-1">
           {items.map((item) => {
             const currentValue = item.current_value ? Number(item.current_value) : 0;
             const invested = item.purchase_price ? Number(item.purchase_price) * item.quantity : 0;
             const gainLoss = invested > 0 ? currentValue - invested : null;
 
             return (
-              <Card key={item.id} className="overflow-hidden group">
-                <CardContent className="p-0">
-                  <div
-                    className="relative aspect-[3/4] bg-muted cursor-pointer"
-                    onClick={() => item.card && navigate(`/cards/${item.card_id}`)}
-                  >
-                    <ImageWithFallback
-                      src={item.card?.image_url ?? undefined}
-                      alt={item.card?.name ?? ""}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      fallbackClassName="w-full h-full"
-                    />
-                    <div className="absolute top-2 right-2">
-                      <Badge>{item.quantity}x</Badge>
-                    </div>
+              <div
+                key={item.id}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-secondary/50 transition-colors cursor-pointer"
+                onClick={() => item.card && navigate(`/cards/${item.card_id}`)}
+              >
+                <ImageWithFallback
+                  src={item.card?.image_url ?? undefined}
+                  alt={item.card?.name ?? ""}
+                  className="w-14 h-[74px] rounded object-cover shrink-0"
+                  fallbackClassName="w-14 h-[74px] rounded shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-medium truncate">
+                      {item.card?.name ?? `Card #${item.card_id}`}
+                    </span>
+                    <Badge className="text-[10px] px-1.5 py-0 shrink-0">
+                      {item.quantity}x
+                    </Badge>
                   </div>
-                  <div className="p-4 space-y-2">
-                    <div>
-                      <h3 className="font-medium truncate">
-                        {item.card?.name ?? `Card #${item.card_id}`}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {CONDITION_LABELS[item.condition]}
+                  <p className="text-xs text-muted-foreground truncate">
+                    {item.card?.set_name} · {CONDITION_LABELS[item.condition]}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 shrink-0">
+                  <div className="text-right">
+                    <p className="text-sm font-semibold">{formatPrice(currentValue)}</p>
+                    {gainLoss !== null && (
+                      <p className={`text-xs font-medium ${gainLoss >= 0 ? "text-success" : "text-danger"}`}>
+                        {gainLoss >= 0 ? "+" : ""}{formatPrice(gainLoss)}
                       </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Current</p>
-                        <p className="font-semibold">{formatPrice(currentValue)}</p>
-                      </div>
-                      {gainLoss !== null && (
-                        <div>
-                          <p className="text-muted-foreground">Gain/Loss</p>
-                          <p className={`font-semibold ${gainLoss >= 0 ? "text-green-500" : "text-red-500"}`}>
-                            {gainLoss >= 0 ? "+" : ""}{formatPrice(gainLoss)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => handleDelete(item.id)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Remove
-                    </Button>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(item.id);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -336,7 +351,7 @@ export function Collection() {
                       <TableCell className="text-right">{item.quantity}</TableCell>
                       <TableCell className="text-right">{formatPrice(invested)}</TableCell>
                       <TableCell className="text-right font-semibold">{formatPrice(currentValue)}</TableCell>
-                      <TableCell className={`text-right font-semibold ${gainLoss !== null ? (gainLoss >= 0 ? "text-green-500" : "text-red-500") : ""}`}>
+                      <TableCell className={`text-right font-semibold ${gainLoss !== null ? (gainLoss >= 0 ? "text-success" : "text-danger") : ""}`}>
                         {gainLoss !== null ? `${gainLoss >= 0 ? "+" : ""}${formatPrice(gainLoss)}` : "-"}
                       </TableCell>
                       <TableCell className="text-right">

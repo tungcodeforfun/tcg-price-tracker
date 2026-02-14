@@ -1,18 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TCGCard } from "@/components/shared/TCGCard";
+import { SearchResultRow } from "@/components/shared/SearchResultRow";
 import { AddToCollectionModal } from "@/components/shared/AddToCollectionModal";
-import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
-import { CardGridSkeleton } from "@/components/shared/Skeletons";
+import { SearchResultListSkeleton } from "@/components/shared/Skeletons";
 import { cardsApi, searchApi } from "@/lib/api";
-import { formatPrice } from "@/lib/utils";
-import type { Card as CardType, SearchResult, TCGType } from "@/types";
-import { Search, SlidersHorizontal, Download, Loader2 } from "lucide-react";
+import { TCG_LABELS } from "@/lib/utils";
+import type { Card as CardType, SearchResult, TCGType, UnifiedSearchResult } from "@/types";
+import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function SearchPage() {
@@ -27,10 +25,16 @@ export function SearchPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [addCard, setAddCard] = useState<CardType | null>(null);
 
+  const setSearchParamsRef = useRef(setSearchParams);
+  setSearchParamsRef.current = setSearchParams;
+
+  // Track whether search was triggered by form submit to avoid double-execution
+  const submitTriggeredRef = useRef(false);
+
   const performSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
     setLoading(true);
-    setSearchParams({ q: q.trim() });
+    setSearchParamsRef.current({ q: q.trim() });
 
     try {
       const typeParam = tcgType === "all" ? undefined : tcgType;
@@ -38,19 +42,29 @@ export function SearchPage() {
         cardsApi.search({ query: q.trim(), tcg_type: typeParam, limit: 40 }),
         searchApi
           .searchAll({ query: q.trim(), tcg_type: typeParam })
-          .catch(() => ({ tcgplayer: [], ebay: [], errors: [] })),
+          .catch(() => ({ tcgplayer: [], ebay: [], pricecharting: [], justtcg: [], errors: [] })),
       ]);
       setInternalResults(internal);
-      setExternalResults([...external.tcgplayer, ...external.ebay]);
+      setExternalResults([
+        ...external.justtcg,
+        ...external.pricecharting,
+        ...external.tcgplayer,
+        ...external.ebay,
+      ]);
     } catch {
       toast.error("Search failed");
     } finally {
       setLoading(false);
     }
-  }, [tcgType, setSearchParams]);
+  }, [tcgType]);
 
+  // Only run for external URL changes (back/forward, direct nav), not from handleSubmit
   useEffect(() => {
     if (urlQuery) {
+      if (submitTriggeredRef.current) {
+        submitTriggeredRef.current = false;
+        return;
+      }
       setQuery(urlQuery);
       performSearch(urlQuery);
     }
@@ -58,15 +72,19 @@ export function SearchPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    submitTriggeredRef.current = true;
     performSearch(query);
   }
 
-  async function handleImport(result: SearchResult) {
+  async function handleAddExternal(result: SearchResult) {
     setImportingId(result.external_id);
     try {
       const card = await searchApi.importCard(result);
-      toast.success(`Imported "${card.name}"`);
       setInternalResults((prev) => [card, ...prev]);
+      setExternalResults((prev) =>
+        prev.filter((r) => r.external_id !== result.external_id),
+      );
+      setAddCard(card);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Import failed",
@@ -76,11 +94,27 @@ export function SearchPage() {
     }
   }
 
+  const unifiedResults = useMemo<UnifiedSearchResult[]>(() => {
+    const libraryIds = new Set(
+      internalResults.map((c) => c.external_id).filter(Boolean),
+    );
+    return [
+      ...internalResults.map((card) => ({ kind: "library" as const, card })),
+      ...externalResults
+        .filter((r) => !libraryIds.has(r.external_id))
+        .map((result) => ({ kind: "external" as const, result })),
+    ];
+  }, [internalResults, externalResults]);
+
+  const hasSearched = !!searchParams.get("q");
+  const libraryCount = internalResults.length;
+  const externalCount = unifiedResults.length - libraryCount;
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-medium">Search Cards</h1>
-        <p className="text-muted-foreground">Find cards from Pokemon and One Piece TCG</p>
+        <p className="text-muted-foreground">Search across {Object.values(TCG_LABELS).join(", ")}</p>
       </div>
 
       <Card className="p-6">
@@ -104,7 +138,7 @@ export function SearchPage() {
           <div className="flex flex-wrap gap-2 items-center">
             <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">TCG Type:</span>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Badge
                 variant={tcgType === "all" ? "default" : "outline"}
                 className="cursor-pointer"
@@ -112,124 +146,55 @@ export function SearchPage() {
               >
                 All
               </Badge>
-              <Badge
-                variant={tcgType === "pokemon" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setTcgType("pokemon")}
-              >
-                Pokemon
-              </Badge>
-              <Badge
-                variant={tcgType === "onepiece" ? "default" : "outline"}
-                className="cursor-pointer"
-                onClick={() => setTcgType("onepiece")}
-              >
-                One Piece
-              </Badge>
+              {(Object.entries(TCG_LABELS) as [TCGType, string][]).map(([key, label]) => (
+                <Badge
+                  key={key}
+                  variant={tcgType === key ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => setTcgType(key)}
+                >
+                  {label}
+                </Badge>
+              ))}
             </div>
           </div>
         </form>
       </Card>
 
       {loading ? (
-        <CardGridSkeleton count={12} />
-      ) : (
-        <Tabs defaultValue="internal">
-          <TabsList>
-            <TabsTrigger value="internal">
-              Library ({internalResults.length})
-            </TabsTrigger>
-            <TabsTrigger value="external">
-              External ({externalResults.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="internal">
-            {internalResults.length > 0 ? (
-              <>
-                <p className="text-muted-foreground mb-4">
-                  {internalResults.length} {internalResults.length === 1 ? "result" : "results"} found
-                </p>
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {internalResults.map((card) => (
-                    <TCGCard
-                      key={card.id}
-                      card={card}
-                      onAdd={setAddCard}
-                    />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <Card className="p-12 text-center">
-                <Search className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No cards found</h3>
-                <p className="text-muted-foreground">
-                  {query
-                    ? "Try adjusting your search query or filters"
-                    : "Enter a search query to find cards."}
-                </p>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="external">
-            {externalResults.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {externalResults.map((result) => (
-                  <Card key={`${result.source}-${result.external_id}`}>
-                    <CardContent className="flex gap-3 p-3">
-                      <ImageWithFallback
-                        src={result.image_url ?? undefined}
-                        alt={result.name}
-                        className="h-20 w-14 rounded object-cover"
-                        fallbackClassName="h-20 w-14 rounded"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-sm font-semibold">
-                          {result.name}
-                        </h3>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {result.set_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {result.source}
-                        </p>
-                        <div className="mt-1 flex items-center justify-between">
-                          <span className="text-sm font-bold">
-                            {formatPrice(result.price)}
-                          </span>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={importingId === result.external_id}
-                            onClick={() => handleImport(result)}
-                          >
-                            {importingId === result.external_id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              <>
-                                <Download className="mr-1 h-3 w-3" />
-                                Import
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div className="py-12 text-center text-muted-foreground">
-                {query
-                  ? "No external results found."
-                  : "Search to find cards from TCGPlayer, eBay, and more."}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
+        <SearchResultListSkeleton count={10} />
+      ) : hasSearched ? (
+        unifiedResults.length > 0 ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {libraryCount} in library · {externalCount} from external sources
+            </p>
+            <div className="space-y-1">
+              {unifiedResults.map((item) => (
+                <SearchResultRow
+                  key={
+                    item.kind === "library"
+                      ? `lib-${item.card.id}`
+                      : `ext-${item.result.source}-${item.result.external_id}`
+                  }
+                  item={item}
+                  importingId={importingId}
+                  onImport={handleAddExternal}
+                  onAdd={setAddCard}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <Card className="p-12 text-center">
+            <Search className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No cards found</h3>
+            <p className="text-muted-foreground">
+              Try adjusting your search query or filters
+            </p>
+          </Card>
+        )
+      ) : null}
 
       <AddToCollectionModal
         card={addCard}

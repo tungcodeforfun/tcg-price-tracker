@@ -1,10 +1,19 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { CardCondition } from "@/types";
+import type { CardCondition, TCGType } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+export const TCG_LABELS: Record<TCGType, string> = {
+  pokemon: "Pokemon",
+  onepiece: "One Piece",
+  magic: "Magic: The Gathering",
+  yugioh: "Yu-Gi-Oh!",
+  lorcana: "Lorcana",
+  digimon: "Digimon",
+};
 
 export const CONDITION_LABELS: Record<CardCondition, string> = {
   mint: "Mint",

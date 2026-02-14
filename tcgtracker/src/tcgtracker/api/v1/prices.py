@@ -20,7 +20,6 @@ from tcgtracker.database.models import (
     CardConditionEnum,
     DataSourceEnum,
     PriceHistory,
-    TCGTypeEnum,
     User,
     UserAlert,
 )
@@ -65,9 +64,7 @@ async def fetch_and_update_price(
         # Fetch from JustTCG
         async with JustTCGClient() as client:
             try:
-                game = (
-                    "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
-                )
+                game = card.tcg_type.value
                 result = await client.get_card_price(card.name, game=game)
                 if result:
                     price_data = result.get("market_price", 0)
@@ -378,35 +375,122 @@ async def get_price_trends(
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Get aggregated price trends."""
+    """Get per-card price trends grouped by TCG type."""
     since_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Build query for price changes
+    # Get the earliest and latest price per card within the period
+    earliest_price_subq = (
+        select(
+            PriceHistory.card_id,
+            func.min(PriceHistory.timestamp).label("min_ts"),
+        )
+        .where(PriceHistory.timestamp >= since_date)
+        .group_by(PriceHistory.card_id)
+        .subquery()
+    )
+
+    latest_price_subq = (
+        select(
+            PriceHistory.card_id,
+            func.max(PriceHistory.timestamp).label("max_ts"),
+        )
+        .where(PriceHistory.timestamp >= since_date)
+        .group_by(PriceHistory.card_id)
+        .subquery()
+    )
+
+    # Get the actual earliest price values
+    earliest_prices = (
+        select(
+            PriceHistory.card_id,
+            PriceHistory.market_price.label("previous_price"),
+        )
+        .join(
+            earliest_price_subq,
+            and_(
+                PriceHistory.card_id == earliest_price_subq.c.card_id,
+                PriceHistory.timestamp == earliest_price_subq.c.min_ts,
+            ),
+        )
+        .subquery()
+    )
+
+    # Get the actual latest price values
+    latest_prices = (
+        select(
+            PriceHistory.card_id,
+            PriceHistory.market_price.label("current_price"),
+        )
+        .join(
+            latest_price_subq,
+            and_(
+                PriceHistory.card_id == latest_price_subq.c.card_id,
+                PriceHistory.timestamp == latest_price_subq.c.max_ts,
+            ),
+        )
+        .subquery()
+    )
+
+    # Join card info with earliest and latest prices
     query = (
         select(
+            Card.id.label("card_id"),
+            Card.name.label("card_name"),
+            Card.set_name,
             Card.tcg_type,
-            func.avg(PriceHistory.market_price).label("avg_price"),
-            func.count(PriceHistory.id).label("price_count"),
+            latest_prices.c.current_price,
+            earliest_prices.c.previous_price,
         )
-        .select_from(PriceHistory)
-        .join(Card)
-        .where(PriceHistory.timestamp >= since_date)
-        .group_by(Card.tcg_type)
+        .join(latest_prices, Card.id == latest_prices.c.card_id)
+        .join(earliest_prices, Card.id == earliest_prices.c.card_id)
+        .where(latest_prices.c.current_price.isnot(None))
     )
 
     if tcg_type:
         query = query.where(Card.tcg_type == tcg_type)
 
-    result = await db.execute(query)
-    trends = result.all()
+    # Order by absolute price change descending to surface biggest movers
+    query = query.order_by(
+        func.abs(latest_prices.c.current_price - earliest_prices.c.previous_price).desc()
+    ).limit(50)
 
-    # Format response
-    trend_data = {}
-    for trend in trends:
-        trend_data[trend.tcg_type] = {
-            "average_price": float(trend.avg_price) if trend.avg_price else 0,
-            "total_prices": trend.price_count,
-        }
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Build per-tcg-type trend arrays
+    trend_data: dict[str, list[dict]] = {}
+    for row in rows:
+        current = float(row.current_price) if row.current_price is not None else None
+        previous = float(row.previous_price) if row.previous_price is not None else None
+
+        if current is not None and previous is not None:
+            change = current - previous
+            change_pct = (change / previous * 100) if previous != 0 else 0.0
+        else:
+            change = None
+            change_pct = None
+
+        if change is not None:
+            if change > 0:
+                trend = "up"
+            elif change < 0:
+                trend = "down"
+            else:
+                trend = "stable"
+        else:
+            trend = "stable"
+
+        tcg_key = row.tcg_type.value if hasattr(row.tcg_type, "value") else str(row.tcg_type)
+        trend_data.setdefault(tcg_key, []).append({
+            "card_id": row.card_id,
+            "card_name": row.card_name,
+            "set_name": row.set_name,
+            "current_price": current,
+            "previous_price": previous,
+            "change": round(change, 2) if change is not None else None,
+            "change_percentage": round(change_pct, 2) if change_pct is not None else None,
+            "trend": trend,
+        })
 
     return {
         "period_days": days,

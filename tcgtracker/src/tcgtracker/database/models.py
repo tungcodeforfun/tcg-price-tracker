@@ -32,6 +32,10 @@ class TCGTypeEnum(enum.Enum):
 
     POKEMON = "pokemon"
     ONEPIECE = "onepiece"
+    MAGIC = "magic"
+    YUGIOH = "yugioh"
+    LORCANA = "lorcana"
+    DIGIMON = "digimon"
 
 
 class CardConditionEnum(enum.Enum):
@@ -119,7 +123,8 @@ class TCGSet(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tcg_type: Mapped[TCGTypeEnum] = mapped_column(
-        Enum(TCGTypeEnum), nullable=False, index=True
+        Enum(TCGTypeEnum, values_callable=lambda e: [x.value for x in e]),
+        nullable=False, index=True,
     )
     set_code: Mapped[str] = mapped_column(String(50), nullable=False)
     set_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -146,14 +151,15 @@ class Card(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tcg_type: Mapped[TCGTypeEnum] = mapped_column(
-        Enum(TCGTypeEnum), nullable=False, index=True
+        Enum(TCGTypeEnum, values_callable=lambda e: [x.value for x in e]),
+        nullable=False, index=True,
     )
     set_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     card_number: Mapped[Optional[str]] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
-    external_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Foreign Keys
@@ -218,7 +224,8 @@ class PriceHistory(Base):
         Integer, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False, index=True
     )
     source: Mapped[DataSourceEnum] = mapped_column(
-        Enum(DataSourceEnum), nullable=False, index=True
+        Enum(DataSourceEnum, values_callable=lambda e: [x.value for x in e]),
+        nullable=False, index=True,
     )
     price_low: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
     price_high: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
@@ -228,7 +235,8 @@ class PriceHistory(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
     condition: Mapped[CardConditionEnum] = mapped_column(
-        Enum(CardConditionEnum), default=CardConditionEnum.NEAR_MINT, nullable=False
+        Enum(CardConditionEnum, values_callable=lambda e: [x.value for x in e]),
+        default=CardConditionEnum.NEAR_MINT, nullable=False,
     )
     currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
     sample_size: Mapped[Optional[int]] = mapped_column(Integer)
@@ -279,7 +287,8 @@ class CollectionItem(Base, TimestampMixin):
     )
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     condition: Mapped[CardConditionEnum] = mapped_column(
-        Enum(CardConditionEnum), default=CardConditionEnum.NEAR_MINT, nullable=False
+        Enum(CardConditionEnum, values_callable=lambda e: [x.value for x in e]),
+        default=CardConditionEnum.NEAR_MINT, nullable=False,
     )
     purchase_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
     notes: Mapped[Optional[str]] = mapped_column(Text)
@@ -322,7 +331,8 @@ class UserAlert(Base, TimestampMixin):
     )
     price_threshold: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     alert_type: Mapped[AlertTypeEnum] = mapped_column(
-        Enum(AlertTypeEnum), nullable=False
+        Enum(AlertTypeEnum, values_callable=lambda e: [x.value for x in e]),
+        nullable=False,
     )
     comparison_operator: Mapped[str] = mapped_column(
         String(5), nullable=False

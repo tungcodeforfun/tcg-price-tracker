@@ -9,12 +9,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tcgtracker.api.dependencies import get_current_user, get_session
+from tcgtracker.config import get_settings
 from tcgtracker.api.schemas import (
     CardCreate,
     CardResponse,
     PriceSource,
     SearchRequest,
     SearchResult,
+    TCGType,
 )
 from tcgtracker.database.models import Card, User
 from tcgtracker.integrations.ebay import eBayClient
@@ -40,10 +42,12 @@ async def search_tcgplayer(
         async with client:
             # Map game type to TCGPlayer category
             category_map = {
-                "pokemon": 3,  # Pokemon category ID
-                "one_piece": 70,  # One Piece category ID
-                "magic": 1,  # Magic category ID
-                "yugioh": 2,  # Yu-Gi-Oh category ID
+                "pokemon": 3,
+                "onepiece": 70,
+                "magic": 1,
+                "yugioh": 2,
+                "lorcana": 71,
+                "digimon": 63,
             }
 
             category_id = None
@@ -100,15 +104,27 @@ async def search_pricecharting(
     """Search PriceCharting for cards."""
     async with PriceChartingClient() as client:
         try:
-            # Determine which method to use based on TCG type
-            if search_request.tcg_type == "onepiece":
-                products = await client.get_one_piece_products(
-                    search_term=search_request.query,
+            # Map TCG type to PriceCharting console slug
+            console_map = {
+                "pokemon": "pokemon-cards",
+                "onepiece": "one-piece-cards",
+                "magic": "magic-the-gathering",
+                "yugioh": "yugioh",
+                "lorcana": "disney-lorcana",
+                "digimon": "digimon",
+            }
+
+            if search_request.tcg_type is None:
+                # No console filter — PriceCharting returns all games
+                products = await client.search_products(
+                    query=search_request.query,
                     limit=search_request.limit,
                 )
             else:
-                products = await client.get_pokemon_products(
-                    search_term=search_request.query,
+                console = console_map.get(search_request.tcg_type)
+                products = await client.search_products(
+                    query=search_request.query,
+                    console=console,
                     limit=search_request.limit,
                 )
 
@@ -151,11 +167,9 @@ async def search_justtcg(
     """Search JustTCG for cards."""
     async with JustTCGClient() as client:
         try:
-            game = "pokemon" if search_request.tcg_type != "onepiece" else "onepiece"
-
             products = await client.search_cards(
                 query=search_request.query,
-                game=game,
+                game=search_request.tcg_type,
                 limit=search_request.limit,
             )
 
@@ -163,13 +177,16 @@ async def search_justtcg(
                 return []
 
             # Format results
+            valid_types = {t.value for t in TCGType}
             results = []
             for product in products:
+                raw_type = product.get("tcg_type") or search_request.tcg_type or "pokemon"
+                tcg_type = raw_type if raw_type in valid_types else "pokemon"
                 result = SearchResult(
                     external_id=str(product.get("id", "")),
                     name=product.get("name", "Unknown"),
                     set_name=product.get("set_name", "Unknown Set"),
-                    tcg_type=search_request.tcg_type or "pokemon",
+                    tcg_type=tcg_type,
                     price=product.get("market_price"),
                     image_url=product.get("image_url"),
                     source=PriceSource.JUSTTCG,
@@ -247,12 +264,15 @@ async def search_all_sources(
     }
 
     # Run all source searches concurrently with a timeout
+    # Skip eBay in sandbox mode — sandbox returns fake data for any query
+    settings = get_settings()
     tasks = {
         "tcgplayer": search_tcgplayer(search_request, current_user),
-        "ebay": search_ebay(search_request, current_user),
         "pricecharting": search_pricecharting(search_request, current_user),
         "justtcg": search_justtcg(search_request, current_user),
     }
+    if settings.external_apis.ebay_environment.lower() != "sandbox":
+        tasks["ebay"] = search_ebay(search_request, current_user)
 
     try:
         gathered = await asyncio.wait_for(
@@ -299,6 +319,7 @@ async def import_card_from_search(
     existing_card = result.scalar_one_or_none()
 
     if existing_card:
+        existing_card.latest_price = existing_card.latest_market_price
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=CardResponse.model_validate(existing_card).model_dump(mode="json"),
@@ -348,8 +369,13 @@ async def import_card_from_search(
             new_card.latest_price_updated_at = now
 
             await db.commit()
+            await db.refresh(new_card)
 
-        return new_card
+        new_card.latest_price = new_card.latest_market_price
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content=CardResponse.model_validate(new_card).model_dump(mode="json"),
+        )
 
     except Exception:
         # Rollback the transaction on any error

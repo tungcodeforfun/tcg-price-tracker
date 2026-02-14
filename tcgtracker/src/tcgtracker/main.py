@@ -6,9 +6,11 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from tcgtracker.config import get_settings
 
@@ -104,6 +106,12 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Add rate limiter
+    from tcgtracker.api.rate_limit import limiter
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -154,8 +162,6 @@ def create_app() -> FastAPI:
             },
             status_code=200,
         )
-
-    from fastapi import Request
 
     # Global exception handler
     @app.exception_handler(Exception)
