@@ -117,7 +117,10 @@ def create_app() -> FastAPI:
     async def response_validation_handler(request: Request, exc: ResponseValidationError):
         import logging as _log
         import traceback
-        _log.getLogger("tcgtracker").error("ResponseValidationError on %s %s:\n%s", request.method, request.url.path, traceback.format_exc())
+        _log.getLogger("tcgtracker").error(
+            "ResponseValidationError on %s %s:\n%s",
+            request.method, request.url.path, traceback.format_exc(),
+        )
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     # Add CORS middleware

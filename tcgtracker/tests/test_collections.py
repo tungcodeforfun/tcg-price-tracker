@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from tcgtracker.api.v1.collections import _populate_item_runtime_fields

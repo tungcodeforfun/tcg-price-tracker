@@ -46,6 +46,9 @@
 - Tokens stored in localStorage (`access_token`, `refresh_token`)
 - 401 responses trigger automatic token refresh + retry
 
+## Git
+- Do not include Co-Authored-By lines in commit messages
+
 ## Conventions
 - UI components in `components/ui/` follow shadcn patterns (forwardRef, CVA variants)
 - Shared components in `components/shared/` are app-specific composites
