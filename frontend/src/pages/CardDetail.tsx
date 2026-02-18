@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -22,8 +22,8 @@ import { CreateAlertModal } from "@/components/shared/CreateAlertModal";
 import { ChartSkeleton } from "@/components/shared/Skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cardsApi, pricesApi } from "@/lib/api";
-import { formatPrice, formatDate, CONDITION_LABELS, TCG_LABELS } from "@/lib/utils";
-import type { Card as CardType, PriceHistory } from "@/types";
+import { formatPrice, formatDate, formatRelativeTime, CONDITION_LABELS, TCG_LABELS } from "@/lib/utils";
+import type { Card as CardType, PriceHistory, CardCondition } from "@/types";
 import {
   LineChart,
   Line,
@@ -37,6 +37,7 @@ import {
   ArrowLeft,
   Plus,
   Bell,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,6 +50,10 @@ export function CardDetail() {
   const [days, setDays] = useState("30");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAlertModal, setShowAlertModal] = useState(false);
+
+  // Refresh price
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(false);
 
   const id = Number(cardId);
 
@@ -82,6 +87,47 @@ export function CardDetail() {
     load();
     return () => { cancelled = true; };
   }, [id, days, navigate]);
+
+  async function handleRefreshPrice() {
+    if (refreshCooldown || refreshing) return;
+    setRefreshing(true);
+    try {
+      await pricesApi.updatePrice(id);
+      const [c, ph] = await Promise.all([
+        cardsApi.getById(id),
+        pricesApi.getHistory(id, Number(days)),
+      ]);
+      setCard(c);
+      setPriceHistory(ph);
+      toast.success("Price updated");
+
+      setRefreshCooldown(true);
+      setTimeout(() => setRefreshCooldown(false), 5000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to refresh price");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  // Real condition pricing: group price history by condition, take latest per condition
+  const conditionPrices = useMemo(() => {
+    if (!priceHistory?.prices.length) return new Map<CardCondition, number>();
+
+    const latest = new Map<CardCondition, { price: number; timestamp: string }>();
+    for (const p of priceHistory.prices) {
+      const existing = latest.get(p.condition);
+      if (!existing || new Date(p.timestamp) > new Date(existing.timestamp)) {
+        latest.set(p.condition, { price: Number(p.market_price), timestamp: p.timestamp });
+      }
+    }
+
+    const result = new Map<CardCondition, number>();
+    for (const [condition, data] of latest) {
+      result.set(condition, data.price);
+    }
+    return result;
+  }, [priceHistory]);
 
   if (loading) {
     return (
@@ -160,6 +206,9 @@ export function CardDetail() {
               <div className="pt-3 border-t">
                 <p className="text-xs text-muted-foreground mb-0.5">Current Market Price</p>
                 <p className="text-3xl font-bold">{formatPrice(card.latest_price)}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Updated {formatRelativeTime(card.updated_at)}
+                </p>
               </div>
 
               {priceHistory && (
@@ -193,6 +242,14 @@ export function CardDetail() {
                 <Button variant="outline" onClick={() => setShowAlertModal(true)}>
                   <Bell className="w-4 h-4 mr-2" />
                   Set Alert
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleRefreshPrice}
+                  disabled={refreshing || refreshCooldown}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+                  {refreshing ? "Refreshing..." : refreshCooldown ? "Cooldown" : "Refresh Price"}
                 </Button>
               </div>
             </div>
@@ -321,14 +378,19 @@ export function CardDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Object.entries(CONDITION_LABELS).map(([key, label]) => (
-                    <TableRow key={key}>
-                      <TableCell className="font-medium">{label}</TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatPrice(card.latest_price ? Number(card.latest_price) * getConditionMultiplier(key) : 0)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {(Object.entries(CONDITION_LABELS) as [CardCondition, string][]).map(([key, label]) => {
+                    const price = conditionPrices.get(key);
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className="font-medium">{label}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {price != null ? formatPrice(price) : (
+                            <span className="text-muted-foreground">No data</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -348,17 +410,4 @@ export function CardDetail() {
       />
     </div>
   );
-}
-
-function getConditionMultiplier(condition: string): number {
-  const multipliers: Record<string, number> = {
-    mint: 1.0,
-    near_mint: 0.95,
-    lightly_played: 0.85,
-    moderately_played: 0.7,
-    heavily_played: 0.5,
-    damaged: 0.3,
-    poor: 0.15,
-  };
-  return multipliers[condition] ?? 1.0;
 }

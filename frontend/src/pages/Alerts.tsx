@@ -5,13 +5,14 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { TableSkeleton } from "@/components/shared/Skeletons";
 import { usersApi } from "@/lib/api";
-import { formatPrice, formatDate } from "@/lib/utils";
+import { formatPrice, formatRelativeTime } from "@/lib/utils";
 import type { PriceAlert } from "@/types";
-import { Bell, BellOff, Trash2, Plus, TrendingUp, TrendingDown } from "lucide-react";
+import { Bell, BellOff, Trash2, Plus, TrendingUp, TrendingDown, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 export function Alerts() {
@@ -19,6 +20,10 @@ export function Alerts() {
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
+
+  // Inline editing
+  const [editingAlertId, setEditingAlertId] = useState<number | null>(null);
+  const [editPrice, setEditPrice] = useState("");
 
   useEffect(() => {
     usersApi
@@ -48,6 +53,45 @@ export function Alerts() {
     } catch {
       toast.error("Failed to delete alert");
     }
+  }
+
+  function startEditing(alert: PriceAlert) {
+    setEditingAlertId(alert.id);
+    setEditPrice(String(alert.price_threshold));
+  }
+
+  function cancelEditing() {
+    setEditingAlertId(null);
+    setEditPrice("");
+  }
+
+  async function saveEdit(alert: PriceAlert) {
+    const newPrice = Number(editPrice);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      toast.error("Enter a valid price");
+      return;
+    }
+
+    try {
+      const updated = await usersApi.createAlert({
+        card_id: alert.card_id,
+        target_price: newPrice,
+        alert_type: alert.alert_type,
+      });
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === alert.id ? updated : a)),
+      );
+      setEditingAlertId(null);
+      setEditPrice("");
+      toast.success("Alert updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update alert");
+    }
+  }
+
+  function handleEditKeyDown(e: React.KeyboardEvent, alert: PriceAlert) {
+    if (e.key === "Enter") saveEdit(alert);
+    else if (e.key === "Escape") cancelEditing();
   }
 
   if (loading) {
@@ -114,6 +158,7 @@ export function Alerts() {
         <div className="space-y-2">
           {filteredAlerts.map((alert) => {
             const isTriggered = checkIfTriggered(alert);
+            const isEditing = editingAlertId === alert.id;
 
             return (
               <div
@@ -146,7 +191,22 @@ export function Alerts() {
                     {alert.card?.name ?? `Card #${alert.card_id}`}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {alert.card?.set_name} · {alert.alert_type === "below" ? "Below" : "Above"} {formatPrice(alert.price_threshold)}
+                    {alert.card?.set_name} · {alert.alert_type === "below" ? "Below" : "Above"}{" "}
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="inline-block w-24 h-6 text-xs px-1 py-0"
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        onKeyDown={(e) => handleEditKeyDown(e, alert)}
+                        onBlur={() => saveEdit(alert)}
+                        autoFocus
+                      />
+                    ) : (
+                      formatPrice(alert.price_threshold)
+                    )}
                   </p>
                 </div>
 
@@ -158,23 +218,54 @@ export function Alerts() {
                     <span className="text-[10px] font-medium text-success">Triggered</span>
                   )}
                   {alert.last_triggered && !isTriggered && (
-                    <span className="text-[10px] text-muted-foreground">{formatDate(alert.last_triggered)}</span>
+                    <span className="text-[10px] text-muted-foreground">{formatRelativeTime(alert.last_triggered)}</span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                  <Switch
-                    checked={alert.is_active}
-                    onCheckedChange={() => handleToggle(alert.id)}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(alert.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {isEditing ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-success"
+                        onClick={() => saveEdit(alert)}
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground"
+                        onClick={cancelEditing}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => startEditing(alert)}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Switch
+                        checked={alert.is_active}
+                        onCheckedChange={() => handleToggle(alert.id)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDelete(alert.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             );

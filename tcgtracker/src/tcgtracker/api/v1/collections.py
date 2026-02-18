@@ -23,6 +23,18 @@ from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
 router = APIRouter()
 
 
+def _populate_item_runtime_fields(item: CollectionItem) -> None:
+    """Set runtime fields needed for API response serialization."""
+    if item.card:
+        item.card.latest_price = item.card.latest_market_price
+        if item.card.latest_market_price is not None:
+            item.current_value = item.card.latest_market_price * item.quantity
+        else:
+            item.current_value = Decimal(0)
+    else:
+        item.current_value = Decimal(0)
+
+
 @router.post(
     "/items", response_model=CollectionItemResponse, status_code=status.HTTP_201_CREATED
 )
@@ -56,18 +68,30 @@ async def add_to_collection(
         # Update quantity instead of creating duplicate
         existing_item.quantity += item_data.quantity
         await db.commit()
-        await db.refresh(existing_item)
+
+        # Re-fetch with card eagerly loaded to avoid detached session issues
+        result = await db.execute(
+            select(CollectionItem)
+            .options(selectinload(CollectionItem.card))
+            .where(CollectionItem.id == existing_item.id)
+        )
+        existing_item = result.scalar_one()
+        _populate_item_runtime_fields(existing_item)
         return existing_item
 
     # Create new collection item
     new_item = CollectionItem(user_id=current_user.id, **item_data.model_dump())
     db.add(new_item)
     await db.commit()
-    await db.refresh(new_item)
 
-    # Load related data
-    await db.refresh(new_item, ["card"])
-
+    # Re-fetch with card eagerly loaded to avoid detached session issues
+    result = await db.execute(
+        select(CollectionItem)
+        .options(selectinload(CollectionItem.card))
+        .where(CollectionItem.id == new_item.id)
+    )
+    new_item = result.scalar_one()
+    _populate_item_runtime_fields(new_item)
     return new_item
 
 
@@ -99,12 +123,8 @@ async def get_collection_items(
     result_items = await db.execute(query)
     items = result_items.scalars().all()
 
-    # Calculate current values from denormalized price column
     for item in items:
-        if item.card and item.card.latest_market_price is not None:
-            item.current_value = item.card.latest_market_price * item.quantity
-        else:
-            item.current_value = Decimal(0)
+        _populate_item_runtime_fields(item)
 
     return cast(List[CollectionItem], items)
 
@@ -133,12 +153,7 @@ async def get_collection_item(
             status_code=status.HTTP_404_NOT_FOUND, detail="Collection item not found"
         )
 
-    # Calculate current value from denormalized price column
-    if item.card and item.card.latest_market_price is not None:
-        item.current_value = item.card.latest_market_price * item.quantity
-    else:
-        item.current_value = Decimal(0)
-
+    _populate_item_runtime_fields(item)
     return item
 
 
@@ -171,8 +186,15 @@ async def update_collection_item(
         setattr(item, field, value)
 
     await db.commit()
-    await db.refresh(item, ["card"])
 
+    # Re-fetch with card eagerly loaded to avoid detached session issues
+    result = await db.execute(
+        select(CollectionItem)
+        .options(selectinload(CollectionItem.card))
+        .where(CollectionItem.id == item_id)
+    )
+    item = result.scalar_one()
+    _populate_item_runtime_fields(item)
     return item
 
 

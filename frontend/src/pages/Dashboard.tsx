@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -15,15 +15,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatsCardsSkeleton, ChartSkeleton } from "@/components/shared/Skeletons";
-import { PriceTrendBadge } from "@/components/shared/PriceTrendBadge";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { collectionsApi, pricesApi, usersApi } from "@/lib/api";
-import { formatPrice, formatPercent } from "@/lib/utils";
+import { formatPrice, formatPercent, TCG_LABELS } from "@/lib/utils";
 import type {
+  CollectionItem,
   CollectionStats,
   ValueHistoryResponse,
   PriceAlert,
   PriceTrend,
+  TCGType,
 } from "@/types";
 import {
   LineChart,
@@ -33,6 +34,9 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import {
   Wallet,
@@ -46,30 +50,42 @@ import {
   ArrowDownRight,
 } from "lucide-react";
 
+const TCG_COLORS: Record<string, string> = {
+  pokemon: "#F59E0B",
+  onepiece: "#EF4444",
+  magic: "#8B5CF6",
+  yugioh: "#3B82F6",
+  lorcana: "#06B6D4",
+  digimon: "#10B981",
+};
+
 export function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState<CollectionStats | null>(null);
   const [valueHistory, setValueHistory] = useState<ValueHistoryResponse | null>(null);
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [trends, setTrends] = useState<PriceTrend[]>([]);
+  const [collectionItems, setCollectionItems] = useState<CollectionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyDays, setHistoryDays] = useState("30");
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, a, t] = await Promise.all([
+        const [s, a, t, items] = await Promise.all([
           collectionsApi.getStats(),
           usersApi.getAlerts(),
           pricesApi.getTrends(),
+          collectionsApi.getItems({ limit: 200 }),
         ]);
         setStats(s);
         setAlerts(a);
+        setCollectionItems(items);
         const allTrends: PriceTrend[] = [];
         if (t.trends) {
           Object.values(t.trends).forEach((arr) => allTrends.push(...arr));
         }
-        setTrends(allTrends.slice(0, 10));
+        setTrends(allTrends);
       } catch {
         toast.error("Failed to load dashboard data");
       } finally {
@@ -85,6 +101,31 @@ export function Dashboard() {
       .then(setValueHistory)
       .catch(() => toast.error("Failed to load value history"));
   }, [historyDays]);
+
+  // Split trends into gainers/losers
+  const { gainers, losers } = useMemo(() => {
+    const withChange = trends.filter((t) => t.change_percentage != null);
+    const sorted = [...withChange].sort((a, b) => (b.change_percentage ?? 0) - (a.change_percentage ?? 0));
+    return {
+      gainers: sorted.filter((t) => (t.change_percentage ?? 0) > 0).slice(0, 5),
+      losers: sorted.filter((t) => (t.change_percentage ?? 0) < 0).slice(-5).reverse(),
+    };
+  }, [trends]);
+
+  // TCG composition data for pie chart
+  const compositionData = useMemo(() => {
+    const counts = new Map<TCGType, number>();
+    for (const item of collectionItems) {
+      if (!item.card) continue;
+      const tcg = item.card.tcg_type;
+      counts.set(tcg, (counts.get(tcg) ?? 0) + item.quantity);
+    }
+    return Array.from(counts.entries()).map(([tcg, count]) => ({
+      name: TCG_LABELS[tcg] ?? tcg,
+      value: count,
+      tcg,
+    }));
+  }, [collectionItems]);
 
   if (loading) {
     return (
@@ -193,7 +234,16 @@ export function Dashboard() {
       {/* Portfolio Value Chart */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-foreground">Portfolio Value (Last {historyDays} Days)</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-foreground">Portfolio Value (Last {historyDays} Days)</CardTitle>
+            {valueHistory && (
+              <span className={`text-sm font-semibold ${(valueHistory.change ?? 0) >= 0 ? "text-success" : "text-danger"}`}>
+                {(valueHistory.change ?? 0) >= 0 ? "+" : ""}{formatPrice(valueHistory.change)}
+                {" "}
+                ({formatPercent(valueHistory.change_percentage)})
+              </span>
+            )}
+          </div>
           <Select value={historyDays} onValueChange={setHistoryDays}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -265,7 +315,54 @@ export function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Alerts & Trending */}
+      {/* Top Gainers & Losers */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-muted">
+                <TrendingUp className="h-4 w-4 text-success" />
+              </div>
+              Top Gainers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {gainers.length > 0 ? (
+              <div className="space-y-2">
+                {gainers.map((t) => (
+                  <TrendCard key={t.card_id} trend={t} navigate={navigate} />
+                ))}
+              </div>
+            ) : (
+              <EmptyTrendState />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-foreground">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-danger-muted">
+                <TrendingDown className="h-4 w-4 text-danger" />
+              </div>
+              Top Losers
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {losers.length > 0 ? (
+              <div className="space-y-2">
+                {losers.map((t) => (
+                  <TrendCard key={t.card_id} trend={t} navigate={navigate} />
+                ))}
+              </div>
+            ) : (
+              <EmptyTrendState />
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Alerts & TCG Composition */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Active Price Alerts */}
         <Card>
@@ -328,55 +425,116 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Trending Cards */}
+        {/* TCG Composition */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-foreground">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-muted">
-                <TrendingUp className="h-4 w-4 text-success" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15">
+                <Package className="h-4 w-4 text-primary" />
               </div>
-              Trending Cards
+              Collection by TCG
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {trends.length > 0 ? (
-              <div className="space-y-2">
-                {trends.slice(0, 5).map((t) => (
-                  <div
-                    key={t.card_id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
-                    onClick={() => navigate(`/cards/${t.card_id}`)}
-                  >
-                    <ImageWithFallback
-                      src={undefined}
-                      alt={t.card_name}
-                      className="w-12 h-16 object-cover rounded"
-                      fallbackClassName="w-12 h-16 rounded"
+            {compositionData.length > 0 ? (
+              <div className="flex items-center gap-4">
+                <ResponsiveContainer width="50%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={compositionData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      innerRadius={40}
+                    >
+                      {compositionData.map((entry) => (
+                        <Cell key={entry.tcg} fill={TCG_COLORS[entry.tcg] ?? "#6B7280"} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "var(--color-card)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "8px",
+                        color: "var(--color-foreground)",
+                      }}
+                      formatter={(value: any, name: any) => [`${value} cards`, name]}
                     />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground truncate">{t.card_name}</p>
-                      <p className="text-sm text-muted-foreground">{t.set_name}</p>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="space-y-2 flex-1">
+                  {compositionData.map((entry) => (
+                    <div key={entry.tcg} className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: TCG_COLORS[entry.tcg] ?? "#6B7280" }}
+                      />
+                      <span className="text-sm text-foreground truncate">{entry.name}</span>
+                      <span className="text-sm text-muted-foreground ml-auto">{entry.value}</span>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-semibold text-foreground">{formatPrice(t.current_price)}</p>
-                      <PriceTrendBadge trend={t.trend} />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
-                  <TrendingUp className="h-6 w-6 text-muted-foreground" />
+                  <Package className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  No price trends available yet.
+                  Add cards to see your collection breakdown.
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function TrendCard({ trend, navigate }: { trend: PriceTrend; navigate: (path: string) => void }) {
+  const changePositive = (trend.change_percentage ?? 0) >= 0;
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
+      onClick={() => navigate(`/cards/${trend.card_id}`)}
+    >
+      <ImageWithFallback
+        src={undefined}
+        alt={trend.card_name}
+        className="w-12 h-16 object-cover rounded"
+        fallbackClassName="w-12 h-16 rounded"
+      />
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-foreground truncate">{trend.card_name}</p>
+        <p className="text-sm text-muted-foreground">{trend.set_name}</p>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="font-semibold text-foreground">{formatPrice(trend.current_price)}</p>
+        <div className="flex items-center justify-end gap-1">
+          <span className={`text-xs font-medium ${changePositive ? "text-success" : "text-danger"}`}>
+            {changePositive ? "+" : ""}{formatPrice(trend.change)}
+          </span>
+          <span className={`text-xs ${changePositive ? "text-success" : "text-danger"}`}>
+            ({formatPercent(trend.change_percentage)})
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyTrendState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-8 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+        <TrendingUp className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <p className="text-sm text-muted-foreground">
+        No price trends available yet.
+      </p>
     </div>
   );
 }

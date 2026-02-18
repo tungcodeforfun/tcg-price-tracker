@@ -8,6 +8,7 @@ from typing import AsyncGenerator
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import ResponseValidationError
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -111,6 +112,13 @@ def create_app() -> FastAPI:
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    @app.exception_handler(ResponseValidationError)
+    async def response_validation_handler(request: Request, exc: ResponseValidationError):
+        import logging as _log
+        import traceback
+        _log.getLogger("tcgtracker").error("ResponseValidationError on %s %s:\n%s", request.method, request.url.path, traceback.format_exc())
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
     # Add CORS middleware
     app.add_middleware(

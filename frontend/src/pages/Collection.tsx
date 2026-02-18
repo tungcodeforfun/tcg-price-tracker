@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -9,6 +9,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -17,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
+import { EditCollectionItemModal } from "@/components/shared/EditCollectionItemModal";
 import {
   StatsCardsSkeleton,
   ChartSkeleton,
@@ -27,11 +35,14 @@ import {
   formatPrice,
   formatPercent,
   CONDITION_LABELS,
+  TCG_LABELS,
 } from "@/lib/utils";
 import type {
   CollectionItem,
   CollectionStats,
   ValueHistoryResponse,
+  TCGType,
+  CardCondition,
 } from "@/types";
 import {
   LineChart,
@@ -48,10 +59,16 @@ import {
   Grid3x3,
   List,
   Trash2,
+  Pencil,
   ArrowUpRight,
   ArrowDownRight,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const PAGE_SIZE = 50;
+
+type SortKey = "name" | "value" | "date" | "gainloss";
 
 export function Collection() {
   const navigate = useNavigate();
@@ -61,38 +78,134 @@ export function Collection() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
+  // Filters
+  const [filterTcg, setFilterTcg] = useState<TCGType | "all">("all");
+  const [filterCondition, setFilterCondition] = useState<CardCondition | "all">("all");
+
+  // Sorting
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortAsc, setSortAsc] = useState(true);
+
+  // Pagination
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Edit modal
+  const [editItem, setEditItem] = useState<CollectionItem | null>(null);
+
+  // Initial load + filter changes
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
+      setOffset(0);
       try {
+        const tcgParam = filterTcg === "all" ? undefined : filterTcg;
+        const params: Parameters<typeof collectionsApi.getItems>[0] = {
+          limit: PAGE_SIZE,
+          offset: 0,
+        };
+        if (filterTcg !== "all") params!.tcg_type = filterTcg;
+        if (filterCondition !== "all") params!.condition = filterCondition;
+
         const [i, s, vh] = await Promise.all([
-          collectionsApi.getItems({ limit: 200 }),
-          collectionsApi.getStats(),
+          collectionsApi.getItems(params),
+          collectionsApi.getStats(tcgParam),
           collectionsApi.getValueHistory(30),
         ]);
+        if (cancelled) return;
         setItems(i);
+        setHasMore(i.length === PAGE_SIZE);
         setStats(s);
         setValueHistory(vh);
       } catch {
-        toast.error("Failed to load collection");
+        if (!cancelled) toast.error("Failed to load collection");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
-  }, []);
+    return () => { cancelled = true; };
+  }, [filterTcg, filterCondition]);
+
+  async function handleLoadMore() {
+    const nextOffset = offset + PAGE_SIZE;
+    setLoadingMore(true);
+    try {
+      const params: Parameters<typeof collectionsApi.getItems>[0] = {
+        limit: PAGE_SIZE,
+        offset: nextOffset,
+      };
+      if (filterTcg !== "all") params!.tcg_type = filterTcg;
+      if (filterCondition !== "all") params!.condition = filterCondition;
+
+      const more = await collectionsApi.getItems(params);
+      setItems((prev) => [...prev, ...more]);
+      setOffset(nextOffset);
+      setHasMore(more.length === PAGE_SIZE);
+    } catch {
+      toast.error("Failed to load more items");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function handleDelete(itemId: number) {
     if (!window.confirm("Remove this card from your collection?")) return;
     try {
       await collectionsApi.deleteItem(itemId);
       setItems((prev) => prev.filter((i) => i.id !== itemId));
-      collectionsApi.getStats().then(setStats).catch(() => {});
+      const tcgParam = filterTcg === "all" ? undefined : filterTcg;
+      collectionsApi.getStats(tcgParam).then(setStats).catch(() => {});
       toast.success("Removed from collection");
     } catch {
       toast.error("Failed to remove item");
     }
   }
+
+  function handleSaved(updated: CollectionItem) {
+    setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    const tcgParam = filterTcg === "all" ? undefined : filterTcg;
+    collectionsApi.getStats(tcgParam).then(setStats).catch(() => {});
+  }
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortAsc((prev) => !prev);
+    } else {
+      setSortKey(key);
+      setSortAsc(true);
+    }
+  }
+
+  const sortedItems = useMemo(() => {
+    const sorted = [...items].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "name":
+          cmp = (a.card?.name ?? "").localeCompare(b.card?.name ?? "");
+          break;
+        case "value": {
+          const av = a.current_value ? Number(a.current_value) : 0;
+          const bv = b.current_value ? Number(b.current_value) : 0;
+          cmp = av - bv;
+          break;
+        }
+        case "date":
+          cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case "gainloss": {
+          const aGain = getGainLoss(a) ?? -Infinity;
+          const bGain = getGainLoss(b) ?? -Infinity;
+          cmp = aGain - bGain;
+          break;
+        }
+      }
+      return sortAsc ? cmp : -cmp;
+    });
+    return sorted;
+  }, [items, sortKey, sortAsc]);
 
   if (loading) {
     return (
@@ -110,6 +223,8 @@ export function Collection() {
 
   const profitLoss = stats?.profit_loss ?? 0;
   const isProfitable = profitLoss >= 0;
+  const sortIndicator = (key: SortKey) =>
+    sortKey === key ? (sortAsc ? " \u2191" : " \u2193") : "";
 
   return (
     <div className="space-y-6">
@@ -241,21 +356,69 @@ export function Collection() {
         </Card>
       )}
 
-      {items.length === 0 ? (
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={filterTcg} onValueChange={(v) => setFilterTcg(v as TCGType | "all")}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All TCG Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All TCG Types</SelectItem>
+            {(Object.entries(TCG_LABELS) as [TCGType, string][]).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterCondition} onValueChange={(v) => setFilterCondition(v as CardCondition | "all")}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All Conditions" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Conditions</SelectItem>
+            {(Object.entries(CONDITION_LABELS) as [CardCondition, string][]).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex items-center gap-1 ml-auto">
+          <span className="text-sm text-muted-foreground mr-1">Sort:</span>
+          {([
+            ["name", "Name"],
+            ["value", "Value"],
+            ["date", "Date"],
+            ["gainloss", "Gain/Loss"],
+          ] as [SortKey, string][]).map(([key, label]) => (
+            <Badge
+              key={key}
+              variant={sortKey === key ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => handleSort(key)}
+            >
+              {label}{sortIndicator(key)}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      {sortedItems.length === 0 ? (
         <Card className="p-12 text-center">
           <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">No cards in collection</h3>
           <p className="text-muted-foreground mb-4">
-            Start adding cards to track their value over time
+            {filterTcg !== "all" || filterCondition !== "all"
+              ? "No cards match your filters. Try adjusting them."
+              : "Start adding cards to track their value over time"}
           </p>
-          <Button onClick={() => navigate("/search")}>Browse Cards</Button>
+          {filterTcg === "all" && filterCondition === "all" && (
+            <Button onClick={() => navigate("/search")}>Browse Cards</Button>
+          )}
         </Card>
       ) : viewMode === "grid" ? (
         <div className="space-y-1">
-          {items.map((item) => {
-            const currentValue = item.current_value ? Number(item.current_value) : 0;
-            const invested = item.purchase_price ? Number(item.purchase_price) * item.quantity : 0;
-            const gainLoss = invested > 0 ? currentValue - invested : null;
+          {sortedItems.map((item) => {
+            const gainLoss = getGainLoss(item);
 
             return (
               <div
@@ -282,15 +445,26 @@ export function Collection() {
                     {item.card?.set_name} · {CONDITION_LABELS[item.condition]}
                   </p>
                 </div>
-                <div className="flex items-center gap-4 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <div className="text-right">
-                    <p className="text-sm font-semibold">{formatPrice(currentValue)}</p>
+                    <p className="text-sm font-semibold">{formatPrice(item.current_value ? Number(item.current_value) : 0)}</p>
                     {gainLoss !== null && (
                       <p className={`text-xs font-medium ${gainLoss >= 0 ? "text-success" : "text-danger"}`}>
                         {gainLoss >= 0 ? "+" : ""}{formatPrice(gainLoss)}
                       </p>
                     )}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditItem(item);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -323,10 +497,10 @@ export function Collection() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => {
+                {sortedItems.map((item) => {
                   const currentValue = item.current_value ? Number(item.current_value) : 0;
                   const invested = item.purchase_price ? Number(item.purchase_price) * item.quantity : 0;
-                  const gainLoss = invested > 0 ? currentValue - invested : null;
+                  const gainLoss = getGainLoss(item);
 
                   return (
                     <TableRow key={item.id}>
@@ -355,13 +529,22 @@ export function Collection() {
                         {gainLoss !== null ? `${gainLoss >= 0 ? "+" : ""}${formatPrice(gainLoss)}` : "-"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(item.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditItem(item)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(item.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -371,6 +554,28 @@ export function Collection() {
           </CardContent>
         </Card>
       )}
+
+      {hasMore && sortedItems.length > 0 && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={handleLoadMore} disabled={loadingMore}>
+            {loadingMore ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            Load More
+          </Button>
+        </div>
+      )}
+
+      <EditCollectionItemModal
+        item={editItem}
+        open={!!editItem}
+        onOpenChange={(open) => !open && setEditItem(null)}
+        onSaved={handleSaved}
+      />
     </div>
   );
+}
+
+function getGainLoss(item: CollectionItem): number | null {
+  const currentValue = item.current_value ? Number(item.current_value) : 0;
+  const invested = item.purchase_price ? Number(item.purchase_price) * item.quantity : 0;
+  return invested > 0 ? currentValue - invested : null;
 }
