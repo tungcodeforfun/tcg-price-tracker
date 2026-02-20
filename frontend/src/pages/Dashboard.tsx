@@ -400,7 +400,7 @@ export function Dashboard() {
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {a.alert_type === "above" ? "Above" : "Below"}{" "}
-                          {formatPrice(a.price_threshold)}
+                          {formatPrice(a.target_price)}
                         </p>
                       </div>
                     </div>
