@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Main application service
   tcg-tracker:
@@ -33,6 +31,8 @@ services:
       - API_EBAY_CLIENT_SECRET=${API_EBAY_CLIENT_SECRET}
       - API_EBAY_SANDBOX_CLIENT_ID=${API_EBAY_SANDBOX_CLIENT_ID}
       - API_EBAY_SANDBOX_CLIENT_SECRET=${API_EBAY_SANDBOX_CLIENT_SECRET}
+      - API_EBAY_VERIFICATION_TOKEN=${API_EBAY_VERIFICATION_TOKEN}
+      - API_EBAY_DELETION_ENDPOINT=${API_EBAY_DELETION_ENDPOINT}
     volumes:
       - ./tcgtracker/src:/app/src
       - ./tcgtracker/tests:/app/tests

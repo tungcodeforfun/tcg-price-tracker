@@ -6,9 +6,12 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import ResponseValidationError
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from tcgtracker.config import get_settings
 
@@ -73,22 +76,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await db_manager.initialize()
         logger.info("Database connection pool initialized")
     except Exception as e:
-        logger.error(f"Failed to initialize database: {e}")
+        logger.error("Failed to initialize database", exc_info=e)
         # Don't raise here - let the app start even if DB is unavailable
-
-    # Initialize Redis connection pool
-    from tcgtracker.redis_manager import get_redis_manager
-
-    redis_manager = get_redis_manager()
-    try:
-        await redis_manager.initialize()
-        logger.info("Redis connection pool initialized")
-    except Exception as e:
-        logger.error(f"Failed to initialize Redis: {e}")
-        # Don't raise here - let the app start even if Redis is unavailable
-
-    # Start background tasks
-    # TODO: Initialize Celery workers
 
     logger.info("Application startup complete")
 
@@ -101,17 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await db_manager.close()
         logger.info("Database connections closed")
     except Exception as e:
-        logger.error(f"Error closing database connections: {e}")
-
-    # Clean up Redis connections
-    try:
-        await redis_manager.close()
-        logger.info("Redis connections closed")
-    except Exception as e:
-        logger.error(f"Error closing Redis connections: {e}")
-
-    # Stop background tasks
-    # TODO: Stop Celery workers
+        logger.error("Error closing database connections", exc_info=e)
 
     logger.info("Application shutdown complete")
 
@@ -128,6 +107,22 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Add rate limiter
+    from tcgtracker.api.rate_limit import limiter
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    @app.exception_handler(ResponseValidationError)
+    async def response_validation_handler(request: Request, exc: ResponseValidationError):
+        import logging as _log
+        import traceback
+        _log.getLogger("tcgtracker").error(
+            "ResponseValidationError on %s %s:\n%s",
+            request.method, request.url.path, traceback.format_exc(),
+        )
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -140,14 +135,29 @@ def create_app() -> FastAPI:
     # Add health check endpoint
     @app.get("/health", tags=["system"])
     async def health_check() -> JSONResponse:
-        """Health check endpoint."""
+        """Health check endpoint with database connectivity verification."""
+        from sqlalchemy import text
+
+        from tcgtracker.database.connection import get_db_manager
+
+        db_status = "unknown"
+        try:
+            db_manager = get_db_manager()
+            async with db_manager.get_session() as session:
+                await session.execute(text("SELECT 1"))
+            db_status = "connected"
+        except Exception:
+            db_status = "disconnected"
+
+        overall = "healthy" if db_status == "connected" else "degraded"
         return JSONResponse(
             content={
-                "status": "healthy",
+                "status": overall,
                 "service": "tcg-price-tracker",
                 "version": settings.app.version,
+                "database": db_status,
             },
-            status_code=200,
+            status_code=200 if overall == "healthy" else 503,
         )
 
     # Add root endpoint
@@ -163,8 +173,6 @@ def create_app() -> FastAPI:
             },
             status_code=200,
         )
-
-    from fastapi import Request
 
     # Global exception handler
     @app.exception_handler(Exception)

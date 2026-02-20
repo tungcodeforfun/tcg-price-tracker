@@ -10,7 +10,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from tcgtracker.api.dependencies import get_current_active_user, get_session
+from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.schemas import BulkPriceUpdate, PriceCreate
 from tcgtracker.api.schemas import PriceHistory as PriceHistorySchema
 from tcgtracker.api.schemas import PriceResponse, PriceSource
@@ -20,7 +20,6 @@ from tcgtracker.database.models import (
     CardConditionEnum,
     DataSourceEnum,
     PriceHistory,
-    TCGTypeEnum,
     User,
     UserAlert,
 )
@@ -47,31 +46,33 @@ async def fetch_and_update_price(
 
     if source == PriceSource.PRICECHARTING:
         # Fetch from PriceCharting
-        client = PriceChartingClient()
-        try:
-            result = await client.get_card_price(card.name)
-            if result:
-                # Transform PriceCharting data
-                price_data = result.get("complete_price", result.get("market_price", 0))
-                low_price = result.get("loose_price", result.get("low_price", 0))
-                high_price = result.get("new_price", result.get("high_price", 0))
-                avg_price = result.get("market_price", result.get("mid_price", 0))
-        except Exception as e:
-            logger.error("Error fetching PriceCharting price", exc_info=e)
+        async with PriceChartingClient() as client:
+            try:
+                result = await client.get_card_price(card.name)
+                if result:
+                    # Transform PriceCharting data
+                    price_data = result.get(
+                        "complete_price", result.get("market_price", 0)
+                    )
+                    low_price = result.get("loose_price", result.get("low_price", 0))
+                    high_price = result.get("new_price", result.get("high_price", 0))
+                    avg_price = result.get("market_price", result.get("mid_price", 0))
+            except Exception as e:
+                logger.error("Error fetching PriceCharting price", exc_info=e)
 
     elif source == PriceSource.JUSTTCG:
         # Fetch from JustTCG
-        client = JustTCGClient()
-        try:
-            game = "pokemon" if card.tcg_type == TCGTypeEnum.POKEMON else "onepiece"
-            result = await client.get_card_price(card.name, game=game)
-            if result:
-                price_data = result.get("market_price", 0)
-                low_price = result.get("low_price", 0)
-                high_price = result.get("high_price", 0)
-                avg_price = result.get("mid_price", 0)
-        except Exception as e:
-            logger.error("Error fetching JustTCG price", exc_info=e)
+        async with JustTCGClient() as client:
+            try:
+                game = card.tcg_type.value
+                result = await client.get_card_price(card.name, game=game)
+                if result:
+                    price_data = result.get("market_price", 0)
+                    low_price = result.get("low_price", 0)
+                    high_price = result.get("high_price", 0)
+                    avg_price = result.get("mid_price", 0)
+            except Exception as e:
+                logger.error("Error fetching JustTCG price", exc_info=e)
 
     elif source == PriceSource.TCGPLAYER and card.external_id:
         # Fetch from TCGPlayer
@@ -108,17 +109,24 @@ async def fetch_and_update_price(
             PriceSource.CARDMARKET: DataSourceEnum.CARDMARKET,
         }
 
+        now = datetime.now(timezone.utc)
+        market = Decimal(str(price_data))
         new_price = PriceHistory(
             card_id=card.id,
             source=source_mapping.get(source, DataSourceEnum.MANUAL),
-            market_price=Decimal(str(price_data)),
+            market_price=market,
             price_low=Decimal(str(low_price)) if low_price else None,
             price_high=Decimal(str(high_price)) if high_price else None,
             price_avg=Decimal(str(avg_price)) if avg_price else None,
             condition=CardConditionEnum.NEAR_MINT,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now,
         )
         db.add(new_price)
+
+        # Update denormalized price columns on card
+        card.latest_market_price = market
+        card.latest_price_updated_at = now
+
         await db.commit()
         return new_price
 
@@ -129,7 +137,7 @@ async def fetch_and_update_price(
 async def create_price(
     price_data: PriceCreate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistory:
     """Manually add a price entry for a card."""
     # Verify card exists
@@ -142,18 +150,29 @@ async def create_price(
         )
 
     try:
+        # Map API PriceSource enum to database DataSourceEnum
+        from tcgtracker.utils.enum_mappings import map_price_source_to_db
+
+        now = datetime.now(timezone.utc)
+        price_dict = price_data.model_dump(exclude={"listing_url"})
+        price_dict["source"] = map_price_source_to_db(price_data.source)
+        price_dict["timestamp"] = now
+
         # Create price entry
-        new_price = PriceHistory(**price_data.model_dump())
+        new_price = PriceHistory(**price_dict)
         db.add(new_price)
+
+        # Update denormalized price columns on card
+        card.latest_market_price = price_data.market_price
+        card.latest_price_updated_at = now
 
         # Check price alerts
         alerts_query = select(UserAlert).where(
             and_(
                 UserAlert.card_id == price_data.card_id,
-                UserAlert.is_active,
+                UserAlert.is_active.is_(True),
             )
         )
-        from typing import Sequence
 
         result_alerts = await db.execute(alerts_query)
         alerts: Sequence[UserAlert] = result_alerts.scalars().all()
@@ -188,7 +207,7 @@ async def get_price_history(
     days: int = Query(30, ge=1, le=365),
     source: Optional[PriceSource] = Query(None),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistorySchema:
     """Get price history for a specific card."""
     # Verify card exists
@@ -219,13 +238,18 @@ async def get_price_history(
 
     # Calculate statistics
     if prices:
-        price_values = [p.market_price for p in prices]
-        avg_price = sum(price_values) / len(price_values)
-        min_price = min(price_values)
-        max_price = max(price_values)
+        price_values = [p.market_price for p in prices if p.market_price is not None]
+        if price_values:
+            avg_price = sum(price_values) / len(price_values)
+            min_price = min(price_values)
+            max_price = max(price_values)
+        else:
+            avg_price = None
+            min_price = None
+            max_price = None
 
         # Determine trend
-        if len(prices) > 1:
+        if len(price_values) > 1:
             recent_avg = sum(price_values[-5:]) / len(price_values[-5:])
             older_avg = sum(price_values[:5]) / len(price_values[:5])
             if recent_avg > older_avg * 1.05:
@@ -254,9 +278,10 @@ async def get_price_history(
             timestamp=p.timestamp,
         )
         for p in prices
+        if p.market_price is not None
     ]
 
-    return PriceHistory(
+    return PriceHistorySchema(
         card_id=card_id,
         prices=price_responses,
         average_price=avg_price,
@@ -272,7 +297,7 @@ async def update_card_price(
     source: PriceSource = Query(PriceSource.PRICECHARTING),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> PriceHistory:
     """Fetch and update the latest price for a card."""
     # Get card
@@ -301,7 +326,7 @@ async def bulk_update_prices(
     update_request: BulkPriceUpdate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[PriceHistory]:
     """Bulk update prices for multiple cards."""
     # Get cards
@@ -323,14 +348,21 @@ async def bulk_update_prices(
             if new_price:
                 updated_prices.append(new_price)
         except Exception as e:
-            logger.error(f"Error updating price for card {card.id}", exc_info=e)
+            # Expire session state so subsequent iterations start clean
+            await db.rollback()
+            logger.error(
+                "Error updating price for card",
+                card_id=card.id,
+                exc_info=e,
+            )
             errors.append({"card_id": card.id, "error": str(e)})
             continue
 
-    # Log summary of errors if any occurred
     if errors:
         logger.warning(
-            f"Price update completed with {len(errors)} errors out of {len(cards)} cards"
+            "Price update completed with errors",
+            error_count=len(errors),
+            total_cards=len(cards),
         )
 
     return updated_prices
@@ -341,39 +373,124 @@ async def get_price_trends(
     tcg_type: Optional[str] = Query(None),
     days: int = Query(7, ge=1, le=30),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Get aggregated price trends."""
-    from datetime import timezone
-
+    """Get per-card price trends grouped by TCG type."""
     since_date = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Build query for price changes
+    # Get the earliest and latest price per card within the period
+    earliest_price_subq = (
+        select(
+            PriceHistory.card_id,
+            func.min(PriceHistory.timestamp).label("min_ts"),
+        )
+        .where(PriceHistory.timestamp >= since_date)
+        .group_by(PriceHistory.card_id)
+        .subquery()
+    )
+
+    latest_price_subq = (
+        select(
+            PriceHistory.card_id,
+            func.max(PriceHistory.timestamp).label("max_ts"),
+        )
+        .where(PriceHistory.timestamp >= since_date)
+        .group_by(PriceHistory.card_id)
+        .subquery()
+    )
+
+    # Get the actual earliest price values
+    earliest_prices = (
+        select(
+            PriceHistory.card_id,
+            PriceHistory.market_price.label("previous_price"),
+        )
+        .join(
+            earliest_price_subq,
+            and_(
+                PriceHistory.card_id == earliest_price_subq.c.card_id,
+                PriceHistory.timestamp == earliest_price_subq.c.min_ts,
+            ),
+        )
+        .subquery()
+    )
+
+    # Get the actual latest price values
+    latest_prices = (
+        select(
+            PriceHistory.card_id,
+            PriceHistory.market_price.label("current_price"),
+        )
+        .join(
+            latest_price_subq,
+            and_(
+                PriceHistory.card_id == latest_price_subq.c.card_id,
+                PriceHistory.timestamp == latest_price_subq.c.max_ts,
+            ),
+        )
+        .subquery()
+    )
+
+    # Join card info with earliest and latest prices
     query = (
         select(
+            Card.id.label("card_id"),
+            Card.name.label("card_name"),
+            Card.set_name,
             Card.tcg_type,
-            func.avg(PriceHistory.market_price).label("avg_price"),
-            func.count(PriceHistory.id).label("price_count"),
+            latest_prices.c.current_price,
+            earliest_prices.c.previous_price,
         )
-        .select_from(PriceHistory)
-        .join(Card)
-        .where(PriceHistory.timestamp >= since_date)
-        .group_by(Card.tcg_type)
+        .join(latest_prices, Card.id == latest_prices.c.card_id)
+        .join(earliest_prices, Card.id == earliest_prices.c.card_id)
+        .where(latest_prices.c.current_price.isnot(None))
     )
 
     if tcg_type:
         query = query.where(Card.tcg_type == tcg_type)
 
-    result = await db.execute(query)
-    trends = result.all()
+    # Order by absolute price change descending to surface biggest movers
+    query = query.order_by(
+        func.abs(latest_prices.c.current_price - earliest_prices.c.previous_price).desc()
+    ).limit(50)
 
-    # Format response
-    trend_data = {}
-    for trend in trends:
-        trend_data[trend.tcg_type] = {
-            "average_price": float(trend.avg_price) if trend.avg_price else 0,
-            "total_prices": trend.price_count,
-        }
+    result = await db.execute(query)
+    rows = result.all()
+
+    # Build per-tcg-type trend arrays
+    trend_data: dict[str, list[dict]] = {}
+    for row in rows:
+        current = float(row.current_price) if row.current_price is not None else None
+        previous = float(row.previous_price) if row.previous_price is not None else None
+
+        if current is not None and previous is not None:
+            change = current - previous
+            change_pct = (change / previous * 100) if previous != 0 else 0.0
+        else:
+            change = None
+            change_pct = None
+
+        if change is not None:
+            if change > 0:
+                trend = "up"
+            elif change < 0:
+                trend = "down"
+            else:
+                trend = "stable"
+        else:
+            trend = "stable"
+
+        tcg_key = row.tcg_type.value if hasattr(row.tcg_type, "value") else str(row.tcg_type)
+        trend_data.setdefault(tcg_key, []).append({
+            "card_id": row.card_id,
+            "card_name": row.card_name,
+            "set_name": row.set_name,
+            "current_price": current,
+            "previous_price": previous,
+            "change": round(change, 2) if change is not None else None,
+            "change_percentage": round(change_pct, 2) if change_pct is not None else None,
+            "trend": trend,
+        })
 
     return {
         "period_days": days,

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from tcgtracker.api.dependencies import get_current_active_user, get_session
+from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.schemas import (
     CardCondition,
     CollectionItemCreate,
@@ -23,13 +23,25 @@ from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
 router = APIRouter()
 
 
+def _populate_item_runtime_fields(item: CollectionItem) -> None:
+    """Set runtime fields needed for API response serialization."""
+    if item.card:
+        item.card.latest_price = item.card.latest_market_price
+        if item.card.latest_market_price is not None:
+            item.current_value = item.card.latest_market_price * item.quantity
+        else:
+            item.current_value = Decimal(0)
+    else:
+        item.current_value = Decimal(0)
+
+
 @router.post(
     "/items", response_model=CollectionItemResponse, status_code=status.HTTP_201_CREATED
 )
 async def add_to_collection(
     item_data: CollectionItemCreate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> CollectionItem:
     """Add a card to user's collection."""
     # Verify card exists
@@ -56,18 +68,30 @@ async def add_to_collection(
         # Update quantity instead of creating duplicate
         existing_item.quantity += item_data.quantity
         await db.commit()
-        await db.refresh(existing_item)
+
+        # Re-fetch with card eagerly loaded to avoid detached session issues
+        result = await db.execute(
+            select(CollectionItem)
+            .options(selectinload(CollectionItem.card))
+            .where(CollectionItem.id == existing_item.id)
+        )
+        existing_item = result.scalar_one()
+        _populate_item_runtime_fields(existing_item)
         return existing_item
 
     # Create new collection item
     new_item = CollectionItem(user_id=current_user.id, **item_data.model_dump())
     db.add(new_item)
     await db.commit()
-    await db.refresh(new_item)
 
-    # Load related data
-    await db.refresh(new_item, ["card"])
-
+    # Re-fetch with card eagerly loaded to avoid detached session issues
+    result = await db.execute(
+        select(CollectionItem)
+        .options(selectinload(CollectionItem.card))
+        .where(CollectionItem.id == new_item.id)
+    )
+    new_item = result.scalar_one()
+    _populate_item_runtime_fields(new_item)
     return new_item
 
 
@@ -78,12 +102,12 @@ async def get_collection_items(
     limit: int = Query(50, le=200),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> List[CollectionItem]:
     """Get user's collection items."""
     query = (
         select(CollectionItem)
-        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
+        .options(selectinload(CollectionItem.card))
         .where(CollectionItem.user_id == current_user.id)
     )
 
@@ -99,21 +123,8 @@ async def get_collection_items(
     result_items = await db.execute(query)
     items = result_items.scalars().all()
 
-    # Calculate current values efficiently
-    from decimal import Decimal
-
     for item in items:
-        if item.card and item.card.price_history:
-            # Price history is already loaded via selectinload
-            price_history = list(item.card.price_history)
-            if price_history:
-                # Calculate value based on latest price
-                latest_price = max(price_history, key=lambda p: p.timestamp)
-                item.current_value = latest_price.market_price * item.quantity
-            else:
-                item.current_value = Decimal(0)
-        else:
-            item.current_value = Decimal(0)
+        _populate_item_runtime_fields(item)
 
     return cast(List[CollectionItem], items)
 
@@ -122,12 +133,12 @@ async def get_collection_items(
 async def get_collection_item(
     item_id: int,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> CollectionItem:
     """Get a specific collection item."""
     result = await db.execute(
         select(CollectionItem)
-        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
+        .options(selectinload(CollectionItem.card))
         .where(
             and_(
                 CollectionItem.id == item_id,
@@ -142,17 +153,7 @@ async def get_collection_item(
             status_code=status.HTTP_404_NOT_FOUND, detail="Collection item not found"
         )
 
-    # Calculate current value
-    if item.card and item.card.price_history:
-        try:
-            # Calculate value based on latest price
-            latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
-            item.current_value = latest_price.market_price * item.quantity
-        except ValueError:  # Empty price_history
-            item.current_value = Decimal(0)
-    else:
-        item.current_value = Decimal(0)
-
+    _populate_item_runtime_fields(item)
     return item
 
 
@@ -161,7 +162,7 @@ async def update_collection_item(
     item_id: int,
     item_update: CollectionItemUpdate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> CollectionItem:
     """Update a collection item."""
     result = await db.execute(
@@ -185,8 +186,15 @@ async def update_collection_item(
         setattr(item, field, value)
 
     await db.commit()
-    await db.refresh(item, ["card"])
 
+    # Re-fetch with card eagerly loaded to avoid detached session issues
+    result = await db.execute(
+        select(CollectionItem)
+        .options(selectinload(CollectionItem.card))
+        .where(CollectionItem.id == item_id)
+    )
+    item = result.scalar_one()
+    _populate_item_runtime_fields(item)
     return item
 
 
@@ -194,7 +202,7 @@ async def update_collection_item(
 async def remove_from_collection(
     item_id: int,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """Remove an item from collection."""
     result = await db.execute(
@@ -220,7 +228,7 @@ async def remove_from_collection(
 async def get_collection_stats(
     tcg_type: Optional[TCGType] = Query(None),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> CollectionStats:
     """Get collection statistics."""
     # Base query for user's collection
@@ -231,7 +239,7 @@ async def get_collection_stats(
 
     result = await db.execute(
         query.options(
-            selectinload(CollectionItem.card).selectinload(Card.price_history)
+            selectinload(CollectionItem.card)
         )
     )
     items = result.scalars().all()
@@ -247,13 +255,9 @@ async def get_collection_stats(
         if item.purchase_price:
             total_invested += item.purchase_price * item.quantity
 
-        # Calculate current value
-        if item.card and item.card.price_history:
-            try:
-                latest_price = max(item.card.price_history, key=lambda p: p.timestamp)
-                total_value += latest_price.market_price * item.quantity
-            except ValueError:  # Empty price_history
-                pass  # Skip this item's value
+        # Calculate current value from denormalized price column
+        if item.card and item.card.latest_market_price is not None:
+            total_value += item.card.latest_market_price * item.quantity
 
     profit_loss = total_value - total_invested
     profit_loss_percentage = (
@@ -274,7 +278,7 @@ async def get_collection_stats(
 async def get_collection_value_history(
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Get historical value of collection."""
     from datetime import datetime, timedelta, timezone
@@ -282,7 +286,7 @@ async def get_collection_value_history(
     # Get user's collection items
     result = await db.execute(
         select(CollectionItem)
-        .options(selectinload(CollectionItem.card).selectinload(Card.price_history))
+        .options(selectinload(CollectionItem.card))
         .where(CollectionItem.user_id == current_user.id)
     )
     items = result.scalars().all()
@@ -319,6 +323,9 @@ async def get_collection_value_history(
     result = await db.execute(price_query)
     price_history = result.all()
 
+    # Build quantity lookup dict to avoid N+1 inner loop
+    card_quantities = {item.card_id: item.quantity for item in items}
+
     # Build daily value history
     daily_values = {}
     for price_record in price_history:
@@ -326,11 +333,9 @@ async def get_collection_value_history(
         if date_str not in daily_values:
             daily_values[date_str] = Decimal("0")
 
-        # Find corresponding collection item
-        for item in items:
-            if item.card_id == price_record.card_id:
-                daily_values[date_str] += price_record.avg_price * item.quantity
-                break
+        qty = card_quantities.get(price_record.card_id, 0)
+        if price_record.avg_price is not None and qty > 0:
+            daily_values[date_str] += price_record.avg_price * qty
 
     # Format response
     history = [

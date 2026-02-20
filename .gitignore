@@ -15,8 +15,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -64,6 +64,8 @@ logs/
 # Temporary files
 tmp/
 temp/
+*.backup
+*.bak
 
 # Node modules (if using any frontend)
 node_modules/
@@ -80,13 +82,16 @@ secrets/.env.sandbox
 .env.staging
 .env.test
 *.env.*
+!.env.example
 
 # Claude AI configuration
 .claude/
 *.claude
+.mcp.json
 
 # Documentation and test files
 docs/
 test.html
 test*.json
+postman-collection.json
 *.pyc

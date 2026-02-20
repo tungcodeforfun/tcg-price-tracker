@@ -164,37 +164,45 @@ class PriceChartingClient(BaseAPIClient):
             return []
 
     async def get_pokemon_products(
-        self, set_name: Optional[str] = None, limit: int = 100
+        self,
+        search_term: Optional[str] = None,
+        set_name: Optional[str] = None,
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         Get Pokemon card products.
 
         Args:
-            set_name: Optional set name filter
+            search_term: Search query
+            set_name: Alias for search_term (deprecated)
             limit: Maximum number of results
 
         Returns:
             List of Pokemon card products
         """
-        query = set_name if set_name else ""
+        query = search_term or set_name or ""
         return await self.search_products(
             query=query, console="pokemon-cards", limit=limit
         )
 
     async def get_one_piece_products(
-        self, set_name: Optional[str] = None, limit: int = 100
+        self,
+        search_term: Optional[str] = None,
+        set_name: Optional[str] = None,
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         Get One Piece card products.
 
         Args:
-            set_name: Optional set name filter
+            search_term: Search query
+            set_name: Alias for search_term (deprecated)
             limit: Maximum number of results
 
         Returns:
             List of One Piece card products
         """
-        query = set_name if set_name else ""
+        query = search_term or set_name or ""
         return await self.search_products(
             query=query, console="one-piece-cards", limit=limit
         )
@@ -383,5 +391,3 @@ class PriceChartingClient(BaseAPIClient):
         except Exception as e:
             logger.warning(f"Could not parse price '{price_str}': {e}")
             return None
-
-        return None

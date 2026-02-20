@@ -93,7 +93,7 @@ class JustTCGClient(BaseAPIClient):
         }
 
         if game:
-            params["game"] = game
+            params["game"] = self._map_tcg_type_to_api_game(game)
         if set_code:
             params["set"] = set_code
 
@@ -291,6 +291,19 @@ class JustTCGClient(BaseAPIClient):
 
     def _transform_card(self, card: Dict[str, Any]) -> Dict[str, Any]:
         """Transform JustTCG card to internal format."""
+        tcgplayer_id = card.get("tcgplayerId")
+        image_url = (
+            f"https://product-images.tcgplayer.com/fit-in/437x437/{tcgplayer_id}.jpg"
+            if tcgplayer_id
+            else None
+        )
+
+        # Extract price from first variant if available
+        variants = card.get("variants", [])
+        market_price = None
+        if variants:
+            market_price = self._parse_price(variants[0].get("price"))
+
         return {
             "id": card.get("id"),
             "name": card.get("name"),
@@ -298,7 +311,8 @@ class JustTCGClient(BaseAPIClient):
             "set_code": card.get("set_code"),
             "number": card.get("collector_number"),
             "rarity": card.get("rarity"),
-            "image_url": card.get("image_url"),
+            "image_url": image_url,
+            "market_price": market_price,
             "justtcg_id": card.get("id"),
             "game": card.get("game"),
             "tcg_type": self._map_game_to_tcg_type(card.get("game")),
@@ -360,17 +374,36 @@ class JustTCGClient(BaseAPIClient):
             "justtcg_id": set_data.get("id"),
         }
 
-    def _map_game_to_tcg_type(self, game: str) -> str:
-        """Map JustTCG game names to our TCG types."""
+    def _map_tcg_type_to_api_game(self, tcg_type: str) -> str:
+        """Map internal TCG type to JustTCG API game parameter."""
         mapping = {
             "pokemon": "pokemon",
-            "onepiece": "one_piece",
-            "magic": "magic",
+            "onepiece": "one-piece-card-game",
+            "magic": "magic-the-gathering",
             "yugioh": "yugioh",
-            "lorcana": "lorcana",
-            "digimon": "digimon",
+            "lorcana": "disney-lorcana",
+            "digimon": "digimon-card-game",
         }
-        return mapping.get(game, game)
+        return mapping.get(tcg_type, tcg_type)
+
+    def _map_game_to_tcg_type(self, game: str) -> str:
+        """Map JustTCG API game names back to internal TCG types."""
+        # Normalize: lowercase and replace spaces with hyphens to handle
+        # both slug format ("one-piece-card-game") and display format
+        # ("One Piece Card Game") from the API
+        normalized = (game or "").lower().replace(" ", "-")
+        mapping = {
+            "pokemon": "pokemon",
+            "one-piece-card-game": "onepiece",
+            "magic-the-gathering": "magic",
+            "magic:-the-gathering": "magic",
+            "yugioh": "yugioh",
+            "yu-gi-oh": "yugioh",
+            "yu-gi-oh!": "yugioh",
+            "disney-lorcana": "lorcana",
+            "digimon-card-game": "digimon",
+        }
+        return mapping.get(normalized, game)
 
     def _parse_price(self, price_value: Any) -> Optional[Decimal]:
         """Parse price value to Decimal."""

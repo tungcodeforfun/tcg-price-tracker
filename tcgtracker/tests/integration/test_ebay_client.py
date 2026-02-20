@@ -1,6 +1,6 @@
 """Tests for eBay API client."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -154,6 +154,7 @@ class TesteBayClient:
             client_id="test_client_id",
             client_secret="test_client_secret",
             base_url="https://api.ebay.com",
+            environment="production",
         )
         yield client
         await client.close()
@@ -206,7 +207,7 @@ class TesteBayClient:
         """Test ensuring valid token when valid token exists."""
         # Set up valid token
         client._access_token = "valid_token"
-        client._token_expires_at = datetime.utcnow() + timedelta(hours=1)
+        client._token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
         with patch.object(
             client, "_get_application_token", new_callable=AsyncMock
@@ -221,7 +222,7 @@ class TesteBayClient:
         """Test ensuring valid token when token is expired."""
         # Set up expired token
         client._access_token = "expired_token"
-        client._token_expires_at = datetime.utcnow() - timedelta(minutes=5)
+        client._token_expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
 
         with patch.object(
             client, "_get_application_token", new_callable=AsyncMock
@@ -395,10 +396,14 @@ class TesteBayClient:
         self, client, mock_search_response
     ):
         """Test card price analysis for Pokemon."""
+        mock_cards = [
+            {"itemId": "123", "title": "Charizard", "price": 299.99,
+             "imageUrl": None, "viewItemURL": None}
+        ]
         with patch.object(
-            client, "search_pokemon_cards", new_callable=AsyncMock
+            client, "search_cards", new_callable=AsyncMock
         ) as mock_search:
-            mock_search.return_value = mock_search_response["itemSummaries"]
+            mock_search.return_value = mock_cards
 
             with patch.object(
                 client, "get_price_statistics", new_callable=AsyncMock
@@ -422,12 +427,12 @@ class TesteBayClient:
 
                 assert result["search_query"]["card_name"] == "Charizard"
                 assert result["search_query"]["tcg_type"] == "pokemon"
-                assert result["items"] == mock_search_response["itemSummaries"]
+                assert result["items"] == mock_cards
                 assert "price_statistics" in result
                 assert "search_timestamp" in result
 
                 mock_search.assert_called_once_with(
-                    "Charizard", "Base Set", "near_mint", 50
+                    "Charizard", tcg_type="pokemon", limit=50
                 )
                 mock_stats.assert_called_once()
 
@@ -436,15 +441,19 @@ class TesteBayClient:
         self, client, mock_search_response
     ):
         """Test card price analysis for One Piece."""
+        mock_cards = [
+            {"itemId": "456", "title": "Luffy", "price": 29.99,
+             "imageUrl": None, "viewItemURL": None}
+        ]
         with patch.object(
-            client, "search_one_piece_cards", new_callable=AsyncMock
+            client, "search_cards", new_callable=AsyncMock
         ) as mock_search:
-            mock_search.return_value = mock_search_response["itemSummaries"]
+            mock_search.return_value = mock_cards
 
             with patch.object(
                 client, "get_price_statistics", new_callable=AsyncMock
             ) as mock_stats:
-                mock_stats.return_value = {"count": 1, "avg_price": 299.99}
+                mock_stats.return_value = {"count": 1, "avg_price": 29.99}
 
                 result = await client.search_and_analyze_card_prices(
                     card_name="Luffy", tcg_type="onepiece", limit=25
@@ -453,14 +462,27 @@ class TesteBayClient:
                 assert result["search_query"]["card_name"] == "Luffy"
                 assert result["search_query"]["tcg_type"] == "onepiece"
 
-                mock_search.assert_called_once_with("Luffy", None, None, 25)
+                mock_search.assert_called_once_with(
+                    "Luffy", tcg_type="onepiece", limit=25
+                )
 
     @pytest.mark.asyncio
-    async def test_search_and_analyze_card_prices_invalid_tcg_type(self, client):
-        """Test card price analysis with invalid TCG type."""
-        with pytest.raises(ValidationError, match="Unsupported TCG type: invalid"):
-            await client.search_and_analyze_card_prices(
+    async def test_search_and_analyze_card_prices_unknown_tcg_type(self, client):
+        """Test card price analysis with unknown TCG type falls back gracefully."""
+        mock_cards = []
+        with patch.object(
+            client, "search_cards", new_callable=AsyncMock
+        ) as mock_search:
+            mock_search.return_value = mock_cards
+
+            result = await client.search_and_analyze_card_prices(
                 card_name="Test", tcg_type="invalid"
+            )
+
+            assert result["search_query"]["tcg_type"] == "invalid"
+            assert result["items"] == []
+            mock_search.assert_called_once_with(
+                "Test", tcg_type="invalid", limit=100
             )
 
     @pytest.mark.asyncio

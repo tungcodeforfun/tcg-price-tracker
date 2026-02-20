@@ -1,7 +1,7 @@
 """Circuit breaker implementation for external API integrations."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, TypeVar
 
@@ -106,7 +106,7 @@ class CircuitBreaker:
         if self._last_failure_time is None:
             return False
 
-        time_since_failure = datetime.utcnow() - self._last_failure_time
+        time_since_failure = datetime.now(timezone.utc) - self._last_failure_time
         return time_since_failure.total_seconds() >= self.recovery_timeout
 
     async def _record_success(self) -> None:
@@ -129,7 +129,7 @@ class CircuitBreaker:
         """Record a failed operation."""
         async with self._lock:
             self._failure_count += 1
-            self._last_failure_time = datetime.utcnow()
+            self._last_failure_time = datetime.now(timezone.utc)
             self._success_count = 0
 
             if self._state == CircuitState.HALF_OPEN:

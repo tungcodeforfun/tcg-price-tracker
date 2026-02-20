@@ -1,7 +1,7 @@
 """eBay Browse API client implementation."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import structlog
@@ -142,7 +142,7 @@ class eBayClient(BaseAPIClient):
         async with self._token_lock:
             # Check if current token is still valid
             if self._access_token and self._token_expires_at:
-                if datetime.utcnow() < self._token_expires_at:
+                if datetime.now(timezone.utc) < self._token_expires_at:
                     return  # Token is still valid
 
             # Get new application token
@@ -154,7 +154,7 @@ class eBayClient(BaseAPIClient):
                 raise AuthenticationError(f"Failed to ensure valid token: {e}")
 
             # eBay application tokens typically last 2 hours
-            self._token_expires_at = datetime.utcnow() + timedelta(
+            self._token_expires_at = datetime.now(timezone.utc) + timedelta(
                 hours=2, minutes=-5
             )  # 5min buffer
 
@@ -386,6 +386,55 @@ class eBayClient(BaseAPIClient):
 
         return result.get("itemSummaries", [])
 
+    async def search_cards(
+        self,
+        query: str,
+        tcg_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for TCG cards by query and game type.
+
+        Args:
+            query: Search query
+            tcg_type: TCG type (e.g. "pokemon", "onepiece")
+            limit: Maximum number of results
+
+        Returns:
+            List of card listing dicts with price, itemId, title, imageUrl, viewItemURL
+        """
+        tcg = (tcg_type or "").lower()
+        # Map game types to eBay search prefixes and category IDs
+        game_config = {
+            "pokemon": ("Pokemon", "183454"),
+            "onepiece": ("One Piece card", "2536"),
+            "one_piece": ("One Piece card", "2536"),
+            "magic": ("MTG Magic the Gathering", "2536"),
+            "yugioh": ("Yu-Gi-Oh", "2536"),
+            "lorcana": ("Disney Lorcana", "2536"),
+            "digimon": ("Digimon card", "2536"),
+        }
+        prefix, category = game_config.get(tcg, ("Trading card", "2536"))
+        result = await self.search_items(
+            query=f"{prefix} {query}",
+            category_id=category,
+            limit=limit,
+        )
+        items = result.get("itemSummaries", [])
+
+        results = []
+        for item in items:
+            price_info = item.get("price", {})
+            price_val = float(price_info["value"]) if price_info.get("value") else None
+            results.append({
+                "itemId": item.get("itemId", ""),
+                "title": item.get("title", "Unknown"),
+                "price": price_val,
+                "imageUrl": (item.get("image", {}) or {}).get("imageUrl"),
+                "viewItemURL": item.get("itemWebUrl"),
+            })
+        return results
+
     async def get_price_statistics(self, items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Calculate price statistics from a list of items.
@@ -467,17 +516,8 @@ class eBayClient(BaseAPIClient):
         Returns:
             Search results with price analysis
         """
-        # Search for cards based on TCG type
-        if tcg_type.lower() == "pokemon":
-            items = await self.search_pokemon_cards(
-                card_name, set_name, condition, limit
-            )
-        elif tcg_type.lower() in ("onepiece", "one_piece"):
-            items = await self.search_one_piece_cards(
-                card_name, set_name, condition, limit
-            )
-        else:
-            raise ValidationError(f"Unsupported TCG type: {tcg_type}")
+        # Search for cards based on TCG type using the generic search_cards method
+        items = await self.search_cards(card_name, tcg_type=tcg_type, limit=limit)
 
         # Calculate price statistics
         price_stats = await self.get_price_statistics(items)
@@ -491,5 +531,5 @@ class eBayClient(BaseAPIClient):
             },
             "items": items,
             "price_statistics": price_stats,
-            "search_timestamp": datetime.utcnow().isoformat(),
+            "search_timestamp": datetime.now(timezone.utc).isoformat(),
         }
