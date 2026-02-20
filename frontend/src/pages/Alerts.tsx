@@ -57,7 +57,7 @@ export function Alerts() {
 
   function startEditing(alert: PriceAlert) {
     setEditingAlertId(alert.id);
-    setEditPrice(String(alert.price_threshold));
+    setEditPrice(String(alert.target_price));
   }
 
   function cancelEditing() {
@@ -113,8 +113,8 @@ export function Alerts() {
   function checkIfTriggered(alert: PriceAlert): boolean {
     if (!alert.is_active || !alert.card?.latest_price) return false;
     return alert.alert_type === "below"
-      ? Number(alert.card.latest_price) < alert.price_threshold
-      : Number(alert.card.latest_price) > alert.price_threshold;
+      ? Number(alert.card.latest_price) < alert.target_price
+      : Number(alert.card.latest_price) > alert.target_price;
   }
 
   return (
@@ -205,7 +205,7 @@ export function Alerts() {
                         autoFocus
                       />
                     ) : (
-                      formatPrice(alert.price_threshold)
+                      formatPrice(alert.target_price)
                     )}
                   </p>
                 </div>

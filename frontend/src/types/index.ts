@@ -157,7 +157,7 @@ export interface PriceAlert {
   id: number;
   user_id: number;
   card_id: number;
-  price_threshold: number;
+  target_price: number;
   alert_type: AlertType;
   is_active: boolean;
   last_triggered: string | null;

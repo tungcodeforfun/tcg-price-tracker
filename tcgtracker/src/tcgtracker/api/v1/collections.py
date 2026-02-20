@@ -26,7 +26,6 @@ router = APIRouter()
 def _populate_item_runtime_fields(item: CollectionItem) -> None:
     """Set runtime fields needed for API response serialization."""
     if item.card:
-        item.card.latest_price = item.card.latest_market_price
         if item.card.latest_market_price is not None:
             item.current_value = item.card.latest_market_price * item.quantity
         else:

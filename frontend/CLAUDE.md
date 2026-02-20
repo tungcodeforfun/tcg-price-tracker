@@ -42,7 +42,7 @@
 - Register sends `application/json`
 - Card IDs are `number`, not string
 - Conditions are snake_case (`near_mint`, not `"Near Mint"`)
-- Alert create uses `target_price`, response returns `price_threshold`
+- Alert create and response both use `target_price` (mapped from DB `price_threshold`)
 - Tokens stored in localStorage (`access_token`, `refresh_token`)
 - 401 responses trigger automatic token refresh + retry
 

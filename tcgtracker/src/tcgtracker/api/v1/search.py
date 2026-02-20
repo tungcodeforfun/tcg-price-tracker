@@ -319,7 +319,6 @@ async def import_card_from_search(
     existing_card = result.scalar_one_or_none()
 
     if existing_card:
-        existing_card.latest_price = existing_card.latest_market_price
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=CardResponse.model_validate(existing_card).model_dump(mode="json"),
@@ -371,7 +370,6 @@ async def import_card_from_search(
             await db.commit()
             await db.refresh(new_card)
 
-        new_card.latest_price = new_card.latest_market_price
         return JSONResponse(
             status_code=status.HTTP_201_CREATED,
             content=CardResponse.model_validate(new_card).model_dump(mode="json"),
