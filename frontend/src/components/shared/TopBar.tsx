@@ -25,9 +25,16 @@ export function TopBar() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
     if (query.length < 2) {
       setSuggestions([]);
+    }
+  }
+
+  useEffect(() => {
+    if (query.length < 2) {
       return;
     }
 

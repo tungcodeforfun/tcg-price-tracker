@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,10 +15,12 @@ export function ImageWithFallback({
   ...props
 }: ImageWithFallbackProps) {
   const [error, setError] = useState(false);
+  const [prevSrc, setPrevSrc] = useState(src);
 
-  useEffect(() => {
+  if (src !== prevSrc) {
+    setPrevSrc(src);
     setError(false);
-  }, [src]);
+  }
 
   if (!src || error) {
     return (
