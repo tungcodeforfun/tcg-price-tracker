@@ -5,7 +5,16 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationInfo, field_validator
+from pydantic import (
+    AliasPath,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    ValidationInfo,
+    field_serializer,
+    field_validator,
+)
 
 
 class TCGType(str, Enum):
@@ -207,10 +216,12 @@ class CardResponse(CardBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    latest_price: Optional[Decimal] = None
+    latest_price: Optional[Decimal] = Field(
+        default=None, validation_alias=AliasPath("latest_market_price")
+    )
     price_trend: Optional[str] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class CardSearchParams(BaseModel):
@@ -357,14 +368,22 @@ class PriceAlertResponse(BaseModel):
     id: int
     user_id: int
     card_id: int
-    price_threshold: Decimal  # Matches database field name
+    target_price: Decimal = Field(validation_alias=AliasPath("price_threshold"))
     alert_type: str
     is_active: bool
-    last_triggered: Optional[datetime]  # Matches database field name
+    last_triggered: Optional[datetime] = None
     created_at: datetime
     card: Optional[CardResponse] = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @field_serializer("alert_type")
+    @classmethod
+    def serialize_alert_type(cls, v: object) -> str:
+        """Convert DB AlertTypeEnum back to frontend format (above/below)."""
+        from tcgtracker.utils.enum_mappings import map_db_alert_type_to_api
+
+        return map_db_alert_type_to_api(v)
 
 
 # Search schemas

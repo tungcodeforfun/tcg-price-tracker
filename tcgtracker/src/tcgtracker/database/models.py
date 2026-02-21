@@ -209,8 +209,7 @@ class Card(Base, TimestampMixin):
     def __repr__(self) -> str:
         return f"<Card(id={self.id}, name='{self.name}', set='{self.set_name}')>"
 
-    # Runtime attributes for API responses
-    latest_price: Optional[Decimal] = None
+    # Runtime attribute for API responses
     price_trend: Optional[str] = None
 
 

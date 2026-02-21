@@ -21,7 +21,6 @@ class TestPopulateItemRuntimeFields:
     def _make_card(self, latest_market_price=None):
         card = MagicMock()
         card.latest_market_price = latest_market_price
-        card.latest_price = None
         return card
 
     def _make_item(self, card=None, quantity=1):
@@ -30,15 +29,6 @@ class TestPopulateItemRuntimeFields:
         item.quantity = quantity
         item.current_value = None
         return item
-
-    def test_sets_latest_price_from_market_price(self):
-        """latest_price should be copied from latest_market_price."""
-        card = self._make_card(latest_market_price=Decimal("25.50"))
-        item = self._make_item(card=card, quantity=2)
-
-        _populate_item_runtime_fields(item)
-
-        assert card.latest_price == Decimal("25.50")
 
     def test_sets_current_value_quantity_times_price(self):
         """current_value = latest_market_price * quantity."""
@@ -74,7 +64,6 @@ class TestPopulateItemRuntimeFields:
         _populate_item_runtime_fields(item)
 
         assert item.current_value == Decimal("3096.14")
-        assert card.latest_price == Decimal("3096.14")
 
     def test_large_quantity(self):
         """Handles large quantities correctly."""
@@ -105,7 +94,6 @@ def _make_fake_card(card_id=1, name="Test Card", set_name="Test Set", price=Deci
     card.search_count = 0
     card.tcg_set_id = None
     card.latest_market_price = price
-    card.latest_price = None
     card.latest_price_updated_at = None
     card.price_trend = None
     card.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -175,7 +163,6 @@ class TestCollectionEndpoints:
     async def test_add_item_new(self, app, client, fake_card):
         """POST /collections/items creates a new item when card not in collection."""
         fake_item = _make_fake_collection_item(card=fake_card, card_id=fake_card.id)
-        fake_item.card.latest_price = fake_item.card.latest_market_price
 
         mock_session = AsyncMock()
 
@@ -223,7 +210,6 @@ class TestCollectionEndpoints:
         updated = _make_fake_collection_item(
             card=fake_card, card_id=fake_card.id, quantity=3
         )
-        updated.card.latest_price = updated.card.latest_market_price
 
         mock_session = AsyncMock()
 
@@ -264,7 +250,6 @@ class TestCollectionEndpoints:
         updated_item = _make_fake_collection_item(
             card=fake_card, card_id=fake_card.id, quantity=5
         )
-        updated_item.card.latest_price = updated_item.card.latest_market_price
 
         mock_session = AsyncMock()
 

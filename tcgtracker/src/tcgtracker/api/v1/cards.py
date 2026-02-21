@@ -71,8 +71,6 @@ async def get_card(
             status_code=status.HTTP_404_NOT_FOUND, detail="Card not found"
         )
 
-    card.latest_price = card.latest_market_price
-
     return card
 
 
@@ -120,9 +118,6 @@ async def list_cards(
 
     result = await db.execute(query)
     cards = result.scalars().all()
-
-    for card in cards:
-        card.latest_price = card.latest_market_price
 
     return cast(List[Card], cards)
 
@@ -228,8 +223,5 @@ async def search_cards(
 
     result = await db.execute(query)
     cards = result.scalars().all()
-
-    for card in cards:
-        card.latest_price = card.latest_market_price
 
     return cast(List[Card], cards)
