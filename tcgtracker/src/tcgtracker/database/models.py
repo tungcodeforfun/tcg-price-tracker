@@ -160,7 +160,7 @@ class Card(Base, TimestampMixin):
     name: Mapped[str] = mapped_column("card_name", String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
-    external_id: Mapped[Optional[int]] = mapped_column("tcgplayer_id", Integer, unique=True)
+    external_id: Mapped[Optional[str]] = mapped_column("tcgplayer_id", String(255), unique=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Foreign Keys
