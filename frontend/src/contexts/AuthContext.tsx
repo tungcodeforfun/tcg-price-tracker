@@ -13,7 +13,6 @@ import {
   usersApi,
   setTokens,
   clearTokens,
-  getAccessToken,
 } from "@/lib/api";
 
 interface AuthContextType {
@@ -26,7 +25,7 @@ interface AuthContextType {
     username: string,
     password: string,
   ) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -34,23 +33,27 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(() => !!getAccessToken());
+  const [isLoading, setIsLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    clearTokens();
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Server unreachable -- tokens will expire naturally
+    }
     setUser(null);
+    clearTokens();
   }, []);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      return;
-    }
-
     let cancelled = false;
     usersApi
       .getMe()
-      .then((u) => { if (!cancelled) setUser(u); })
+      .then((u) => {
+        if (!cancelled) {
+          setUser(u);
+        }
+      })
       .catch(() => { if (!cancelled) clearTokens(); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };

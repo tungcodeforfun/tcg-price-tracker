@@ -8,6 +8,8 @@ from typing import AsyncGenerator
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
 from fastapi.exceptions import ResponseValidationError
 from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
@@ -85,6 +87,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Shutting down TCG Price Tracker application")
 
+    # Clean up Redis connection
+    from tcgtracker.api.v1.auth import _redis_client
+
+    if _redis_client is not None:
+        try:
+            await _redis_client.aclose()
+            logger.info("Redis connection closed")
+        except Exception as e:
+            logger.error("Error closing Redis connection", exc_info=e)
+
     # Clean up database connections
     try:
         await db_manager.close()
@@ -93,6 +105,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Error closing database connections", exc_info=e)
 
     logger.info("Application shutdown complete")
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if not get_settings().app.debug:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
 
 
 def create_app() -> FastAPI:
@@ -122,6 +150,9 @@ def create_app() -> FastAPI:
             request.method, request.url.path, traceback.format_exc(),
         )
         return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+    # Add security headers middleware
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Add CORS middleware
     app.add_middleware(

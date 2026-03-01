@@ -102,6 +102,7 @@ class User(Base, TimestampMixin):
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     preferences: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     api_key: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)
@@ -154,12 +155,12 @@ class Card(Base, TimestampMixin):
         Enum(TCGTypeEnum, values_callable=lambda e: [x.value for x in e]),
         nullable=False, index=True,
     )
-    set_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    set_name: Mapped[str] = mapped_column("set_identifier", String(50), nullable=False, index=True)
     card_number: Mapped[Optional[str]] = mapped_column(String(20))
-    name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    name: Mapped[str] = mapped_column("card_name", String(255), nullable=False, index=True)
     rarity: Mapped[Optional[str]] = mapped_column(String(50), index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text)
-    external_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)
+    external_id: Mapped[Optional[str]] = mapped_column("tcgplayer_id", String(255), unique=True)
     search_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Foreign Keys
@@ -189,15 +190,15 @@ class Card(Base, TimestampMixin):
     # Constraints and Indexes
     __table_args__ = (
         UniqueConstraint(
-            "tcg_type", "set_name", "card_number", name="uq_cards_type_set_number"
+            "tcg_type", "set_identifier", "card_number", name="uq_cards_type_set_number"
         ),
-        Index("idx_cards_tcg_set", "tcg_type", "set_name"),
+        Index("idx_cards_tcg_set", "tcg_type", "set_identifier"),
         Index("idx_cards_popularity", "search_count", postgresql_using="btree"),
         Index(
             "idx_cards_name_search",
-            "name",
+            "card_name",
             postgresql_using="gin",
-            postgresql_ops={"name": "gin_trgm_ops"},
+            postgresql_ops={"card_name": "gin_trgm_ops"},
         ),
     )
 

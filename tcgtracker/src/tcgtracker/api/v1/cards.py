@@ -7,7 +7,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from tcgtracker.api.dependencies import get_current_user, get_session
+from tcgtracker.api.dependencies import get_current_user, get_session, require_admin
 from tcgtracker.api.schemas import (
     CardCreate,
     CardResponse,
@@ -24,7 +24,7 @@ router = APIRouter()
 async def create_card(
     card_data: CardCreate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> Card:
     """Create a new card."""
     # Check if card already exists
@@ -127,7 +127,7 @@ async def update_card(
     card_id: int,
     card_update: CardUpdate,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> Card:
     """Update a card."""
     result = await db.execute(select(Card).where(Card.id == card_id))
@@ -153,7 +153,7 @@ async def update_card(
 async def delete_card(
     card_id: int,
     db: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> None:
     """Delete a card."""
     result = await db.execute(select(Card).where(Card.id == card_id))

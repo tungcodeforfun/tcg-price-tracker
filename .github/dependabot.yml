@@ -40,6 +40,26 @@ updates:
       - "dependencies"
       - "docker"
 
+  # Frontend (npm) dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "tungcodeforfun"
+    assignees:
+      - "tungcodeforfun"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "javascript"
+
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
     directory: "/"

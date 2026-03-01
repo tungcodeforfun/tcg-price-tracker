@@ -34,7 +34,7 @@ class DatabaseManager:
 
         self._engine = create_async_engine(
             self.settings.database.url,
-            echo=self.settings.app.debug,
+            echo=self.settings.database.echo_sql,
             pool_size=self.settings.database.pool_size,
             max_overflow=self.settings.database.max_overflow,
             pool_timeout=self.settings.database.pool_timeout,
