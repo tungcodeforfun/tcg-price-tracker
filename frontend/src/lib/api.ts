@@ -25,14 +25,12 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
-let _authenticated = false;
-
 function markAuthenticated() {
-  _authenticated = true;
+  // no-op: cookies handle auth state; kept for call-site clarity
 }
 
 function clearTokens() {
-  _authenticated = false;
+  // no-op: httpOnly cookies are cleared by the backend logout endpoint
 }
 
 class ApiError extends Error {
@@ -63,14 +61,11 @@ async function doRefresh(): Promise<boolean> {
     });
 
     if (!res.ok) {
-      clearTokens();
       return false;
     }
 
-    _authenticated = true;
     return true;
   } catch {
-    clearTokens();
     return false;
   }
 }
