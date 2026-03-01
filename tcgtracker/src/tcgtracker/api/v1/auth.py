@@ -112,7 +112,7 @@ async def is_token_blacklisted(token: str) -> bool:
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-@limiter.limit("3/minute")
+@limiter.limit("30/minute" if settings.app.environment != "production" else "3/minute")
 async def register(
     request: Request,
     user_data: UserCreate,
@@ -175,7 +175,7 @@ async def register(
 
 
 @router.post("/login")
-@limiter.limit("5/minute")
+@limiter.limit("30/minute" if settings.app.environment != "production" else "5/minute")
 async def login(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -225,7 +225,7 @@ async def login(
 
 
 @router.post("/refresh")
-@limiter.limit("10/minute")
+@limiter.limit("60/minute" if settings.app.environment != "production" else "10/minute")
 async def refresh_token(
     request: Request,
     token_data: TokenRefresh | None = None,
