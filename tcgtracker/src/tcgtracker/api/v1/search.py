@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,7 @@ from tcgtracker.integrations.ebay import eBayClient
 from tcgtracker.integrations.justtcg import JustTCGClient
 from tcgtracker.integrations.pricecharting import PriceChartingClient
 from tcgtracker.integrations.tcgplayer import TCGPlayerClient
+from tcgtracker.api.rate_limit import limiter
 from tcgtracker.validation.sanitizers import sanitize_search_input
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,9 @@ router = APIRouter()
 
 
 @router.post("/tcgplayer", response_model=List[SearchResult])
+@limiter.limit("30/minute")
 async def search_tcgplayer(
+    request: Request,
     search_request: SearchRequest,
     current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
@@ -97,7 +100,9 @@ async def search_tcgplayer(
 
 
 @router.post("/pricecharting", response_model=List[SearchResult])
+@limiter.limit("30/minute")
 async def search_pricecharting(
+    request: Request,
     search_request: SearchRequest,
     current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
@@ -160,7 +165,9 @@ async def search_pricecharting(
 
 
 @router.post("/justtcg", response_model=List[SearchResult])
+@limiter.limit("30/minute")
 async def search_justtcg(
+    request: Request,
     search_request: SearchRequest,
     current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
@@ -205,7 +212,9 @@ async def search_justtcg(
 
 
 @router.post("/ebay", response_model=List[SearchResult])
+@limiter.limit("30/minute")
 async def search_ebay(
+    request: Request,
     search_request: SearchRequest,
     current_user: User = Depends(get_current_user),
 ) -> List[SearchResult]:
@@ -250,7 +259,9 @@ async def search_ebay(
 
 
 @router.post("/all", response_model=dict)
+@limiter.limit("30/minute")
 async def search_all_sources(
+    request: Request,
     search_request: SearchRequest,
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -267,12 +278,12 @@ async def search_all_sources(
     # Skip eBay in sandbox mode — sandbox returns fake data for any query
     settings = get_settings()
     tasks = {
-        "tcgplayer": search_tcgplayer(search_request, current_user),
-        "pricecharting": search_pricecharting(search_request, current_user),
-        "justtcg": search_justtcg(search_request, current_user),
+        "tcgplayer": search_tcgplayer(request, search_request, current_user),
+        "pricecharting": search_pricecharting(request, search_request, current_user),
+        "justtcg": search_justtcg(request, search_request, current_user),
     }
     if settings.external_apis.ebay_environment.lower() != "sandbox":
-        tasks["ebay"] = search_ebay(search_request, current_user)
+        tasks["ebay"] = search_ebay(request, search_request, current_user)
 
     try:
         gathered = await asyncio.wait_for(
@@ -299,7 +310,9 @@ async def search_all_sources(
 @router.post(
     "/import", response_model=CardResponse, status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("30/minute")
 async def import_card_from_search(
+    request: Request,
     search_result: SearchResult,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -386,7 +399,9 @@ async def import_card_from_search(
 
 
 @router.get("/suggestions", response_model=List[str])
+@limiter.limit("30/minute")
 async def get_search_suggestions(
+    request: Request,
     query: str,
     tcg_type: Optional[str] = None,
     limit: int = 10,

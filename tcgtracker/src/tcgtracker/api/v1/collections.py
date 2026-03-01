@@ -1,15 +1,17 @@
 """Collection management endpoints."""
 
+import logging
 from decimal import Decimal
 from typing import List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from tcgtracker.api.dependencies import get_current_user, get_session
+from tcgtracker.api.rate_limit import limiter
 from tcgtracker.api.schemas import (
     CardCondition,
     CollectionItemCreate,
@@ -19,6 +21,8 @@ from tcgtracker.api.schemas import (
     TCGType,
 )
 from tcgtracker.database.models import Card, CollectionItem, PriceHistory, User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -37,7 +41,9 @@ def _populate_item_runtime_fields(item: CollectionItem) -> None:
 @router.post(
     "/items", response_model=CollectionItemResponse, status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("60/minute")
 async def add_to_collection(
+    request: Request,
     item_data: CollectionItemCreate,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -76,6 +82,7 @@ async def add_to_collection(
         )
         existing_item = result.scalar_one()
         _populate_item_runtime_fields(existing_item)
+        logger.info("audit.collection_add", extra={"action": "collection_update_quantity", "user_id": current_user.id, "item_id": existing_item.id, "card_id": item_data.card_id})
         return existing_item
 
     # Create new collection item
@@ -91,11 +98,14 @@ async def add_to_collection(
     )
     new_item = result.scalar_one()
     _populate_item_runtime_fields(new_item)
+    logger.info("audit.collection_add", extra={"action": "collection_add", "user_id": current_user.id, "item_id": new_item.id, "card_id": item_data.card_id})
     return new_item
 
 
 @router.get("/items", response_model=List[CollectionItemResponse])
+@limiter.limit("60/minute")
 async def get_collection_items(
+    request: Request,
     tcg_type: Optional[TCGType] = Query(None),
     condition: Optional[CardCondition] = Query(None),
     limit: int = Query(50, le=200),
@@ -129,7 +139,9 @@ async def get_collection_items(
 
 
 @router.get("/items/{item_id}", response_model=CollectionItemResponse)
+@limiter.limit("60/minute")
 async def get_collection_item(
+    request: Request,
     item_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -157,7 +169,9 @@ async def get_collection_item(
 
 
 @router.put("/items/{item_id}", response_model=CollectionItemResponse)
+@limiter.limit("60/minute")
 async def update_collection_item(
+    request: Request,
     item_id: int,
     item_update: CollectionItemUpdate,
     db: AsyncSession = Depends(get_session),
@@ -198,7 +212,9 @@ async def update_collection_item(
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("60/minute")
 async def remove_from_collection(
+    request: Request,
     item_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -222,9 +238,13 @@ async def remove_from_collection(
     await db.delete(item)
     await db.commit()
 
+    logger.info("audit.collection_remove", extra={"action": "collection_remove", "user_id": current_user.id, "item_id": item_id})
+
 
 @router.get("/stats", response_model=CollectionStats)
+@limiter.limit("60/minute")
 async def get_collection_stats(
+    request: Request,
     tcg_type: Optional[TCGType] = Query(None),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -274,7 +294,9 @@ async def get_collection_stats(
 
 
 @router.get("/value-history", response_model=dict)
+@limiter.limit("60/minute")
 async def get_collection_value_history(
+    request: Request,
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),

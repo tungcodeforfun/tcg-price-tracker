@@ -90,23 +90,37 @@ def _hash_token(token: str) -> str:
 
 
 async def blacklist_token(token: str, expires_at: float) -> None:
-    """Add a token to the Redis blacklist with auto-expiry."""
+    """Add a token to the Redis blacklist with auto-expiry.
+
+    Raises on Redis failure so callers know the token was NOT blacklisted.
+    """
     ttl = int(expires_at - datetime.now(timezone.utc).timestamp())
     if ttl <= 0:
         return
     try:
         await _get_redis().setex(f"{_BLACKLIST_PREFIX}{_hash_token(token)}", ttl, "1")
     except aioredis.RedisError:
-        logger.warning("Failed to blacklist token — Redis unavailable")
+        logger.error("Failed to blacklist token — Redis unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not complete logout — please try again",
+        )
 
 
-async def is_token_blacklisted(token: str) -> bool:
-    """Check if a token has been blacklisted."""
+async def is_token_blacklisted(token: str, *, fail_closed: bool = False) -> bool:
+    """Check if a token has been blacklisted.
+
+    Args:
+        fail_closed: When True, returns True (deny) if Redis is unreachable.
+                     Use for sensitive flows like token refresh where accepting
+                     a revoked token is dangerous. Defaults to False for the
+                     general auth path so a Redis blip doesn't lock out all users.
+    """
     try:
         return await _get_redis().exists(f"{_BLACKLIST_PREFIX}{_hash_token(token)}") > 0
     except aioredis.RedisError:
-        logger.warning("Failed to check token blacklist — Redis unavailable")
-        return False
+        logger.error("Failed to check token blacklist — Redis unavailable")
+        return fail_closed
 
 
 @router.post(
@@ -153,6 +167,8 @@ async def register(
     await db.commit()
     await db.refresh(new_user)
 
+    logger.info("audit.register", extra={"action": "register", "user_id": new_user.id, "username": new_user.username})
+
     # Generate email verification JWT
     verify_payload = {
         "sub": str(new_user.id),
@@ -193,6 +209,7 @@ async def login(
     if not user or not await asyncio.to_thread(
         verify_password, form_data.password, user.password_hash
     ):
+        logger.warning("audit.login_failed", extra={"action": "login_failed", "username": form_data.username})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -212,6 +229,8 @@ async def login(
         data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
+
+    logger.info("audit.login_success", extra={"action": "login_success", "user_id": user.id, "username": user.username})
 
     response = JSONResponse(
         content={
@@ -261,8 +280,8 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
 
-    # Check if refresh token was blacklisted
-    if await is_token_blacklisted(raw_refresh):
+    # Check if refresh token was blacklisted (fail-closed: deny if Redis is down)
+    if await is_token_blacklisted(raw_refresh, fail_closed=True):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
         )
@@ -381,6 +400,8 @@ async def logout(
     exp = payload.get("exp", 0)
 
     await blacklist_token(resolved_token, float(exp))
+
+    logger.info("audit.logout", extra={"action": "logout", "user_id": current_user.id})
 
     response = JSONResponse(content={"message": "Logged out successfully"}, status_code=200)
     _clear_token_cookies(response)

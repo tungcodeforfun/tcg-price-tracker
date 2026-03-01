@@ -2,6 +2,7 @@
 
 # Configure structured logging
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -108,6 +109,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    _CSP = "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: https:",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+    ])
+
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
@@ -116,6 +126,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = self._CSP
         if not get_settings().app.debug:
             response.headers["Strict-Transport-Security"] = (
                 "max-age=31536000; includeSubDomains"
@@ -211,32 +222,22 @@ def create_app() -> FastAPI:
         request: Request, exc: Exception
     ) -> JSONResponse:
         """Global exception handler."""
+        request_id = uuid.uuid4().hex[:8]
         logger.error(
             "Unhandled exception occurred",
+            request_id=request_id,
             exc_info=exc,
             path=request.url.path,
             method=request.method,
         )
 
-        if settings.app.debug:
-            # In debug mode, return detailed error information
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": "Internal Server Error",
-                    "detail": str(exc),
-                    "type": type(exc).__name__,
-                },
-            )
-        else:
-            # In production, return generic error message
-            return JSONResponse(
-                status_code=500,
-                content={
-                    "error": "Internal Server Error",
-                    "message": "An unexpected error occurred. Please try again later.",
-                },
-            )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal Server Error",
+                "request_id": request_id,
+            },
+        )
 
     # Add API routers
     from tcgtracker.api import v1_router

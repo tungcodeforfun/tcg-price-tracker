@@ -5,12 +5,13 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional, Sequence, cast
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from tcgtracker.api.dependencies import get_current_user, get_session
+from tcgtracker.api.rate_limit import limiter
 from tcgtracker.api.schemas import BulkPriceUpdate, PriceCreate
 from tcgtracker.api.schemas import PriceHistory as PriceHistorySchema
 from tcgtracker.api.schemas import PriceResponse, PriceSource
@@ -134,7 +135,9 @@ async def fetch_and_update_price(
 
 
 @router.post("/", response_model=PriceResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_price(
+    request: Request,
     price_data: PriceCreate,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -202,7 +205,9 @@ async def create_price(
 
 
 @router.get("/card/{card_id}", response_model=PriceHistorySchema)
+@limiter.limit("30/minute")
 async def get_price_history(
+    request: Request,
     card_id: int,
     days: int = Query(30, ge=1, le=365),
     source: Optional[PriceSource] = Query(None),
@@ -292,7 +297,9 @@ async def get_price_history(
 
 
 @router.post("/update/{card_id}", response_model=PriceResponse)
+@limiter.limit("30/minute")
 async def update_card_price(
+    request: Request,
     card_id: int,
     source: PriceSource = Query(PriceSource.PRICECHARTING),
     background_tasks: BackgroundTasks = BackgroundTasks(),
@@ -322,7 +329,9 @@ async def update_card_price(
 
 
 @router.post("/update/bulk", response_model=List[PriceResponse])
+@limiter.limit("30/minute")
 async def bulk_update_prices(
+    request: Request,
     update_request: BulkPriceUpdate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_session),
@@ -369,7 +378,9 @@ async def bulk_update_prices(
 
 
 @router.get("/trends", response_model=dict)
+@limiter.limit("30/minute")
 async def get_price_trends(
+    request: Request,
     tcg_type: Optional[str] = Query(None),
     days: int = Query(7, ge=1, le=30),
     db: AsyncSession = Depends(get_session),

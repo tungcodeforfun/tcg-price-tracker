@@ -1,9 +1,10 @@
 """User management endpoints."""
 
 import asyncio
+import logging
 from typing import List, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -12,6 +13,7 @@ from tcgtracker.api.dependencies import (
     get_password_hash,
     get_session,
 )
+from tcgtracker.api.rate_limit import limiter
 from tcgtracker.api.schemas import (
     PasswordChange,
     PriceAlertCreate,
@@ -21,11 +23,15 @@ from tcgtracker.api.schemas import (
 )
 from tcgtracker.database.models import Card, CollectionItem, User, UserAlert
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
 @router.get("/me", response_model=UserResponse)
+@limiter.limit("30/minute")
 async def get_current_user_profile(
+    request: Request,
     current_user: User = Depends(get_current_user),
 ) -> User:
     """Get current user's profile."""
@@ -56,7 +62,9 @@ def _convert_alert_schema_to_model_data(
 
 
 @router.put("/me", response_model=UserResponse)
+@limiter.limit("30/minute")
 async def update_current_user(
+    request: Request,
     user_update: UserUpdate,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -92,7 +100,9 @@ async def update_current_user(
 
 
 @router.put("/me/password", response_model=UserResponse)
+@limiter.limit("30/minute")
 async def change_password(
+    request: Request,
     password_data: PasswordChange,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
@@ -115,13 +125,17 @@ async def change_password(
     await db.commit()
     await db.refresh(current_user)
 
+    logger.info("audit.password_change", extra={"action": "password_change", "user_id": current_user.id})
+
     return current_user
 
 
 @router.post(
     "/alerts", response_model=PriceAlertResponse, status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("30/minute")
 async def create_price_alert(
+    request: Request,
     alert_data: PriceAlertCreate,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -171,11 +185,15 @@ async def create_price_alert(
     await db.commit()
     await db.refresh(new_alert, ["card"])
 
+    logger.info("audit.alert_create", extra={"action": "alert_create", "user_id": current_user.id, "alert_id": new_alert.id, "card_id": alert_data.card_id})
+
     return new_alert
 
 
 @router.get("/alerts", response_model=List[PriceAlertResponse])
+@limiter.limit("30/minute")
 async def get_price_alerts(
+    request: Request,
     active_only: bool = True,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -199,7 +217,9 @@ async def get_price_alerts(
 
 
 @router.delete("/alerts/{alert_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("30/minute")
 async def delete_price_alert(
+    request: Request,
     alert_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -225,9 +245,13 @@ async def delete_price_alert(
     await db.delete(alert)
     await db.commit()
 
+    logger.info("audit.alert_delete", extra={"action": "alert_delete", "user_id": current_user.id, "alert_id": alert_id})
+
 
 @router.put("/alerts/{alert_id}/toggle", response_model=PriceAlertResponse)
+@limiter.limit("30/minute")
 async def toggle_price_alert(
+    request: Request,
     alert_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -258,7 +282,9 @@ async def toggle_price_alert(
 
 
 @router.get("/stats", response_model=dict)
+@limiter.limit("30/minute")
 async def get_user_stats(
+    request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> dict:

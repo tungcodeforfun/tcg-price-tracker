@@ -2,7 +2,7 @@
 
 from typing import List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -15,13 +15,16 @@ from tcgtracker.api.schemas import (
     CardUpdate,
     TCGType,
 )
+from tcgtracker.api.rate_limit import limiter
 from tcgtracker.database.models import Card, CollectionItem, User
 
 router = APIRouter()
 
 
 @router.post("/", response_model=CardResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("60/minute")
 async def create_card(
+    request: Request,
     card_data: CardCreate,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(require_admin),
@@ -55,7 +58,9 @@ async def create_card(
 
 
 @router.get("/{card_id}", response_model=CardResponse)
+@limiter.limit("60/minute")
 async def get_card(
+    request: Request,
     card_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -75,7 +80,9 @@ async def get_card(
 
 
 @router.get("/", response_model=List[CardResponse])
+@limiter.limit("60/minute")
 async def list_cards(
+    request: Request,
     tcg_type: Optional[TCGType] = Query(None),
     set_name: Optional[str] = Query(None),
     rarity: Optional[str] = Query(None),
@@ -123,7 +130,9 @@ async def list_cards(
 
 
 @router.put("/{card_id}", response_model=CardResponse)
+@limiter.limit("60/minute")
 async def update_card(
+    request: Request,
     card_id: int,
     card_update: CardUpdate,
     db: AsyncSession = Depends(get_session),
@@ -150,7 +159,9 @@ async def update_card(
 
 
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("60/minute")
 async def delete_card(
+    request: Request,
     card_id: int,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(require_admin),
@@ -179,7 +190,9 @@ async def delete_card(
 
 
 @router.post("/search", response_model=List[CardResponse])
+@limiter.limit("60/minute")
 async def search_cards(
+    request: Request,
     search_params: CardSearchParams,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
