@@ -25,12 +25,17 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
-function markAuthenticated() {
-  // no-op: cookies handle auth state; kept for call-site clarity
+let _accessToken: string | null = null;
+let _refreshToken: string | null = null;
+
+function setTokens(tokens: TokenResponse) {
+  _accessToken = tokens.access_token;
+  _refreshToken = tokens.refresh_token;
 }
 
 function clearTokens() {
-  // no-op: httpOnly cookies are cleared by the backend logout endpoint
+  _accessToken = null;
+  _refreshToken = null;
 }
 
 class ApiError extends Error {
@@ -57,6 +62,8 @@ async function doRefresh(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: _refreshToken ? JSON.stringify({ refresh_token: _refreshToken }) : undefined,
       credentials: "include",
     });
 
@@ -64,6 +71,9 @@ async function doRefresh(): Promise<boolean> {
       return false;
     }
 
+    const data = await res.json();
+    _accessToken = data.access_token;
+    _refreshToken = data.refresh_token;
     return true;
   } catch {
     return false;
@@ -78,6 +88,10 @@ async function apiFetch<T>(
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
+
+  if (_accessToken) {
+    headers["Authorization"] = `Bearer ${_accessToken}`;
+  }
 
   if (!headers["Content-Type"] && !(options.body instanceof URLSearchParams)) {
     headers["Content-Type"] = "application/json";
@@ -135,6 +149,10 @@ export const authApi = {
 
   refresh() {
     return refreshAccessToken();
+  },
+
+  logout() {
+    return apiFetch<void>("/auth/logout", { method: "POST" });
   },
 };
 
@@ -348,4 +366,4 @@ export const searchApi = {
   },
 };
 
-export { markAuthenticated, clearTokens, ApiError };
+export { setTokens, clearTokens, ApiError };

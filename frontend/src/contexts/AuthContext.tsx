@@ -11,7 +11,7 @@ import type { User } from "@/types";
 import {
   authApi,
   usersApi,
-  markAuthenticated,
+  setTokens,
   clearTokens,
 } from "@/lib/api";
 
@@ -36,15 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const logout = useCallback(async () => {
-    setUser(null);
     try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/logout`, {
-        method: "POST",
-        credentials: "include",
-      });
+      await authApi.logout();
     } catch {
-      // Server unreachable -- cookies will expire naturally
+      // Server unreachable -- tokens will expire naturally
     }
+    setUser(null);
     clearTokens();
   }, []);
 
@@ -55,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((u) => {
         if (!cancelled) {
           setUser(u);
-          markAuthenticated();
         }
       })
       .catch(() => { if (!cancelled) clearTokens(); })
@@ -69,8 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    await authApi.login(username, password);
-    markAuthenticated();
+    const tokens = await authApi.login(username, password);
+    setTokens(tokens);
     const me = await usersApi.getMe();
     setUser(me);
   }, []);
