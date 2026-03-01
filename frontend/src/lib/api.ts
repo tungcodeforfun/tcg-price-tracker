@@ -25,22 +25,14 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
 
-function getAccessToken(): string | null {
-  return localStorage.getItem("access_token");
-}
+let _authenticated = false;
 
-function getRefreshToken(): string | null {
-  return localStorage.getItem("refresh_token");
-}
-
-function setTokens(tokens: TokenResponse) {
-  localStorage.setItem("access_token", tokens.access_token);
-  localStorage.setItem("refresh_token", tokens.refresh_token);
+function markAuthenticated() {
+  _authenticated = true;
 }
 
 function clearTokens() {
-  localStorage.removeItem("access_token");
-  localStorage.removeItem("refresh_token");
+  _authenticated = false;
 }
 
 class ApiError extends Error {
@@ -64,14 +56,10 @@ async function refreshAccessToken(): Promise<boolean> {
 }
 
 async function doRefresh(): Promise<boolean> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return false;
-
   try {
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: "include",
     });
 
     if (!res.ok) {
@@ -79,8 +67,7 @@ async function doRefresh(): Promise<boolean> {
       return false;
     }
 
-    const tokens: TokenResponse = await res.json();
-    setTokens(tokens);
+    _authenticated = true;
     return true;
   } catch {
     clearTokens();
@@ -93,20 +80,19 @@ async function apiFetch<T>(
   options: RequestInit = {},
   retry = true,
 ): Promise<T> {
-  const token = getAccessToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
 
   if (!headers["Content-Type"] && !(options.body instanceof URLSearchParams)) {
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
 
   if (res.status === 401 && retry) {
     const refreshed = await refreshAccessToken();
@@ -367,4 +353,4 @@ export const searchApi = {
   },
 };
 
-export { setTokens, clearTokens, getAccessToken, ApiError };
+export { markAuthenticated, clearTokens, ApiError };

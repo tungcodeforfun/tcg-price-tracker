@@ -102,6 +102,7 @@ class User(Base, TimestampMixin):
     last_name: Mapped[Optional[str]] = mapped_column(String(100))
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     preferences: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     api_key: Mapped[Optional[str]] = mapped_column(String(64), unique=True, index=True)

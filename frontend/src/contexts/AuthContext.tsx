@@ -11,9 +11,8 @@ import type { User } from "@/types";
 import {
   authApi,
   usersApi,
-  setTokens,
+  markAuthenticated,
   clearTokens,
-  getAccessToken,
 } from "@/lib/api";
 
 interface AuthContextType {
@@ -26,7 +25,7 @@ interface AuthContextType {
     username: string,
     password: string,
   ) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -34,23 +33,31 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(() => !!getAccessToken());
+  const [isLoading, setIsLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    clearTokens();
+  const logout = useCallback(async () => {
     setUser(null);
+    try {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL || "/api/v1"}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Server unreachable -- cookies will expire naturally
+    }
+    clearTokens();
   }, []);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      return;
-    }
-
     let cancelled = false;
     usersApi
       .getMe()
-      .then((u) => { if (!cancelled) setUser(u); })
+      .then((u) => {
+        if (!cancelled) {
+          setUser(u);
+          markAuthenticated();
+        }
+      })
       .catch(() => { if (!cancelled) clearTokens(); })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
@@ -62,8 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
-    const tokens = await authApi.login(username, password);
-    setTokens(tokens);
+    await authApi.login(username, password);
+    markAuthenticated();
     const me = await usersApi.getMe();
     setUser(me);
   }, []);

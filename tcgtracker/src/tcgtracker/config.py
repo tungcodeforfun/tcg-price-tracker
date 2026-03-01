@@ -1,11 +1,15 @@
 """Configuration management for TCG Price Tracker."""
 
+import logging
 import os
+import secrets
 from functools import lru_cache
 from urllib.parse import quote_plus
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_config_logger = logging.getLogger(__name__)
 
 
 class DatabaseSettings(BaseSettings):
@@ -23,6 +27,7 @@ class DatabaseSettings(BaseSettings):
     pool_size: int = Field(default=5, description="Connection pool size")
     max_overflow: int = Field(default=10, description="Maximum overflow connections")
     pool_timeout: int = Field(default=30, description="Pool timeout in seconds")
+    echo_sql: bool = Field(default=False, description="Log all SQL queries")
 
     @property
     def url(self) -> str:
@@ -114,6 +119,24 @@ class ExternalAPISettings(BaseSettings):
     )
 
 
+class RedisSettings(BaseSettings):
+    """Redis configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="REDIS_")
+
+    host: str = Field(default="localhost", description="Redis host")
+    port: int = Field(default=6379, description="Redis port")
+    password: str = Field(default="", description="Redis password")
+    db: int = Field(default=0, description="Redis database number")
+
+    @property
+    def url(self) -> str:
+        if self.password:
+            encoded_password = quote_plus(self.password)
+            return f"redis://:{encoded_password}@{self.host}:{self.port}/{self.db}"
+        return f"redis://{self.host}:{self.port}/{self.db}"
+
+
 class SecuritySettings(BaseSettings):
     """Security configuration."""
 
@@ -140,7 +163,11 @@ class SecuritySettings(BaseSettings):
                     "SECURITY_SECRET_KEY must be set in production. "
                     "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
-            return "development-only-key-not-for-production-use-" + "x" * 20
+            _config_logger.warning(
+                "SECURITY_SECRET_KEY not set — using random ephemeral key. "
+                "JWTs will be invalidated on restart. Set SECURITY_SECRET_KEY for persistence."
+            )
+            return secrets.token_urlsafe(48)
 
         if len(v) < 32:
             raise ValueError("Secret key must be at least 32 characters long")
@@ -152,7 +179,7 @@ class SecuritySettings(BaseSettings):
         default=60, description="Access token expiration in minutes"
     )
     refresh_token_expire_days: int = Field(
-        default=30, description="Refresh token expiration in days"
+        default=7, description="Refresh token expiration in days"
     )
 
 
@@ -204,6 +231,16 @@ class AppSettings(BaseSettings):
         description="Allowed HTTP headers",
     )
 
+    @field_validator("allow_origins")
+    @classmethod
+    def validate_cors_origins(cls, v: list[str]) -> list[str]:
+        app_env = os.getenv("APP_ENVIRONMENT", "development")
+        if "*" in v and app_env == "production":
+            raise ValueError(
+                "Wildcard CORS origin is not allowed in production"
+            )
+        return v
+
     # Logging
     log_level: str = Field(default="INFO", description="Logging level")
     log_format: str = Field(default="json", description="Log format: json or text")
@@ -215,6 +252,7 @@ class Settings:
     def __init__(self) -> None:
         self.app = AppSettings()
         self.database = DatabaseSettings()
+        self.redis = RedisSettings()
         self.external_apis = ExternalAPISettings()
         self.security = SecuritySettings()
 

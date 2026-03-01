@@ -6,10 +6,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -31,34 +33,79 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-# In-memory token blacklist: {token_hash: expiry_timestamp}
-# For production, replace with Redis for multi-process support
-_token_blacklist: dict[str, float] = {}
-_BLACKLIST_MAX_SIZE = 10000
+_COOKIE_SECURE = settings.app.environment == "production"
+_COOKIE_SAMESITE: str = "lax"
+
+
+def _set_token_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+    """Set httpOnly cookies for access and refresh tokens."""
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+        max_age=settings.security.access_token_expire_minutes * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+        max_age=settings.security.refresh_token_expire_days * 86400,
+        path="/api/v1/auth",
+    )
+
+
+def _clear_token_cookies(response: JSONResponse) -> None:
+    """Remove token cookies."""
+    response.delete_cookie(
+        key="access_token", path="/",
+        secure=_COOKIE_SECURE, samesite=_COOKIE_SAMESITE,
+    )
+    response.delete_cookie(
+        key="refresh_token", path="/api/v1/auth",
+        secure=_COOKIE_SECURE, samesite=_COOKIE_SAMESITE,
+    )
+
+_BLACKLIST_PREFIX = "token_blacklist:"
+
+_redis_client: aioredis.Redis | None = None
+
+
+def _get_redis() -> aioredis.Redis:
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = aioredis.from_url(
+            settings.redis.url, decode_responses=True
+        )
+    return _redis_client
 
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def blacklist_token(token: str, expires_at: float) -> None:
-    """Add a token to the blacklist."""
-    _cleanup_blacklist()
-    _token_blacklist[_hash_token(token)] = expires_at
+async def blacklist_token(token: str, expires_at: float) -> None:
+    """Add a token to the Redis blacklist with auto-expiry."""
+    ttl = int(expires_at - datetime.now(timezone.utc).timestamp())
+    if ttl <= 0:
+        return
+    try:
+        await _get_redis().setex(f"{_BLACKLIST_PREFIX}{_hash_token(token)}", ttl, "1")
+    except aioredis.RedisError:
+        logger.warning("Failed to blacklist token — Redis unavailable")
 
 
-def is_token_blacklisted(token: str) -> bool:
+async def is_token_blacklisted(token: str) -> bool:
     """Check if a token has been blacklisted."""
-    _cleanup_blacklist()
-    return _hash_token(token) in _token_blacklist
-
-
-def _cleanup_blacklist() -> None:
-    """Remove expired tokens from the blacklist."""
-    now = datetime.now(timezone.utc).timestamp()
-    expired = [h for h, exp in _token_blacklist.items() if exp < now]
-    for h in expired:
-        del _token_blacklist[h]
+    try:
+        return await _get_redis().exists(f"{_BLACKLIST_PREFIX}{_hash_token(token)}") > 0
+    except aioredis.RedisError:
+        logger.warning("Failed to check token blacklist — Redis unavailable")
+        return False
 
 
 @router.post(
@@ -126,13 +173,13 @@ async def register(
     return new_user
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 @limiter.limit("5/minute")
 async def login(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_session),
-) -> Token:
+) -> JSONResponse:
     """Login and receive access tokens."""
     # Find user by username or email
     result = await db.execute(
@@ -165,24 +212,37 @@ async def login(
     )
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
-    return Token(
-        access_token=access_token, refresh_token=refresh_token, token_type="bearer"
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+        }
     )
+    _set_token_cookies(response, access_token, refresh_token)
+    return response
 
 
-@router.post("/refresh", response_model=Token)
+@router.post("/refresh")
 @limiter.limit("10/minute")
 async def refresh_token(
     request: Request,
-    token_data: TokenRefresh,
+    token_data: TokenRefresh | None = None,
     db: AsyncSession = Depends(get_session),
-) -> Token:
+) -> JSONResponse:
     """Refresh access token using refresh token."""
+    raw_refresh = (token_data.refresh_token if token_data else None) or request.cookies.get("refresh_token")
+    if not raw_refresh:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided"
+        )
+
     try:
         payload = jwt.decode(
-            token_data.refresh_token,
+            raw_refresh,
             settings.security.secret_key,
             algorithms=[settings.security.algorithm],
+            options={"require": ["exp", "iat", "sub", "type"]},
         )
         user_id: str = payload.get("sub")
         if user_id is None:
@@ -195,13 +255,13 @@ async def refresh_token(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
             )
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
         )
 
     # Check if refresh token was blacklisted
-    if is_token_blacklisted(token_data.refresh_token):
+    if await is_token_blacklisted(raw_refresh):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked"
         )
@@ -225,7 +285,7 @@ async def refresh_token(
 
     # Blacklist old refresh token
     exp = payload.get("exp", 0)
-    blacklist_token(token_data.refresh_token, float(exp))
+    await blacklist_token(raw_refresh, float(exp))
 
     # Create new tokens
     access_token_expires = timedelta(
@@ -236,9 +296,15 @@ async def refresh_token(
     )
     new_refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
-    return Token(
-        access_token=access_token, refresh_token=new_refresh_token, token_type="bearer"
+    response = JSONResponse(
+        content={
+            "access_token": access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer",
+        }
     )
+    _set_token_cookies(response, access_token, new_refresh_token)
+    return response
 
 
 @router.get("/verify-email")
@@ -252,7 +318,7 @@ async def verify_email(
             token,
             settings.security.secret_key,
             algorithms=[settings.security.algorithm],
-            options={"verify_exp": True},
+            options={"require": ["exp", "iat", "sub", "type"]},
         )
 
         user_id: str = payload.get("sub")
@@ -263,7 +329,7 @@ async def verify_email(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid verification token",
             )
-    except JWTError:
+    except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification token",
@@ -296,19 +362,25 @@ async def verify_email(
 
 @router.post("/logout")
 async def logout(
-    token: Annotated[str, Depends(oauth2_scheme)],
+    request: Request,
+    token: Annotated[str | None, Depends(oauth2_scheme)] = None,
     current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Logout by blacklisting the current access token."""
-    # Decode token to get expiry
+    from tcgtracker.api.dependencies import _get_token_from_request
+
+    resolved_token = _get_token_from_request(token, request)
+    # Token already validated by get_current_user; decode without verification to extract exp
     payload = jwt.decode(
-        token,
+        resolved_token,
         settings.security.secret_key,
         algorithms=[settings.security.algorithm],
-        options={"verify_exp": True},
+        options={"verify_exp": False},
     )
     exp = payload.get("exp", 0)
 
-    blacklist_token(token, float(exp))
+    await blacklist_token(resolved_token, float(exp))
 
-    return JSONResponse(content={"message": "Logged out successfully"}, status_code=200)
+    response = JSONResponse(content={"message": "Logged out successfully"}, status_code=200)
+    _clear_token_cookies(response)
+    return response

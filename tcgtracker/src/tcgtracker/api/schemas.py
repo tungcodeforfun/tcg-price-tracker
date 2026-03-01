@@ -118,6 +118,7 @@ class UserResponse(UserBase):
 
     id: int
     is_active: bool
+    email_verified: bool
     created_at: datetime
     updated_at: datetime
 

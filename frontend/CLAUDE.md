@@ -43,7 +43,7 @@
 - Card IDs are `number`, not string
 - Conditions are snake_case (`near_mint`, not `"Near Mint"`)
 - Alert create and response both use `target_price` (mapped from DB `price_threshold`)
-- Tokens stored in localStorage (`access_token`, `refresh_token`)
+- Auth uses httpOnly cookies (set by backend); frontend sends `credentials: "include"`
 - 401 responses trigger automatic token refresh + retry
 
 ## Git
