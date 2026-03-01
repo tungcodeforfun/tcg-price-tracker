@@ -24,7 +24,7 @@ from tcgtracker.api.dependencies import (
     verify_password,
 )
 from tcgtracker.api.rate_limit import limiter
-from tcgtracker.api.schemas import Token, TokenRefresh, UserCreate, UserResponse
+from tcgtracker.api.schemas import TokenRefresh, UserCreate, UserResponse
 from tcgtracker.config import get_settings
 from tcgtracker.database.models import User
 
@@ -69,6 +69,7 @@ def _clear_token_cookies(response: JSONResponse) -> None:
         key="refresh_token", path="/api/v1/auth",
         secure=_COOKIE_SECURE, samesite=_COOKIE_SAMESITE,
     )
+
 
 _BLACKLIST_PREFIX = "token_blacklist:"
 

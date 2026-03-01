@@ -34,6 +34,7 @@ def _get_token_from_request(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+
 # Create a global password context to avoid recreation on every call
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
