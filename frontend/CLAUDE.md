@@ -16,6 +16,8 @@
 - Build: `npm run build`
 - Type check: `npx tsc --noEmit`
 - Lint: `npm run lint`
+- Test: `npm test` (Vitest)
+- Test watch: `npm run test:watch`
 - Preview prod build: `npm run preview`
 
 ## Architecture
