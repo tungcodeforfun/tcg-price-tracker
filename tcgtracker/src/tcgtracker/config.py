@@ -114,6 +114,21 @@ class ExternalAPISettings(BaseSettings):
     )
 
 
+class RedisSettings(BaseSettings):
+    """Redis configuration."""
+
+    model_config = SettingsConfigDict(env_prefix="REDIS_")
+
+    host: str = Field(default="localhost", description="Redis host")
+    port: int = Field(default=6379, description="Redis port")
+    db: int = Field(default=0, description="Redis database number for token blacklist")
+
+    @property
+    def url(self) -> str:
+        """Get the Redis URL."""
+        return f"redis://{self.host}:{self.port}/{self.db}"
+
+
 class SecuritySettings(BaseSettings):
     """Security configuration."""
 
@@ -215,6 +230,7 @@ class Settings:
     def __init__(self) -> None:
         self.app = AppSettings()
         self.database = DatabaseSettings()
+        self.redis = RedisSettings()
         self.external_apis = ExternalAPISettings()
         self.security = SecuritySettings()
 

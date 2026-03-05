@@ -223,6 +223,12 @@ class CardResponse(CardBase):
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
+    @field_serializer("latest_price")
+    @classmethod
+    def serialize_latest_price(cls, v: Optional[Decimal]) -> Optional[float]:
+        """Serialize Decimal to float for JSON compatibility with frontend."""
+        return float(v) if v is not None else None
+
 
 class CardSearchParams(BaseModel):
     """Card search parameters."""
@@ -291,6 +297,12 @@ class PriceResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("market_price")
+    @classmethod
+    def serialize_market_price(cls, v: Decimal) -> float:
+        """Serialize Decimal to float for JSON compatibility with frontend."""
+        return float(v)
+
 
 class PriceHistory(BaseModel):
     """Price history response."""
@@ -301,6 +313,12 @@ class PriceHistory(BaseModel):
     min_price: Optional[Decimal]
     max_price: Optional[Decimal]
     trend: Optional[str]
+
+    @field_serializer("average_price", "min_price", "max_price")
+    @classmethod
+    def serialize_decimal(cls, v: Optional[Decimal]) -> Optional[float]:
+        """Serialize Decimal to float for JSON compatibility with frontend."""
+        return float(v) if v is not None else None
 
 
 # Collection schemas
@@ -340,6 +358,12 @@ class CollectionItemResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer("purchase_price", "current_value")
+    @classmethod
+    def serialize_decimal(cls, v: Optional[Decimal]) -> Optional[float]:
+        """Serialize Decimal to float for JSON compatibility with frontend."""
+        return float(v) if v is not None else None
+
 
 class CollectionStats(BaseModel):
     """Collection statistics."""
@@ -350,6 +374,12 @@ class CollectionStats(BaseModel):
     total_invested: Decimal
     profit_loss: Decimal
     profit_loss_percentage: float
+
+    @field_serializer("total_value", "total_invested", "profit_loss")
+    @classmethod
+    def serialize_decimal(cls, v: Decimal) -> float:
+        """Serialize Decimal to float for JSON compatibility with frontend."""
+        return float(v)
 
 
 # Price alert schemas
@@ -385,6 +415,12 @@ class PriceAlertResponse(BaseModel):
 
         return map_db_alert_type_to_api(v)
 
+    @field_serializer("target_price")
+    @classmethod
+    def serialize_target_price(cls, v: Decimal) -> float:
+        """Serialize Decimal to float for JSON compatibility with frontend."""
+        return float(v)
+
 
 # Search schemas
 class SearchRequest(BaseModel):
@@ -407,6 +443,12 @@ class SearchResult(BaseModel):
     image_url: Optional[str]
     source: PriceSource
     listing_url: Optional[str]
+
+    @field_serializer("price")
+    @classmethod
+    def serialize_price(cls, v: Optional[Decimal]) -> Optional[float]:
+        """Serialize Decimal to float for JSON compatibility with frontend."""
+        return float(v) if v is not None else None
 
 
 class BulkPriceUpdate(BaseModel):

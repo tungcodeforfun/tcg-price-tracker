@@ -31,34 +31,88 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-# In-memory token blacklist: {token_hash: expiry_timestamp}
-# For production, replace with Redis for multi-process support
-_token_blacklist: dict[str, float] = {}
-_BLACKLIST_MAX_SIZE = 10000
+_BLACKLIST_PREFIX = "token_blacklist:"
+
+# In-memory fallback when Redis is unavailable
+_fallback_blacklist: dict[str, float] = {}
+_redis_client = None
+_redis_unavailable = False
 
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _get_redis():
+    """Get or create a Redis client. Returns None if Redis is unavailable."""
+    global _redis_client, _redis_unavailable
+    if _redis_unavailable:
+        return None
+    if _redis_client is not None:
+        return _redis_client
+    try:
+        import redis
+
+        _redis_client = redis.Redis(
+            host=settings.redis.host,
+            port=settings.redis.port,
+            db=settings.redis.db,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+            decode_responses=True,
+        )
+        _redis_client.ping()
+        logger.info("Token blacklist using Redis at %s:%s", settings.redis.host, settings.redis.port)
+        return _redis_client
+    except Exception:
+        logger.warning("Redis unavailable, using in-memory token blacklist fallback")
+        _redis_unavailable = True
+        return None
+
+
 def blacklist_token(token: str, expires_at: float) -> None:
-    """Add a token to the blacklist."""
-    _cleanup_blacklist()
-    _token_blacklist[_hash_token(token)] = expires_at
+    """Add a token to the blacklist (Redis with in-memory fallback)."""
+    token_hash = _hash_token(token)
+    now = datetime.now(timezone.utc).timestamp()
+    ttl = int(expires_at - now)
+    if ttl <= 0:
+        return
+
+    client = _get_redis()
+    if client:
+        try:
+            client.setex(f"{_BLACKLIST_PREFIX}{token_hash}", ttl, "1")
+            return
+        except Exception:
+            logger.warning("Redis write failed, falling back to in-memory blacklist")
+
+    # In-memory fallback
+    _cleanup_fallback()
+    _fallback_blacklist[token_hash] = expires_at
 
 
 def is_token_blacklisted(token: str) -> bool:
-    """Check if a token has been blacklisted."""
-    _cleanup_blacklist()
-    return _hash_token(token) in _token_blacklist
+    """Check if a token has been blacklisted (Redis with in-memory fallback)."""
+    token_hash = _hash_token(token)
+
+    client = _get_redis()
+    if client:
+        try:
+            return client.exists(f"{_BLACKLIST_PREFIX}{token_hash}") > 0
+        except Exception:
+            logger.warning("Redis read failed, falling back to in-memory blacklist")
+
+    # In-memory fallback
+    _cleanup_fallback()
+    return token_hash in _fallback_blacklist
 
 
-def _cleanup_blacklist() -> None:
-    """Remove expired tokens from the blacklist."""
+def _cleanup_fallback() -> None:
+    """Remove expired tokens from the in-memory fallback blacklist."""
     now = datetime.now(timezone.utc).timestamp()
-    expired = [h for h, exp in _token_blacklist.items() if exp < now]
+    expired = [h for h, exp in _fallback_blacklist.items() if exp < now]
     for h in expired:
-        del _token_blacklist[h]
+        del _fallback_blacklist[h]
 
 
 @router.post(

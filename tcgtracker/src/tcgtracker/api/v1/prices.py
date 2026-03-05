@@ -127,7 +127,7 @@ async def fetch_and_update_price(
         card.latest_market_price = market
         card.latest_price_updated_at = now
 
-        await db.commit()
+        await db.flush()
         return new_price
 
     return None
@@ -180,10 +180,10 @@ async def create_price(
         for alert in alerts:
             if (
                 alert.alert_type == AlertTypeEnum.PRICE_INCREASE
-                and price_data.market_price >= alert.price_threshold
+                and price_data.market_price > alert.price_threshold
             ) or (
                 alert.alert_type == AlertTypeEnum.PRICE_DROP
-                and price_data.market_price <= alert.price_threshold
+                and price_data.market_price < alert.price_threshold
             ):
                 alert.last_triggered = datetime.now(timezone.utc)
                 # TODO: Send notification to user
@@ -318,6 +318,7 @@ async def update_card_price(
             detail=f"Could not fetch price from {source.value}",
         )
 
+    await db.commit()
     return new_price
 
 
@@ -344,12 +345,11 @@ async def bulk_update_prices(
 
     for card in cards:
         try:
-            new_price = await fetch_and_update_price(card, source, db)
-            if new_price:
-                updated_prices.append(new_price)
+            async with db.begin_nested():
+                new_price = await fetch_and_update_price(card, source, db)
+                if new_price:
+                    updated_prices.append(new_price)
         except Exception as e:
-            # Expire session state so subsequent iterations start clean
-            await db.rollback()
             logger.error(
                 "Error updating price for card",
                 card_id=card.id,
@@ -357,6 +357,10 @@ async def bulk_update_prices(
             )
             errors.append({"card_id": card.id, "error": str(e)})
             continue
+
+    # Commit all successful updates
+    if updated_prices:
+        await db.commit()
 
     if errors:
         logger.warning(
