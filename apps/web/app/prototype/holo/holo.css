@@ -1,0 +1,178 @@
+/* PROTOTYPE (UI redesign) — design C, "Holo showcase". Everything is scoped under .holo. */
+.holo {
+  --holo-ink: #120c22;
+  --holo-ink-2: #1a1330;
+  --holo-ink-3: #251c42;
+  --holo-line: #3a2f5e;
+  --holo-paper: #f4f0ff;
+  --holo-mist: #b9aee0;
+  --holo-mint: #7ef5d8;
+  --holo-lilac: #b79cff;
+  --holo-rose: #ff9fd6;
+  --holo-gold: #ffe08a;
+  --holo-up: #72f2b4;
+  --holo-down: #ff8a9e;
+  --holo-foil: linear-gradient(
+    115deg,
+    var(--holo-mint) 0%,
+    var(--holo-lilac) 28%,
+    var(--holo-rose) 52%,
+    var(--holo-gold) 76%,
+    var(--holo-mint) 100%
+  );
+
+  background: var(--holo-ink);
+  color: var(--holo-paper);
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  color-scheme: dark;
+}
+
+.holo ::selection {
+  background: var(--holo-lilac);
+  color: var(--holo-ink);
+}
+
+.holo :focus-visible {
+  outline: 2px solid var(--holo-mint);
+  outline-offset: 3px;
+}
+
+.holo-search:focus-within {
+  outline: 2px solid var(--holo-mint);
+  outline-offset: 3px;
+}
+.holo-search input:focus-visible {
+  outline: none;
+}
+
+.holo-display {
+  font-family: "Unbounded Variable", "Inter Variable", ui-sans-serif, sans-serif;
+  font-feature-settings: normal;
+  letter-spacing: -0.02em;
+}
+
+.holo-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A 1px iridescent border on any box: pair with a background colour via --holo-fill. */
+.holo-foil-border {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--holo-fill, var(--holo-ink-2)), var(--holo-fill, var(--holo-ink-2)))
+      padding-box,
+    var(--holo-foil) border-box;
+}
+
+/* Border that turns iridescent only on hover/focus/current. */
+.holo-foil-hover {
+  border: 1px solid var(--holo-line);
+  background: var(--holo-fill, var(--holo-ink-2));
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease;
+}
+.holo-foil-hover:hover,
+.holo-foil-hover:focus-visible,
+.holo-foil-hover[aria-current] {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--holo-fill, var(--holo-ink-2)), var(--holo-fill, var(--holo-ink-2)))
+      padding-box,
+    var(--holo-foil) border-box;
+}
+.holo-foil-hover:hover {
+  transform: translateY(-2px);
+}
+
+/* The single full-bleed foil band on a page. Dark ink text sits on light foil (AA). */
+.holo-band {
+  background: var(--holo-foil);
+  background-size: 200% 100%;
+  color: var(--holo-ink);
+}
+
+/* Foil edge of the card-page card face: a thick shimmering frame. */
+.holo-frame {
+  padding: 7px;
+  background: conic-gradient(
+    from 200deg at 30% 40%,
+    var(--holo-mint),
+    var(--holo-lilac),
+    var(--holo-rose),
+    var(--holo-gold),
+    var(--holo-mint)
+  );
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.18) inset,
+    0 30px 80px -30px rgb(183 156 255 / 0.45);
+  position: relative;
+  isolation: isolate;
+}
+.holo-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgb(255 255 255 / 0.55) 48%,
+    transparent 60%
+  );
+  background-size: 250% 100%;
+  background-position: 120% 0;
+  mix-blend-mode: soft-light;
+  animation: holo-sheen 6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes holo-sheen {
+  0%,
+  100% {
+    background-position: 120% 0;
+  }
+  50% {
+    background-position: -20% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .holo-frame::after {
+    animation: none;
+  }
+  .holo-foil-hover {
+    transition: none;
+  }
+  .holo-foil-hover:hover {
+    transform: none;
+  }
+}
+
+/* Fine diagonal engraving inside typographic card faces. */
+.holo-engrave {
+  background-color: var(--holo-ink-2);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgb(183 156 255 / 0.06) 0 1px,
+    transparent 1px 9px
+  );
+}
+
+/* Iridescent fill for the card-art initial (the one foil "illustration" on a face). */
+.holo-foil-text {
+  background: var(--holo-foil);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.holo-rail {
+  scrollbar-width: thin;
+  scrollbar-color: var(--holo-line) transparent;
+  scroll-padding-inline: 1rem;
+}
+
+.holo-input::placeholder {
+  color: var(--holo-mist);
+  opacity: 1;
+}

@@ -1,5 +1,10 @@
 import { defaultVariant, getCard, getPriceHistory } from "~/.server/catalog";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
+import { HoloCardPage } from "~/prototype/holo/card";
+import { LedgerCardPage } from "~/prototype/ledger/card";
+import { TerminalCardPage } from "~/prototype/terminal/card";
+import { readVariant } from "~/prototype/types";
+import { VariantSwitcher } from "~/prototype/variant-switcher";
 import { db } from "~/.server/db";
 import { env } from "~/.server/env";
 import { CardFace } from "~/components/card-tile";
@@ -38,6 +43,16 @@ export const meta: Route.MetaFunction = ({ loaderData }) => {
 
 export default function CardPage({ loaderData }: Route.ComponentProps) {
   const { card, selectedId, range, history } = loaderData;
+  const variant = readVariant(useSearchParams()[0]);
+  if (variant) {
+    const Page = { A: LedgerCardPage, B: TerminalCardPage, C: HoloCardPage }[variant];
+    return (
+      <>
+        <Page card={card} selectedId={selectedId} range={range} history={history} />
+        <VariantSwitcher current={variant} />
+      </>
+    );
+  }
   const selected = card.variants.find((v) => v.id === selectedId);
   const variantQuery = new URLSearchParams(
     selectedId ? { card: card.slug, variant: selectedId } : { card: card.slug },

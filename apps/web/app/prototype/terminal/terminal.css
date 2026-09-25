@@ -1,0 +1,211 @@
+/* PROTOTYPE (UI redesign, direction B "Trading terminal"). Everything is scoped under .term. */
+
+.term {
+  /* Palette */
+  --t-void: #05080f; /* page */
+  --t-deck: #0a101c; /* panels */
+  --t-rail: #0e1626; /* panel headers, table heads */
+  --t-grid: #1a2538; /* 1px rules */
+  --t-wire: #26344d; /* stronger rules, chart grid */
+  --t-text: #dbe3f0;
+  --t-mute: #8a97ae; /* 6.6:1 on void, 6.1:1 on deck */
+  --t-amber: #ffb627;
+  --t-up: #2fdc84;
+  --t-down: #ff6166;
+
+  --t-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --t-head: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+
+  background: var(--t-void);
+  color: var(--t-text);
+  font-family: var(--t-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "zero" 1;
+  color-scheme: dark;
+}
+
+html:has(.term) {
+  background: #05080f;
+  color-scheme: dark;
+}
+
+.term ::selection {
+  background: var(--t-amber);
+  color: var(--t-void);
+}
+
+.term :focus-visible {
+  outline: 2px solid var(--t-amber);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+
+/* Micro label: the uppercase caption used on every panel, table head and stat. */
+.term .t-micro {
+  font-family: var(--t-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--t-mute);
+}
+
+.term .t-head {
+  font-family: var(--t-head);
+  letter-spacing: -0.02em;
+}
+
+/* Grid of panels: the gap shows the page colour through, producing 1px rules. */
+.term .t-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--t-grid);
+  border: 1px solid var(--t-grid);
+}
+
+.term kbd {
+  font-family: var(--t-mono);
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border: 1px solid var(--t-wire);
+  border-bottom-width: 2px;
+  color: var(--t-mute);
+  background: var(--t-void);
+}
+
+/* Ticker strip */
+@keyframes t-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.term .t-tape {
+  display: flex;
+  width: max-content;
+  animation: t-ticker 60s linear infinite;
+}
+
+.term .t-tape-wrap:hover .t-tape,
+.term .t-tape-wrap:focus-within .t-tape {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .term .t-tape {
+    animation: none;
+  }
+  .term .t-tape-wrap {
+    overflow-x: auto;
+  }
+  .term .t-tape [data-copy] {
+    display: none;
+  }
+}
+
+/* Tables */
+.term .t-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.term .t-table th {
+  background: var(--t-rail);
+  text-align: left;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--t-grid);
+  white-space: nowrap;
+}
+
+.term .t-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--t-grid);
+  white-space: nowrap;
+}
+
+.term .t-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.term .t-table tbody tr {
+  position: relative;
+}
+
+.term .t-table tbody tr:hover td {
+  background: #111b2d;
+}
+
+/* Stretched link: the whole row is the hit area, one tab stop per row. */
+.term .t-row-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.term .t-row-link:focus-visible {
+  outline: none;
+}
+
+.term .t-row-link:focus-visible::after {
+  outline: 2px solid var(--t-amber);
+  outline-offset: -2px;
+}
+
+.term .t-up {
+  color: var(--t-up);
+}
+.term .t-down {
+  color: var(--t-down);
+}
+.term .t-flat {
+  color: var(--t-mute);
+}
+
+/* Segmented control (range toggles, etc.) */
+.term .t-seg {
+  display: inline-flex;
+  border: 1px solid var(--t-wire);
+}
+
+.term .t-seg > a {
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--t-mute);
+  border-left: 1px solid var(--t-wire);
+}
+
+.term .t-seg > a:first-child {
+  border-left: 0;
+}
+
+.term .t-seg > a:hover {
+  color: var(--t-text);
+  background: var(--t-rail);
+}
+
+.term .t-seg > a[aria-current] {
+  background: var(--t-amber);
+  color: var(--t-void);
+  font-weight: 700;
+}
+
+/* Dot-matrix backdrop behind the spotlight card */
+.term .t-dots {
+  background-image: radial-gradient(var(--t-wire) 1px, transparent 1.2px);
+  background-size: 14px 14px;
+  background-position: 7px 7px;
+}
+
+/* The search form draws the focus ring (amber border) around the whole command line. */
+.term .t-search-input:focus-visible {
+  outline: none;
+}

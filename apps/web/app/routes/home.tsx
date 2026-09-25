@@ -1,5 +1,12 @@
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
+import { getHomeHighlights } from "~/.server/catalog";
+import { db } from "~/.server/db";
 import { CATALOG_CACHE } from "~/lib/http";
+import { HoloHome } from "~/prototype/holo/home";
+import { LedgerHome } from "~/prototype/ledger/home";
+import { TerminalHome } from "~/prototype/terminal/home";
+import { readVariant } from "~/prototype/types";
+import { VariantSwitcher } from "~/prototype/variant-switcher";
 import type { Route } from "./+types/home";
 
 export const meta: Route.MetaFunction = () => [
@@ -9,7 +16,21 @@ export const meta: Route.MetaFunction = () => [
 
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": CATALOG_CACHE });
 
-export default function Home() {
+export async function loader() {
+  return { highlights: await getHomeHighlights(db) };
+}
+
+export default function Home({ loaderData }: Route.ComponentProps) {
+  const variant = readVariant(useSearchParams()[0]);
+  if (variant) {
+    const Page = { A: LedgerHome, B: TerminalHome, C: HoloHome }[variant];
+    return (
+      <>
+        <Page highlights={loaderData.highlights} />
+        <VariantSwitcher current={variant} />
+      </>
+    );
+  }
   return (
     <div className="max-w-3xl py-8">
       <h1 className="text-3xl font-semibold tracking-tight">TCG Price Tracker</h1>
@@ -23,10 +44,7 @@ export default function Home() {
         >
           Browse prices
         </Link>
-        <Link
-          to="/signup"
-          className="rounded-md border border-gray-300 px-4 py-2 dark:border-gray-700"
-        >
+        <Link to="/signup" className="rounded-md border border-gray-300 px-4 py-2 dark:border-gray-700">
           Create an account
         </Link>
       </div>

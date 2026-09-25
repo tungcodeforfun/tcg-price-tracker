@@ -1,9 +1,12 @@
 import { Outlet, useLocation, useSearchParams } from "react-router";
 import { SiteFooter, SiteHeader } from "~/components/site-header";
+import { readVariant } from "~/prototype/types";
 
 export default function PublicLayout() {
   const [params] = useSearchParams();
   const onSearch = useLocation().pathname === "/search";
+  // PROTOTYPE (UI redesign): design variants render their own chrome.
+  if (readVariant(params)) return <Outlet />;
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader
