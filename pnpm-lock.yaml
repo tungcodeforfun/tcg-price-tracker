@@ -260,6 +260,9 @@ importers:
       '@tcg/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@tcg/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@tcg/pricing':
         specifier: workspace:*
         version: link:../../packages/pricing

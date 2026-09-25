@@ -8,6 +8,10 @@ export interface WorkerConfig {
   setAllowlist: string[];
   /** JustTCG game ids whose catalog and prices are synced. */
   enabledGames: string[];
+  /** Public site origin, for links in emails. */
+  appUrl: string;
+  smtpUrl: string;
+  emailFrom: string;
 }
 
 const PLANS: readonly JustTcgPlan[] = ["free", "starter", "professional", "enterprise"];
@@ -41,5 +45,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     justTcgPlan: parsePlan(env.JUSTTCG_PLAN),
     setAllowlist: commaList(env.SYNC_SET_ALLOWLIST),
     enabledGames: commaList(env.ENABLED_GAMES?.trim() || DEFAULT_ENABLED_GAMES),
+    appUrl: required(env, "APP_URL").replace(/\/+$/, ""),
+    smtpUrl: required(env, "SMTP_URL"),
+    emailFrom: required(env, "EMAIL_FROM"),
   };
 }

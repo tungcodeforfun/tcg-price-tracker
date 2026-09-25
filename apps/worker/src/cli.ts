@@ -1,11 +1,13 @@
-import { snapshotPortfolios } from "@tcg/core";
+import { evaluateAlerts, snapshotPortfolios } from "@tcg/core";
+import { deliverAlertEmails } from "./alerts/run.ts";
 import { loadConfig } from "./config.ts";
 import { describeCatalog, describeDueSets, describeSetPrices } from "./report.ts";
 import { createServices, setsDueForPrices, type Services } from "./services.ts";
 import { syncCatalog } from "./sync/catalog.ts";
 import { syncSetPrices } from "./sync/set-prices.ts";
 
-const USAGE = "usage: pnpm --filter @tcg/worker sync <catalog | set <setId> | prices | snapshot>";
+const USAGE =
+  "usage: pnpm --filter @tcg/worker sync <catalog | set <setId> | prices | snapshot | alerts>";
 
 async function catalog({ config, db, provider }: Services): Promise<void> {
   console.log(
@@ -42,10 +44,20 @@ async function snapshot({ db }: Services): Promise<void> {
   console.log(`snapshot ${day}: ${await snapshotPortfolios(db, day)} portfolios`);
 }
 
+/** Evaluates every active alert against current prices, then emails what fired. */
+async function alerts(services: Services): Promise<void> {
+  const evaluated = await evaluateAlerts(services.db);
+  const delivered = await deliverAlertEmails(services);
+  console.log(
+    `alerts: ${evaluated.triggered} triggered, ${evaluated.rearmed} re-armed; emails sent ${delivered.sent}, retrying ${delivered.retrying}, failed ${delivered.failed}`,
+  );
+}
+
 function parseCommand([command, setId]: string[]): ((services: Services) => Promise<void>) | null {
   if (command === "catalog") return catalog;
   if (command === "prices") return prices;
   if (command === "snapshot") return snapshot;
+  if (command === "alerts") return alerts;
   if (command === "set" && setId) return (services) => setPrices(services, setId);
   return null;
 }

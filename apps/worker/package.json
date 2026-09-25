@@ -12,6 +12,7 @@
   "dependencies": {
     "@tcg/core": "workspace:*",
     "@tcg/db": "workspace:*",
+    "@tcg/email": "workspace:*",
     "@tcg/pricing": "workspace:*",
     "drizzle-orm": "^0.45.3",
     "pg-boss": "^12.34.0"

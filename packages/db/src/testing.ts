@@ -14,7 +14,7 @@ export async function createTestDb(): Promise<{ db: Db; close: () => Promise<voi
 export async function truncateAll(db: Db): Promise<void> {
   await db.execute(sql`
     TRUNCATE price_points, variants, cards, sets, games, provider_usage, sync_runs,
-      users, sessions, accounts, verifications, rate_limits, collection_items, sales, portfolio_snapshots
+      users, sessions, accounts, verifications, rate_limits, collection_items, sales, portfolio_snapshots, alerts, notifications
     RESTART IDENTITY CASCADE
   `);
 }

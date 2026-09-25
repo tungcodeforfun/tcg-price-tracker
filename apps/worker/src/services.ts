@@ -1,4 +1,5 @@
 import { createDb, type Db } from "@tcg/db";
+import { createSmtpMailer, type Mailer } from "@tcg/email";
 import { JustTcgClient, type PriceProvider } from "@tcg/pricing";
 import type { WorkerConfig } from "./config.ts";
 import { remainingDailyRequests, selectSetsToSync, type SetToSync } from "./sync/select-sets.ts";
@@ -9,6 +10,7 @@ export interface Services {
   db: Db;
   provider: PriceProvider;
   usageStore: DrizzleUsageStore;
+  mailer: Mailer;
   close(): Promise<void>;
 }
 
@@ -20,7 +22,8 @@ export function createServices(config: WorkerConfig): Services {
     plan: config.justTcgPlan,
     usageStore,
   });
-  return { config, db, provider, usageStore, close: () => pool.end() };
+  const mailer = createSmtpMailer({ url: config.smtpUrl, from: config.emailFrom });
+  return { config, db, provider, usageStore, mailer, close: () => pool.end() };
 }
 
 /** The sets whose prices fit in what is left of today's request budget, stalest first. */

@@ -1,7 +1,14 @@
 import { data } from "react-router";
 import { formString } from "~/components/auth-form";
 import type { FieldErrors } from "~/components/portfolio-form";
-import { isValidDate, parseDollars, type LotInput, type SaleInput } from "./catalog.ts";
+import {
+  isValidDate,
+  parseDollars,
+  type AlertDirection,
+  type AlertInput,
+  type LotInput,
+  type SaleInput,
+} from "./catalog.ts";
 
 type Field<T> = { value: T } | { error: string };
 type Parsed<T> = { ok: true; input: T } | { ok: false; errors: FieldErrors };
@@ -63,6 +70,26 @@ export function parseSaleForm(form: FormData): Parsed<SaleInput> {
     feesCents: "error" in fees ? fees : { value: fees.value ?? 0 },
     soldOn: requiredDay(formString(form, "soldOn")),
     notes: { value: formString(form, "notes") || null },
+  });
+}
+
+function direction(raw: string): Field<AlertDirection> {
+  return raw === "below" || raw === "above"
+    ? { value: raw }
+    : { error: "Choose when to alert you" };
+}
+
+function threshold(raw: string): Field<number> {
+  const field = requiredDollars(raw);
+  if ("error" in field || field.value > 0) return field;
+  return { error: "Enter an amount above $0.00" };
+}
+
+/** Field errors are keyed by `AlertInput` property; the form posts `threshold` in dollars. */
+export function parseAlertForm(form: FormData): Parsed<AlertInput> {
+  return collect<AlertInput>({
+    direction: direction(formString(form, "direction")),
+    thresholdCents: threshold(formString(form, "threshold")),
   });
 }
 

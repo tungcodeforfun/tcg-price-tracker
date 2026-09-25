@@ -216,3 +216,67 @@ export const portfolioSnapshots = pgTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.day] })],
 );
+
+/**
+ * A price alert on one variant. It fires when the price crosses the threshold, then stays
+ * disarmed until the price moves back across; `armed` tracks that.
+ */
+export const alerts = pgTable(
+  "alerts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id")
+      .notNull()
+      .references(() => variants.id),
+    direction: text("direction", { enum: ["above", "below"] }).notNull(),
+    thresholdCents: integer("threshold_cents").notNull(),
+    active: boolean("active").notNull().default(true),
+    armed: boolean("armed").notNull().default(true),
+    lastTriggeredAt: timestamp("last_triggered_at", { withTimezone: true }),
+    lastTriggeredPriceCents: integer("last_triggered_price_cents"),
+    ...timestamps,
+  },
+  (t) => [
+    index("alerts_user_id_idx").on(t.userId),
+    index("alerts_variant_active_idx")
+      .on(t.variantId)
+      .where(sql`${t.active}`),
+    check("alerts_threshold_positive", sql`${t.thresholdCents} > 0`),
+  ],
+);
+
+/** Outbox of user notifications; the worker delivers pending rows by email. */
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    alertId: uuid("alert_id").references(() => alerts.id, { onDelete: "set null" }),
+    /** One notification per alert firing, even if evaluation runs twice. */
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    variantId: uuid("variant_id")
+      .notNull()
+      .references(() => variants.id),
+    direction: text("direction", { enum: ["above", "below"] }).notNull(),
+    thresholdCents: integer("threshold_cents").notNull(),
+    priceCents: integer("price_cents").notNull(),
+    status: text("status", { enum: ["pending", "sent", "failed"] })
+      .notNull()
+      .default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("notifications_pending_idx")
+      .on(t.createdAt)
+      .where(sql`${t.status} = 'pending'`),
+    index("notifications_user_id_idx").on(t.userId),
+  ],
+);

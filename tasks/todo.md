@@ -71,8 +71,8 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - [x] Verify: 42 core portfolio/CSV/money tests (partial and full sells, zero and unknown cost, unpriced, overflow, ownership, malformed ids, CSV round trip); browser add from card page → sell 1 of 3 → realized +$12.00, unrealized/value update; oversell 400; CSV export → import round trip; snapshot feeds chart
 
 ### V5 — Alerts & notifications
-- [ ] CRUD, evaluation after each price sync, cooldown/dedupe, email delivery via worker
-- **Verify:** fixture price change → exactly one Mailpit email; no repeat within cooldown
+- [x] CRUD, evaluation after each price sync, cooldown/dedupe, email delivery via worker
+- [x] Verify: price drop to $38.50 → exactly one Mailpit email, second evaluation sends nothing; real JustTCG set sync as a worker job restored $42.77 → "above $42" fired, "below $40" re-armed, delivery job sent 1 email; 17 core alert tests + 3 email tests
 
 ### V6 — Billing
 - [ ] Stripe Checkout, Customer Portal, signature-verified idempotent webhook; entitlement checks in `core`
@@ -118,3 +118,9 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - Summary totals are summed in SQL as bigint; a single $1M card × 100,000 overflowed int4 otherwise.
 - CSV import is all-or-nothing with real file line numbers; rows match by variant id, TCGplayer SKU, or set + number + condition (+ printing, language).
 - Portfolio snapshots are written at 23:30 UTC; the dashboard appends today's live value, so the chart needs two distinct days before it draws.
+
+### V5 (2026-09-25)
+- Alerts fire on crossing, not on level: after firing they stay disarmed until the price moves back across, and never fire twice within 24 hours.
+- Firing and queuing the notification happen in one SQL statement (outbox) with a unique dedupe key; delivery locks rows with `SKIP LOCKED`, so parallel workers can't double-send. Delivery is at-least-once: a crash after SMTP accepts but before commit resends.
+- One digest email per user per delivery run; failed sends retry every 5 minutes, up to 5 attempts.
+- Free-tier alert limits are not enforced yet; that's V6 entitlements.

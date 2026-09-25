@@ -29,6 +29,13 @@
       "when": 1790347905189,
       "tag": "0003_portfolio",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790349083538,
+      "tag": "0004_alerts",
+      "breakpoints": true
     }
   ]
 }
