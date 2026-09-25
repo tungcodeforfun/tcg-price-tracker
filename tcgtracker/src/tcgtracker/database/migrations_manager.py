@@ -117,7 +117,7 @@ class MigrationsManager:
 
             # Use sync driver for this one-off check
             sync_url = self.settings.database.url.replace(
-                "postgresql+asyncpg://", "postgresql://"
+                "postgresql+asyncpg://", "postgresql+psycopg2://"
             )
             engine = create_engine(
                 sync_url,

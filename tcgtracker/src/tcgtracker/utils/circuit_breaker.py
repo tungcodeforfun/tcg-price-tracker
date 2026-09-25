@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Callable, Dict, Optional, TypeVar, cast
 
 import structlog
 
@@ -41,7 +41,7 @@ class CircuitBreaker:
         name: str,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        expected_exception: type = Exception,
+        expected_exception: type[BaseException] = Exception,
         success_threshold: int = 1,
     ) -> None:
         """
@@ -153,7 +153,7 @@ class CircuitBreaker:
                     threshold=self.failure_threshold,
                 )
 
-    async def call(self, func: Callable, *args, **kwargs) -> Any:
+    async def call(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """
         Execute a function through the circuit breaker.
 
@@ -223,10 +223,10 @@ class CircuitBreaker:
             Wrapped function
         """
 
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             return await self.call(func, *args, **kwargs)
 
-        return wrapper
+        return cast(F, wrapper)
 
     async def reset(self) -> None:
         """Manually reset the circuit breaker to closed state."""
@@ -265,7 +265,7 @@ class CircuitBreakerRegistry:
         name: str,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        expected_exception: type = Exception,
+        expected_exception: type[BaseException] = Exception,
         success_threshold: int = 1,
     ) -> CircuitBreaker:
         """Get existing circuit breaker or create a new one."""
@@ -308,7 +308,7 @@ async def get_circuit_breaker(
     name: str,
     failure_threshold: int = 5,
     recovery_timeout: int = 60,
-    expected_exception: type = Exception,
+    expected_exception: type[BaseException] = Exception,
     success_threshold: int = 1,
 ) -> CircuitBreaker:
     """Get or create a circuit breaker from the global registry."""

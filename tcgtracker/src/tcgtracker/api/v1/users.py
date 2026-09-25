@@ -185,7 +185,15 @@ async def create_price_alert(
     await db.commit()
     await db.refresh(new_alert, ["card"])
 
-    logger.info("audit.alert_create", extra={"action": "alert_create", "user_id": current_user.id, "alert_id": new_alert.id, "card_id": alert_data.card_id})
+    logger.info(
+        "audit.alert_create",
+        extra={
+            "action": "alert_create",
+            "user_id": current_user.id,
+            "alert_id": new_alert.id,
+            "card_id": alert_data.card_id,
+        },
+    )
 
     return new_alert
 

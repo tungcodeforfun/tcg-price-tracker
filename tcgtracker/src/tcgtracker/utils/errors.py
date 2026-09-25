@@ -3,7 +3,7 @@
 import asyncio
 import random
 from functools import wraps
-from typing import Any, Callable, List, Optional, Type, TypeVar
+from typing import Any, Callable, List, Optional, Type, TypeVar, cast
 
 import httpx
 import structlog
@@ -45,7 +45,7 @@ class RateLimitError(TransientError):
         self,
         message: str = "Rate limit exceeded",
         retry_after: Optional[int] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         super().__init__(message, **kwargs)
         self.retry_after = retry_after
@@ -54,28 +54,30 @@ class RateLimitError(TransientError):
 class AuthenticationError(PermanentError):
     """Authentication failed error."""
 
-    def __init__(self, message: str = "Authentication failed", **kwargs) -> None:
+    def __init__(self, message: str = "Authentication failed", **kwargs: Any) -> None:
         super().__init__(message, **kwargs)
 
 
 class ValidationError(PermanentError):
     """Request validation error."""
 
-    def __init__(self, message: str = "Request validation failed", **kwargs) -> None:
+    def __init__(
+        self, message: str = "Request validation failed", **kwargs: Any
+    ) -> None:
         super().__init__(message, **kwargs)
 
 
 class NetworkError(TransientError):
     """Network connectivity error."""
 
-    def __init__(self, message: str = "Network error occurred", **kwargs) -> None:
+    def __init__(self, message: str = "Network error occurred", **kwargs: Any) -> None:
         super().__init__(message, **kwargs)
 
 
 class TimeoutError(TransientError):
     """Request timeout error."""
 
-    def __init__(self, message: str = "Request timed out", **kwargs) -> None:
+    def __init__(self, message: str = "Request timed out", **kwargs: Any) -> None:
         super().__init__(message, **kwargs)
 
 
@@ -168,7 +170,7 @@ def retry_on_transient_error(
 
     def decorator(func: F) -> F:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             last_exception = None
 
             for attempt in range(max_attempts):
@@ -228,7 +230,7 @@ def retry_on_transient_error(
             if last_exception:
                 raise last_exception
 
-        return wrapper
+        return cast(F, wrapper)
 
     return decorator
 
@@ -290,7 +292,7 @@ async def safe_request(
     client: httpx.AsyncClient,
     method: str,
     url: str,
-    **kwargs,
+    **kwargs: Any,
 ) -> httpx.Response:
     """
     Make a safe HTTP request with proper error handling.

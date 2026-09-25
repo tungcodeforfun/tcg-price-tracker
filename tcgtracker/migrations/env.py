@@ -15,8 +15,8 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 settings = get_settings()
-# Use sync driver for migrations (psycopg2 instead of asyncpg)
-sync_url = settings.database.url.replace("postgresql+asyncpg://", "postgresql://")
+# Use sync driver for migrations (psycopg2 instead of asyncpg); SQLAlchemy 2.1 defaults bare postgresql:// to psycopg 3
+sync_url = settings.database.url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 config.set_main_option("sqlalchemy.url", sync_url)
 
 

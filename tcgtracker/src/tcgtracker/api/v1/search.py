@@ -81,7 +81,7 @@ async def search_tcgplayer(
                     external_id=product_id,
                     name=product.get("name", "Unknown"),
                     set_name=product.get("groupName", "Unknown Set"),
-                    tcg_type=search_request.tcg_type or "pokemon",
+                    tcg_type=search_request.tcg_type or TCGType.POKEMON,
                     price=price_data.get("market"),
                     image_url=product.get("imageUrl"),
                     source=PriceSource.TCGPLAYER,
@@ -146,7 +146,7 @@ async def search_pricecharting(
                     ),
                     name=product.get("name", "Unknown"),
                     set_name=product.get("set_name", "Unknown Set"),
-                    tcg_type=search_request.tcg_type or "pokemon",
+                    tcg_type=search_request.tcg_type or TCGType.POKEMON,
                     price=product.get("complete_price") or product.get("market_price"),
                     image_url=product.get("image_url"),
                     source=PriceSource.PRICECHARTING,
@@ -188,7 +188,7 @@ async def search_justtcg(
             results = []
             for product in products:
                 raw_type = product.get("tcg_type") or search_request.tcg_type or "pokemon"
-                tcg_type = raw_type if raw_type in valid_types else "pokemon"
+                tcg_type = TCGType(raw_type) if raw_type in valid_types else TCGType.POKEMON
                 result = SearchResult(
                     external_id=str(product.get("id", "")),
                     name=product.get("name", "Unknown"),
@@ -240,7 +240,7 @@ async def search_ebay(
                     external_id=listing.get("itemId", ""),
                     name=listing.get("title", "Unknown"),
                     set_name="",  # eBay doesn't provide set info directly
-                    tcg_type=search_request.tcg_type or "pokemon",
+                    tcg_type=search_request.tcg_type or TCGType.POKEMON,
                     price=listing.get("price"),
                     image_url=listing.get("imageUrl"),
                     source=PriceSource.EBAY,
@@ -316,7 +316,7 @@ async def import_card_from_search(
     search_result: SearchResult,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
-):
+) -> JSONResponse:
     """Import a card from search results into the database."""
     # Check if card already exists
     from sqlalchemy import and_, select
@@ -342,6 +342,8 @@ async def import_card_from_search(
         tcg_type=search_result.tcg_type,
         name=search_result.name,
         set_name=search_result.set_name or "Unknown Set",
+        card_number=None,
+        rarity=None,
         external_id=search_result.external_id,
         image_url=search_result.image_url,
     )

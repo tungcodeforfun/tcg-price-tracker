@@ -1,5 +1,6 @@
 """API dependencies and common utilities."""
 
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
@@ -7,7 +8,9 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import PyJWTError
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
+from pwdlib.hashers.argon2 import Argon2Hasher
+from pwdlib.hashers.bcrypt import BcryptHasher
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -35,11 +38,19 @@ def _get_token_from_request(
     )
 
 
-# Create a global password context to avoid recreation on every call
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+class _LegacyBcryptHasher(BcryptHasher):
+    """Verifies passlib-era bcrypt hashes, which silently truncated passwords to 72 bytes."""
+
+    def verify(self, password: str | bytes, hash: str | bytes) -> bool:
+        raw = password.encode() if isinstance(password, str) else password
+        return super().verify(raw[:72], hash)
 
 
-async def get_session():
+# Argon2 hashes new passwords; bcrypt only verifies hashes created before the switch.
+password_hash = PasswordHash((Argon2Hasher(), _LegacyBcryptHasher()))
+
+
+async def get_session() -> AsyncIterator[AsyncSession]:
     """Dependency to get database session."""
     async with _get_session() as session:
         yield session
@@ -154,9 +165,16 @@ def create_refresh_token(data: dict) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return password_hash.verify(plain_password, hashed_password)
+
+
+def verify_and_update_password(
+    plain_password: str, hashed_password: str
+) -> tuple[bool, str | None]:
+    """Verify password; also return a fresh hash when the stored one is outdated."""
+    return password_hash.verify_and_update(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """Hash password."""
-    return pwd_context.hash(password)
+    return password_hash.hash(password)

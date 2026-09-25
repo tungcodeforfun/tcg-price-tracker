@@ -1,6 +1,8 @@
 """Command-line interface for TCG Price Tracker."""
 
 import asyncio
+from collections.abc import Coroutine
+from typing import Any, TypeVar
 
 import click
 import structlog
@@ -19,19 +21,21 @@ from tcgtracker.database.migrations_manager import (
 
 logger = structlog.get_logger(__name__)
 
+T = TypeVar("T")
 
-def run_async(coro):
+
+def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """Run async function."""
     return asyncio.run(coro)
 
 
 @click.group()
-def cli():
+def cli() -> None:
     """TCG Price Tracker CLI."""
 
 
 @cli.group()
-def db():
+def db() -> None:
     """Database management commands."""
 
 
@@ -40,7 +44,7 @@ def db():
 @click.option(
     "--autogenerate/--no-autogenerate", default=True, help="Auto-generate migration"
 )
-def create_migration(message: str, autogenerate: bool):
+def create_migration(message: str, autogenerate: bool) -> None:
     """Create a new database migration."""
     try:
         migrations_manager = MigrationsManager()
@@ -61,7 +65,7 @@ def create_migration(message: str, autogenerate: bool):
 @click.option(
     "--revision", "-r", default="head", help="Target revision (default: head)"
 )
-def upgrade(revision: str):
+def upgrade(revision: str) -> None:
     """Upgrade database to specified revision."""
     try:
         migrations_manager = MigrationsManager()
@@ -82,7 +86,7 @@ def upgrade(revision: str):
 
 @db.command()
 @click.option("--revision", "-r", required=True, help="Target revision")
-def downgrade(revision: str):
+def downgrade(revision: str) -> None:
     """Downgrade database to specified revision."""
     try:
         migrations_manager = MigrationsManager()
@@ -94,7 +98,7 @@ def downgrade(revision: str):
 
 
 @db.command()
-def current():
+def current() -> None:
     """Show current database revision."""
     try:
         migrations_manager = MigrationsManager()
@@ -105,7 +109,7 @@ def current():
 
 
 @db.command()
-def history():
+def history() -> None:
     """Show migration history."""
     try:
         migrations_manager = MigrationsManager()
@@ -116,7 +120,7 @@ def history():
 
 
 @db.command()
-def init():
+def init() -> None:
     """Initialize database with all tables and migrations."""
     try:
         run_async(init_database())
@@ -141,7 +145,7 @@ def init():
 @click.confirmation_option(
     prompt="Are you sure you want to reset the database? All data will be lost!"
 )
-def reset():
+def reset() -> None:
     """Reset database by dropping and recreating all tables."""
     try:
         run_async(reset_database())
@@ -152,7 +156,7 @@ def reset():
 
 
 @db.command(name="create-tables")
-def create_tables_cmd():
+def create_tables_cmd() -> None:
     """Create all database tables without migrations."""
     try:
         run_async(create_tables())
@@ -164,7 +168,7 @@ def create_tables_cmd():
 
 @db.command(name="drop-tables")
 @click.confirmation_option(prompt="Are you sure you want to drop all tables?")
-def drop_tables_cmd():
+def drop_tables_cmd() -> None:
     """Drop all database tables."""
     try:
         run_async(drop_tables())
@@ -175,7 +179,7 @@ def drop_tables_cmd():
 
 
 @db.command()
-def test_connection():
+def test_connection() -> None:
     """Test database connection."""
     try:
         run_async(_test_connection_async())
@@ -193,7 +197,7 @@ def test_connection():
         raise click.ClickException(str(e))
 
 
-async def _test_connection_async():
+async def _test_connection_async() -> None:
     """Internal async function for testing connection."""
     db_manager = get_db_manager()
     await db_manager.initialize()
@@ -212,7 +216,7 @@ async def _test_connection_async():
 @click.option("--port", default=8000, help="Port to bind to")
 @click.option("--reload/--no-reload", default=False, help="Enable auto-reload")
 @click.option("--debug/--no-debug", default=False, help="Enable debug mode")
-def serve(host: str, port: int, reload: bool, debug: bool):
+def serve(host: str, port: int, reload: bool, debug: bool) -> None:
     """Start the TCG Price Tracker server."""
     import uvicorn
 

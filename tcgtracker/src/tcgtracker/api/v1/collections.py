@@ -50,8 +50,8 @@ async def add_to_collection(
 ) -> CollectionItem:
     """Add a card to user's collection."""
     # Verify card exists
-    result = await db.execute(select(Card).where(Card.id == item_data.card_id))
-    card = result.scalar_one_or_none()
+    card_result = await db.execute(select(Card).where(Card.id == item_data.card_id))
+    card = card_result.scalar_one_or_none()
 
     if not card:
         raise HTTPException(
@@ -82,7 +82,15 @@ async def add_to_collection(
         )
         existing_item = result.scalar_one()
         _populate_item_runtime_fields(existing_item)
-        logger.info("audit.collection_add", extra={"action": "collection_update_quantity", "user_id": current_user.id, "item_id": existing_item.id, "card_id": item_data.card_id})
+        logger.info(
+            "audit.collection_add",
+            extra={
+                "action": "collection_update_quantity",
+                "user_id": current_user.id,
+                "item_id": existing_item.id,
+                "card_id": item_data.card_id,
+            },
+        )
         return existing_item
 
     # Create new collection item
@@ -98,7 +106,15 @@ async def add_to_collection(
     )
     new_item = result.scalar_one()
     _populate_item_runtime_fields(new_item)
-    logger.info("audit.collection_add", extra={"action": "collection_add", "user_id": current_user.id, "item_id": new_item.id, "card_id": item_data.card_id})
+    logger.info(
+        "audit.collection_add",
+        extra={
+            "action": "collection_add",
+            "user_id": current_user.id,
+            "item_id": new_item.id,
+            "card_id": item_data.card_id,
+        },
+    )
     return new_item
 
 
@@ -364,8 +380,8 @@ async def get_collection_value_history(
         for date, value in sorted(daily_values.items())
     ]
 
-    current_value = history[-1]["value"] if history else 0
-    start_value = history[0]["value"] if history else 0
+    current_value = float(daily_values[max(daily_values)]) if daily_values else 0
+    start_value = float(daily_values[min(daily_values)]) if daily_values else 0
     change = current_value - start_value
     change_percentage = (change / start_value) * 100 if start_value > 0 else 0
 

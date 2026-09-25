@@ -1,78 +1,66 @@
+# syntax=docker/dockerfile:1
 # Multi-stage Dockerfile for TCG Price Tracker
-FROM python:3.13-slim as base
+FROM ghcr.io/astral-sh/uv:0.12.19 AS uv
 
-# Set environment variables
+FROM python:3.13-slim AS base
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 # Create non-root user
 RUN groupadd --gid 1000 appuser && \
     useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    libpq-dev \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set work directory
 WORKDIR /app
 
-# Copy requirements and readme
-COPY pyproject.toml README.md ./
+# Builder: resolve the locked runtime environment into /opt/venv
+FROM base AS builder
+
+COPY --from=uv /uv /usr/local/bin/uv
+
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project
+
+COPY README.md ./
 COPY src/ ./src/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
 
-# Install dependencies
-RUN pip install --upgrade pip && \
-    pip install .
+# Development stage: editable install so bind-mounted src/ is live
+FROM base AS development
 
-# Development stage
-FROM base as development
+COPY --from=uv /uv /usr/local/bin/uv
 
-# Install development dependencies
-RUN pip install -e ".[dev]"
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --extra dev --no-install-project
 
-# Copy source code
-COPY . .
+COPY --chown=appuser:appuser . .
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --extra dev
 
-# Change ownership to non-root user
-RUN chown -R appuser:appuser /app
-
-# Switch to non-root user
 USER appuser
 
-# Expose port
 EXPOSE 8000
 
-# Command for development
 CMD ["python", "-m", "tcgtracker"]
 
-# Production stage
-FROM base as production
+# Production stage: only the prebuilt virtualenv, no sources/tests/tooling
+FROM base AS production
 
-# Copy only necessary files
-COPY src/ ./src/
-COPY pyproject.toml ./
+COPY --from=builder /opt/venv /opt/venv
 
-# Install production dependencies only
-RUN pip install .
-
-# Change ownership to non-root user
-RUN chown -R appuser:appuser /app
-
-# Switch to non-root user
 USER appuser
 
-# Add health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
 
-# Expose port
 EXPOSE 8000
 
-# Command for production
 CMD ["python", "-m", "tcgtracker"]

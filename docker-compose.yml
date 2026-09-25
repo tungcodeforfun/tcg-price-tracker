@@ -21,8 +21,6 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/2
       - SECURITY_SECRET_KEY=${SECURITY_SECRET_KEY}
       - API_JUSTTCG_API_KEY=${API_JUSTTCG_API_KEY}
       - API_PRICECHARTING_API_KEY=${API_PRICECHARTING_API_KEY}
@@ -46,7 +44,7 @@ services:
 
   # PostgreSQL database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     environment:
       - POSTGRES_DB=${DB_NAME:-tcgtracker}
       - POSTGRES_USER=${DB_USER:-tcgtracker}
@@ -61,25 +59,7 @@ services:
       - tcg-network
     restart: unless-stopped
 
-  # PostgreSQL read replica (for production-like testing)
-  postgres-replica:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=${DB_NAME:-tcgtracker}
-      - POSTGRES_USER=${DB_USER:-tcgtracker}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_replica_data:/var/lib/postgresql/data
-    networks:
-      - tcg-network
-    restart: unless-stopped
-    profiles:
-      - replica
-
-  # Redis cache and message broker
+  # Redis cache
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-changeme}
@@ -91,129 +71,9 @@ services:
       - tcg-network
     restart: unless-stopped
 
-  # Celery worker for background tasks
-  celery-worker:
-    build:
-      context: ./tcgtracker
-      dockerfile: Dockerfile
-      target: development
-    command: celery -A tcgtracker.workers.celery_app worker --loglevel=info --concurrency=4
-    env_file:
-      - .env
-    environment:
-      - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-DEBUG}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-tcgtracker}
-      - DB_USER=${DB_USER:-tcgtracker}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/2
-      - SECURITY_SECRET_KEY=${SECURITY_SECRET_KEY}
-      - API_JUSTTCG_API_KEY=${API_JUSTTCG_API_KEY}
-      - API_PRICECHARTING_API_KEY=${API_PRICECHARTING_API_KEY}
-      - API_PRICECHARTING_RATE_LIMIT=${API_PRICECHARTING_RATE_LIMIT:-60}
-      - API_EBAY_ENVIRONMENT=${API_EBAY_ENVIRONMENT:-sandbox}
-      - API_EBAY_CLIENT_ID=${API_EBAY_CLIENT_ID}
-      - API_EBAY_CLIENT_SECRET=${API_EBAY_CLIENT_SECRET}
-      - API_EBAY_SANDBOX_CLIENT_ID=${API_EBAY_SANDBOX_CLIENT_ID}
-      - API_EBAY_SANDBOX_CLIENT_SECRET=${API_EBAY_SANDBOX_CLIENT_SECRET}
-    volumes:
-      - ./tcgtracker/src:/app/src
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - tcg-network
-    restart: unless-stopped
-    profiles:
-      - worker
-
-  # Celery beat scheduler
-  celery-beat:
-    build:
-      context: ./tcgtracker
-      dockerfile: Dockerfile
-      target: development
-    command: celery -A tcgtracker.workers.celery_app beat --loglevel=info
-    env_file:
-      - .env
-    environment:
-      - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_LOG_LEVEL=${APP_LOG_LEVEL:-DEBUG}
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-tcgtracker}
-      - DB_USER=${DB_USER:-tcgtracker}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
-      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/2
-      - SECURITY_SECRET_KEY=${SECURITY_SECRET_KEY}
-      - API_JUSTTCG_API_KEY=${API_JUSTTCG_API_KEY}
-      - API_PRICECHARTING_API_KEY=${API_PRICECHARTING_API_KEY}
-      - API_PRICECHARTING_RATE_LIMIT=${API_PRICECHARTING_RATE_LIMIT:-60}
-      - API_EBAY_ENVIRONMENT=${API_EBAY_ENVIRONMENT:-sandbox}
-      - API_EBAY_CLIENT_ID=${API_EBAY_CLIENT_ID}
-      - API_EBAY_CLIENT_SECRET=${API_EBAY_CLIENT_SECRET}
-      - API_EBAY_SANDBOX_CLIENT_ID=${API_EBAY_SANDBOX_CLIENT_ID}
-      - API_EBAY_SANDBOX_CLIENT_SECRET=${API_EBAY_SANDBOX_CLIENT_SECRET}
-    volumes:
-      - ./tcgtracker/src:/app/src
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - tcg-network
-    restart: unless-stopped
-    profiles:
-      - scheduler
-
-  # Redis Commander (Web UI for Redis)
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    environment:
-      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-changeme}
-    ports:
-      - "127.0.0.1:8081:8081"
-    depends_on:
-      - redis
-    networks:
-      - tcg-network
-    restart: unless-stopped
-    profiles:
-      - tools
-
-  # pgAdmin (Web UI for PostgreSQL)
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:-admin@tcgtracker.dev}
-      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_DEFAULT_PASSWORD:-admin}
-      - PGADMIN_CONFIG_SERVER_MODE=False
-    ports:
-      - "8080:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    networks:
-      - tcg-network
-    restart: unless-stopped
-    profiles:
-      - tools
-
 volumes:
   postgres_data:
-  postgres_replica_data:
   redis_data:
-  pgadmin_data:
 
 networks:
   tcg-network:

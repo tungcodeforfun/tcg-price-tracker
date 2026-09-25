@@ -2,7 +2,8 @@
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from types import TracebackType
+from typing import Any, Dict, Optional, Self
 from urllib.parse import urljoin
 
 import httpx
@@ -152,11 +153,16 @@ class BaseAPIClient:
             )
             self._circuit_breaker_initialized = True
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         """Async context manager exit."""
         await self.close()
 
@@ -193,7 +199,7 @@ class BaseAPIClient:
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> httpx.Response:
         """
         Make HTTP request with rate limiting and circuit breaker protection.
@@ -228,7 +234,7 @@ class BaseAPIClient:
         )
 
         # Function to make the actual request
-        async def make_request():
+        async def make_request() -> httpx.Response:
             return await safe_request(
                 self._client,
                 method,
@@ -245,7 +251,9 @@ class BaseAPIClient:
         # Use circuit breaker if enabled
         if self._circuit_breaker:
             try:
-                response = await self._circuit_breaker.call(make_request)
+                response: httpx.Response = await self._circuit_breaker.call(
+                    make_request
+                )
             except Exception as exc:
                 logger.error(
                     "Request failed through circuit breaker",
@@ -275,13 +283,14 @@ class BaseAPIClient:
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Make GET request and return JSON response."""
         response = await self._make_request(
             "GET", endpoint, params=params, headers=headers, **kwargs
         )
-        return response.json()
+        data: Dict[str, Any] = response.json()
+        return data
 
     async def post(
         self,
@@ -289,13 +298,14 @@ class BaseAPIClient:
         json: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Make POST request and return JSON response."""
         response = await self._make_request(
             "POST", endpoint, params=params, json=json, headers=headers, **kwargs
         )
-        return response.json()
+        data: Dict[str, Any] = response.json()
+        return data
 
     async def put(
         self,
@@ -303,33 +313,35 @@ class BaseAPIClient:
         json: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Make PUT request and return JSON response."""
         response = await self._make_request(
             "PUT", endpoint, params=params, json=json, headers=headers, **kwargs
         )
-        return response.json()
+        data: Dict[str, Any] = response.json()
+        return data
 
     async def delete(
         self,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Make DELETE request and return JSON response."""
         response = await self._make_request(
             "DELETE", endpoint, params=params, headers=headers, **kwargs
         )
-        return response.json()
+        data: Dict[str, Any] = response.json()
+        return data
 
     async def get_raw(
         self,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> httpx.Response:
         """Make GET request and return raw response."""
         return await self._make_request(

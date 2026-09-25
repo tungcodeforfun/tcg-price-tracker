@@ -150,10 +150,10 @@ def create_app() -> FastAPI:
     from tcgtracker.api.rate_limit import limiter
 
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
     @app.exception_handler(ResponseValidationError)
-    async def response_validation_handler(request: Request, exc: ResponseValidationError):
+    async def response_validation_handler(request: Request, exc: ResponseValidationError) -> JSONResponse:
         import logging as _log
         import traceback
         _log.getLogger("tcgtracker").error(

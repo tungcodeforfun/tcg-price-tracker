@@ -7,7 +7,7 @@ A full-stack application for tracking Pokemon and One Piece TCG card prices. Mon
 ## Features
 
 - **Collection Management** — Track cards you own with purchase price, condition, and quantity
-- **Price Tracking** — Automated price fetching from TCGPlayer, eBay, PriceCharting, and JustTCG
+- **Price Tracking** — Price fetching from TCGPlayer, eBay, PriceCharting, and JustTCG
 - **Portfolio Analytics** — Dashboard with total value, profit/loss, and historical charts
 - **Price Alerts** — Get notified when cards hit your target price
 - **Multi-Source Search** — Search your library and import from external marketplaces
@@ -16,34 +16,32 @@ A full-stack application for tracking Pokemon and One Piece TCG card prices. Mon
 ## Tech Stack
 
 ### Backend
-- **Runtime:** Python 3.11+
+- **Runtime:** Python 3.13, managed with [uv](https://docs.astral.sh/uv/) (`tcgtracker/uv.lock`)
 - **Framework:** FastAPI + Uvicorn
-- **Database:** PostgreSQL 15 (async via asyncpg)
-- **Cache:** Redis 7
-- **Task Queue:** Celery (background price updates)
+- **Database:** PostgreSQL 17 (async via asyncpg)
+- **Redis:** Redis 7 (revoked-token blacklist)
 - **ORM:** SQLAlchemy 2.0 + Alembic migrations
 - **Auth:** JWT (access + refresh tokens)
 
 ### Frontend
-- **Runtime:** Node.js 20+
-- **Framework:** React 19 + TypeScript 5.9
-- **Build:** Vite 7
+- **Runtime:** Node.js 22+
+- **Framework:** React 19 + TypeScript 6
+- **Build:** Vite 8
 - **Styling:** Tailwind CSS v4
 - **UI:** Radix UI + shadcn-style components
 - **Charts:** Recharts
 
 ### Infrastructure
 - **Containers:** Docker Compose
-- **CI/CD:** GitHub Actions
-- **Security:** Trivy, Semgrep, TruffleHog, Bandit
+- **CI:** GitHub Actions (lint, typecheck, migrations, tests, frontend build)
 
 ## Getting Started
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Node.js 20+ and npm (for frontend development)
-- Python 3.11+ (for backend development without Docker)
+- Node.js 22+ and npm (for frontend development)
+- Python 3.13 and [uv](https://docs.astral.sh/uv/) (for backend development without Docker)
 
 ### Quick Start with Docker
 
@@ -79,8 +77,9 @@ The frontend dev server starts at `http://localhost:5173` and proxies API reques
 
 ```bash
 cd tcgtracker
-pip install -e ".[dev]"
-tcg-cli serve --host 0.0.0.0 --port 8000 --reload
+uv sync --locked --extra dev
+uv run tcg-cli db upgrade
+uv run tcg-cli serve --host 0.0.0.0 --port 8000 --reload
 ```
 
 ## Project Structure
@@ -99,12 +98,13 @@ tcg-price-tracker/
 │   ├── src/tcgtracker/
 │   │   ├── api/            # FastAPI routes and schemas
 │   │   ├── database/       # SQLAlchemy models
-│   │   ├── integrations/   # External API clients
-│   │   └── workers/        # Celery background tasks
-│   └── pyproject.toml
-├── migrations/             # Alembic database migrations
+│   │   └── integrations/   # External API clients
+│   ├── migrations/         # Alembic database migrations
+│   ├── pyproject.toml
+│   └── uv.lock
+├── scripts/init-db.sql     # Postgres extensions for the Docker database
 ├── docker-compose.yml      # Full stack orchestration
-└── .github/workflows/      # CI/CD pipelines
+└── .github/workflows/      # CI workflow
 ```
 
 ## API
@@ -129,13 +129,13 @@ The backend serves a REST API at `/api/v1/`. Key endpoints:
 ```bash
 # Backend formatting and linting
 cd tcgtracker
-black src/ tests/
-isort src/ tests/
-flake8 src/ tests/
-mypy src/
+uv run black src/ tests/
+uv run isort src/ tests/
+uv run flake8 src tests
+uv run mypy src/tcgtracker
 
 # Backend tests
-pytest
+uv run pytest
 
 # Frontend type checking and linting
 cd frontend

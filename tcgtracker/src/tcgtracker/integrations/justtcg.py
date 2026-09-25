@@ -281,7 +281,10 @@ class JustTCGClient(BaseAPIClient):
             results = await self.search_cards(card_identifier, game=game, limit=1)
             if not results:
                 return None
-            card_identifier = results[0].get("id")
+            card_id = results[0].get("id")
+            if card_id is None:
+                return None
+            card_identifier = card_id
 
         # Get detailed price data
         prices = await self.get_card_prices([card_identifier], game, condition)
@@ -386,7 +389,7 @@ class JustTCGClient(BaseAPIClient):
         }
         return mapping.get(tcg_type, tcg_type)
 
-    def _map_game_to_tcg_type(self, game: str) -> str:
+    def _map_game_to_tcg_type(self, game: Optional[str]) -> Optional[str]:
         """Map JustTCG API game names back to internal TCG types."""
         # Normalize: lowercase and replace spaces with hyphens to handle
         # both slug format ("one-piece-card-game") and display format

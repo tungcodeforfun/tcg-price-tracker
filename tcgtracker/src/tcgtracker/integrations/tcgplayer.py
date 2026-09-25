@@ -127,7 +127,8 @@ class TCGPlayerClient(BaseAPIClient):
                 json=token_data,
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-            return response.json()
+            data: Dict[str, Any] = response.json()
+            return data
         except Exception as exc:
             raise AuthenticationError(
                 f"Failed to exchange authorization code: {str(exc)}"
@@ -242,7 +243,7 @@ class TCGPlayerClient(BaseAPIClient):
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Make authenticated request with token refresh handling."""
         # Ensure we have a valid token (except for token endpoints)
@@ -273,7 +274,8 @@ class TCGPlayerClient(BaseAPIClient):
             List of category objects
         """
         response = await self.get("/v1.39.0/catalog/categories")
-        return response.get("results", [])
+        results: List[Dict[str, Any]] = response.get("results", [])
+        return results
 
     async def get_category_groups(self, category_id: int) -> List[Dict[str, Any]]:
         """
@@ -286,7 +288,8 @@ class TCGPlayerClient(BaseAPIClient):
             List of group objects
         """
         response = await self.get(f"/v1.39.0/catalog/categories/{category_id}/groups")
-        return response.get("results", [])
+        results: List[Dict[str, Any]] = response.get("results", [])
+        return results
 
     async def get_sets(
         self,
@@ -339,7 +342,7 @@ class TCGPlayerClient(BaseAPIClient):
         Returns:
             Products response with results and pagination info
         """
-        params = {
+        params: Dict[str, Any] = {
             "categoryId": category_id,
             "offset": offset,
             "limit": limit,
@@ -377,7 +380,8 @@ class TCGPlayerClient(BaseAPIClient):
         product_ids_str = ",".join(map(str, product_ids))
 
         response = await self.get(f"/v1.39.0/pricing/product/{product_ids_str}")
-        return response.get("results", [])
+        results: List[Dict[str, Any]] = response.get("results", [])
+        return results
 
     async def get_market_prices(
         self,
@@ -403,7 +407,8 @@ class TCGPlayerClient(BaseAPIClient):
         product_ids_str = ",".join(map(str, product_ids))
 
         response = await self.get(f"/v1.39.0/pricing/marketprices/{product_ids_str}")
-        return response.get("results", [])
+        results: List[Dict[str, Any]] = response.get("results", [])
+        return results
 
     async def search_products(
         self,
@@ -431,7 +436,8 @@ class TCGPlayerClient(BaseAPIClient):
             params["categoryId"] = category_id
 
         response = await self.get("/v1.39.0/catalog/products", params=params)
-        return response.get("results", [])
+        results: List[Dict[str, Any]] = response.get("results", [])
+        return results
 
     async def get_product_prices(
         self,

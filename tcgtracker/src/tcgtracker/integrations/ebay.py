@@ -124,7 +124,8 @@ class eBayClient(BaseAPIClient):
             response.raise_for_status()
 
             token_response = response.json()
-            return token_response["access_token"]
+            access_token: str = token_response["access_token"]
+            return access_token
 
         except Exception as exc:
             logger.warning("Failed to get eBay application token: %s", exc)
@@ -190,7 +191,7 @@ class eBayClient(BaseAPIClient):
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> Any:
         """Make authenticated request with token refresh handling."""
         # Ensure we have a valid token
@@ -348,7 +349,8 @@ class eBayClient(BaseAPIClient):
             limit=limit,
         )
 
-        return result.get("itemSummaries", [])
+        items: List[Dict[str, Any]] = result.get("itemSummaries", [])
+        return items
 
     async def search_one_piece_cards(
         self,
@@ -384,7 +386,8 @@ class eBayClient(BaseAPIClient):
             limit=limit,
         )
 
-        return result.get("itemSummaries", [])
+        items: List[Dict[str, Any]] = result.get("itemSummaries", [])
+        return items
 
     async def search_cards(
         self,

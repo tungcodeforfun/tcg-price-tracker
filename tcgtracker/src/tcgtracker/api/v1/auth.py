@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -21,7 +21,7 @@ from tcgtracker.api.dependencies import (
     get_current_user,
     get_password_hash,
     get_session,
-    verify_password,
+    verify_and_update_password,
 )
 from tcgtracker.api.rate_limit import limiter
 from tcgtracker.api.schemas import TokenRefresh, UserCreate, UserResponse
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 _COOKIE_SECURE = settings.app.environment == "production"
-_COOKIE_SAMESITE: str = "lax"
+_COOKIE_SAMESITE: Literal["lax"] = "lax"
 
 
 def _set_token_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
@@ -206,9 +206,14 @@ async def login(
     )
     user = result.scalar_one_or_none()
 
-    if not user or not await asyncio.to_thread(
-        verify_password, form_data.password, user.password_hash
-    ):
+    verified, updated_hash = (
+        await asyncio.to_thread(
+            verify_and_update_password, form_data.password, user.password_hash
+        )
+        if user
+        else (False, None)
+    )
+    if not user or not verified:
         logger.warning("audit.login_failed", extra={"action": "login_failed", "username": form_data.username})
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -220,6 +225,10 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user"
         )
+
+    if updated_hash:
+        user.password_hash = updated_hash
+        await db.commit()
 
     # Create tokens
     access_token_expires = timedelta(
@@ -264,7 +273,7 @@ async def refresh_token(
             algorithms=[settings.security.algorithm],
             options={"require": ["exp", "iat", "sub", "type"]},
         )
-        user_id: str = payload.get("sub")
+        user_id: str | None = payload.get("sub")
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
@@ -341,8 +350,8 @@ async def verify_email(
             options={"require": ["exp", "iat", "sub", "type"]},
         )
 
-        user_id: str = payload.get("sub")
-        token_type: str = payload.get("type")
+        user_id: str | None = payload.get("sub")
+        token_type: str | None = payload.get("type")
 
         if user_id is None or token_type != "email_verify":
             raise HTTPException(

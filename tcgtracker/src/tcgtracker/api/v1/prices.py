@@ -14,7 +14,7 @@ from tcgtracker.api.dependencies import get_current_user, get_session
 from tcgtracker.api.rate_limit import limiter
 from tcgtracker.api.schemas import BulkPriceUpdate, PriceCreate
 from tcgtracker.api.schemas import PriceHistory as PriceHistorySchema
-from tcgtracker.api.schemas import PriceResponse, PriceSource
+from tcgtracker.api.schemas import CardCondition, PriceResponse, PriceSource
 from tcgtracker.database.models import (
     AlertTypeEnum,
     Card,
@@ -63,10 +63,10 @@ async def fetch_and_update_price(
 
     elif source == PriceSource.JUSTTCG:
         # Fetch from JustTCG
-        async with JustTCGClient() as client:
+        async with JustTCGClient() as justtcg_client:
             try:
                 game = card.tcg_type.value
-                result = await client.get_card_price(card.name, game=game)
+                result = await justtcg_client.get_card_price(card.name, game=game)
                 if result:
                     price_data = result.get("market_price", 0)
                     low_price = result.get("low_price", 0)
@@ -77,10 +77,10 @@ async def fetch_and_update_price(
 
     elif source == PriceSource.TCGPLAYER and card.external_id:
         # Fetch from TCGPlayer
-        client = TCGPlayerClient()
-        async with client:
+        tcgplayer_client = TCGPlayerClient()
+        async with tcgplayer_client:
             try:
-                prices = await client.get_product_prices([int(card.external_id)])
+                prices = await tcgplayer_client.get_product_prices([int(card.external_id)])
                 if prices and card.external_id in prices:
                     price_data = prices[card.external_id].get("market", 0)
             except Exception as e:
@@ -88,12 +88,12 @@ async def fetch_and_update_price(
 
     elif source == PriceSource.EBAY:
         # Fetch from eBay
-        client = eBayClient()
-        async with client:
+        ebay_client = eBayClient()
+        async with ebay_client:
             try:
                 query = f"{card.name} {card.set_name} {card.card_number or ''}".strip()
-                results = await client.search_cards(
-                    query, tcg_type=card.tcg_type, limit=1
+                results = await ebay_client.search_cards(
+                    query, tcg_type=card.tcg_type.value, limit=1
                 )
                 if results:
                     price_data = results[0].get("price")
@@ -245,7 +245,7 @@ async def get_price_history(
     if prices:
         price_values = [p.market_price for p in prices if p.market_price is not None]
         if price_values:
-            avg_price = sum(price_values) / len(price_values)
+            avg_price = sum(price_values, Decimal(0)) / len(price_values)
             min_price = min(price_values)
             max_price = max(price_values)
         else:
@@ -255,11 +255,11 @@ async def get_price_history(
 
         # Determine trend
         if len(price_values) > 1:
-            recent_avg = sum(price_values[-5:]) / len(price_values[-5:])
-            older_avg = sum(price_values[:5]) / len(price_values[:5])
-            if recent_avg > older_avg * 1.05:
+            recent_avg = sum(price_values[-5:], Decimal(0)) / len(price_values[-5:])
+            older_avg = sum(price_values[:5], Decimal(0)) / len(price_values[:5])
+            if recent_avg > older_avg * Decimal("1.05"):
                 trend = "increasing"
-            elif recent_avg < older_avg * 0.95:
+            elif recent_avg < older_avg * Decimal("0.95"):
                 trend = "decreasing"
             else:
                 trend = "stable"
@@ -276,10 +276,10 @@ async def get_price_history(
         PriceResponse(
             id=p.id,
             card_id=p.card_id,
-            source=p.source,
+            source=PriceSource(p.source.value),
             market_price=p.market_price,
             currency=p.currency,
-            condition=p.condition,
+            condition=CardCondition(p.condition.value),
             timestamp=p.timestamp,
         )
         for p in prices
@@ -361,7 +361,7 @@ async def bulk_update_prices(
             await db.rollback()
             logger.error(
                 "Error updating price for card",
-                card_id=card.id,
+                extra={"card_id": card.id},
                 exc_info=e,
             )
             errors.append({"card_id": card.id, "error": str(e)})
@@ -370,8 +370,7 @@ async def bulk_update_prices(
     if errors:
         logger.warning(
             "Price update completed with errors",
-            error_count=len(errors),
-            total_cards=len(cards),
+            extra={"error_count": len(errors), "total_cards": len(cards)},
         )
 
     return updated_prices
