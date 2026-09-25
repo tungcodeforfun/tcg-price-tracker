@@ -67,8 +67,8 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - [x] Verify: pages render without JS (curl), cache headers present, 404s uncached; search p95 25 ms / max 64 ms on 60K cards; public pages 112–114 KB gz JS
 
 ### V4 — Collection & P&L
-- [ ] Add/edit/remove items, sold log, realized/unrealized P&L, CSV import/export, daily portfolio snapshots job, dashboard
-- **Verify:** core P&L unit tests on edge cases (partial sells, zero cost); browser flow add → sell → P&L updates
+- [x] Add/edit/remove items, sold log, realized/unrealized P&L, CSV import/export, daily portfolio snapshots job, dashboard
+- [x] Verify: 42 core portfolio/CSV/money tests (partial and full sells, zero and unknown cost, unpriced, overflow, ownership, malformed ids, CSV round trip); browser add from card page → sell 1 of 3 → realized +$12.00, unrealized/value update; oversell 400; CSV export → import round trip; snapshot feeds chart
 
 ### V5 — Alerts & notifications
 - [ ] CRUD, evaluation after each price sync, cooldown/dedupe, email delivery via worker
@@ -111,3 +111,10 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - Web routes import catalog code via `~/.server/catalog`; a client leak is a build error and ESLint blocks direct `@tcg/core` imports. One leak (a shared constant) had added 34 KB gz to the search page.
 - Only sets with synced prices are public; unsynced sets 404 to avoid thin pages. Sitemap is an index with card sitemaps of 40K URLs each (limit 50K).
 - Public pages don't read the session, so they stay user-agnostic and CDN-cacheable.
+
+### V4 (2026-09-25)
+- Sales use specific identification: you sell from a lot, and its unit cost fixes the sale's cost basis at sale time. Deleting a sale removes the log entry only.
+- Unknown costs (blank) are excluded from cost basis and P&L rather than treated as zero; zero is a real cost (free pulls).
+- Summary totals are summed in SQL as bigint; a single $1M card × 100,000 overflowed int4 otherwise.
+- CSV import is all-or-nothing with real file line numbers; rows match by variant id, TCGplayer SKU, or set + number + condition (+ printing, language).
+- Portfolio snapshots are written at 23:30 UTC; the dashboard appends today's live value, so the chart needs two distinct days before it draws.

@@ -1,10 +1,11 @@
+import { snapshotPortfolios } from "@tcg/core";
 import { loadConfig } from "./config.ts";
 import { describeCatalog, describeDueSets, describeSetPrices } from "./report.ts";
 import { createServices, setsDueForPrices, type Services } from "./services.ts";
 import { syncCatalog } from "./sync/catalog.ts";
 import { syncSetPrices } from "./sync/set-prices.ts";
 
-const USAGE = "usage: pnpm --filter @tcg/worker sync <catalog | set <setId> | prices>";
+const USAGE = "usage: pnpm --filter @tcg/worker sync <catalog | set <setId> | prices | snapshot>";
 
 async function catalog({ config, db, provider }: Services): Promise<void> {
   console.log(
@@ -36,9 +37,15 @@ async function prices(services: Services): Promise<void> {
   }
 }
 
+async function snapshot({ db }: Services): Promise<void> {
+  const day = new Date().toISOString().slice(0, 10);
+  console.log(`snapshot ${day}: ${await snapshotPortfolios(db, day)} portfolios`);
+}
+
 function parseCommand([command, setId]: string[]): ((services: Services) => Promise<void>) | null {
   if (command === "catalog") return catalog;
   if (command === "prices") return prices;
+  if (command === "snapshot") return snapshot;
   if (command === "set" && setId) return (services) => setPrices(services, setId);
   return null;
 }

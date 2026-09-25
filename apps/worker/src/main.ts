@@ -1,3 +1,4 @@
+import { snapshotPortfolios } from "@tcg/core";
 import { PgBoss } from "pg-boss";
 import { loadConfig } from "./config.ts";
 import { describeCatalog, describeDueSets, describeSetPrices } from "./report.ts";
@@ -8,6 +9,7 @@ import { syncSetPrices } from "./sync/set-prices.ts";
 const SYNC_CATALOG = "sync-catalog";
 const SYNC_PRICES = "sync-prices";
 const SYNC_SET_PRICES = "sync-set-prices";
+const SNAPSHOT_PORTFOLIOS = "snapshot-portfolios";
 
 interface SetPricesJob {
   setId: string;
@@ -33,7 +35,10 @@ await boss.createQueue(SYNC_SET_PRICES, {
 });
 
 await boss.schedule(SYNC_CATALOG, "0 3 * * *", null, { tz: "UTC" });
+await boss.createQueue(SNAPSHOT_PORTFOLIOS, { policy: "exclusive", ...retry });
 await boss.schedule(SYNC_PRICES, "0 5 * * *", null, { tz: "UTC" });
+// End of the UTC day, after that day's price sync.
+await boss.schedule(SNAPSHOT_PORTFOLIOS, "30 23 * * *", null, { tz: "UTC" });
 
 await boss.work(SYNC_CATALOG, async () => {
   const result = await syncCatalog({ db, provider, enabledGames: config.enabledGames });
@@ -52,6 +57,13 @@ await boss.work(SYNC_PRICES, async () => {
   }
   console.log(`[${SYNC_PRICES}] ${describeDueSets(due)}; queued ${queued}`);
   return { dailyBudget: due.dailyBudget, due: due.sets.length, queued };
+});
+
+await boss.work(SNAPSHOT_PORTFOLIOS, async () => {
+  const day = new Date().toISOString().slice(0, 10);
+  const written = await snapshotPortfolios(db, day);
+  console.log(`[${SNAPSHOT_PORTFOLIOS}] ${day}: ${written} portfolios`);
+  return { day, written };
 });
 
 // One set at a time keeps request pacing and quota checks serial.

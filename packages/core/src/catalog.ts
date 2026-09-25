@@ -177,7 +177,7 @@ export async function getCard(db: Db, slug: string): Promise<CardDetail | null> 
   return { ...card, variants: cardVariants };
 }
 
-function conditionRank(condition: string): number {
+export function conditionRank(condition: string): number {
   const index = CONDITION_ORDER.indexOf(condition);
   return index === -1 ? CONDITION_ORDER.length : index;
 }

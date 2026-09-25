@@ -1,5 +1,7 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -12,6 +14,9 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { users } from "./auth-schema.ts";
+
+export * from "./auth-schema.ts";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -146,4 +151,68 @@ export const syncRuns = pgTable(
   },
   (t) => [index("sync_runs_kind_started_idx").on(t.kind, t.startedAt)],
 );
-export * from "./auth-schema.ts";
+
+/** One purchase lot: a quantity of a variant bought at one unit cost. */
+export const collectionItems = pgTable(
+  "collection_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id")
+      .notNull()
+      .references(() => variants.id),
+    quantity: integer("quantity").notNull(),
+    /** Null when the user didn't record what they paid. */
+    unitCostCents: integer("unit_cost_cents"),
+    acquiredOn: date("acquired_on"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("collection_items_user_id_idx").on(t.userId),
+    check("collection_items_quantity_positive", sql`${t.quantity} > 0`),
+    check("collection_items_unit_cost_nonnegative", sql`${t.unitCostCents} >= 0`),
+  ],
+);
+
+export const sales = pgTable(
+  "sales",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id")
+      .notNull()
+      .references(() => variants.id),
+    quantity: integer("quantity").notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    feesCents: integer("fees_cents").notNull().default(0),
+    /** Cost of the units sold, fixed at sale time; null when the lot's cost was unknown. */
+    costBasisCents: integer("cost_basis_cents"),
+    soldOn: date("sold_on").notNull(),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [
+    index("sales_user_id_idx").on(t.userId),
+    check("sales_quantity_positive", sql`${t.quantity} > 0`),
+    check("sales_amounts_nonnegative", sql`${t.unitPriceCents} >= 0 and ${t.feesCents} >= 0`),
+  ],
+);
+
+/** End-of-day portfolio value per user, written by the worker. */
+export const portfolioSnapshots = pgTable(
+  "portfolio_snapshots",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    valueCents: integer("value_cents").notNull(),
+    costBasisCents: integer("cost_basis_cents").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] })],
+);

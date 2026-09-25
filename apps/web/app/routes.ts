@@ -20,5 +20,14 @@ export default [
     route("reset-password", "routes/reset-password.tsx"),
   ]),
   route("logout", "routes/logout.ts"),
-  layout("routes/app-layout.tsx", [route("app", "routes/app-home.tsx")]),
+  layout("routes/app-layout.tsx", [
+    route("app", "routes/app-home.tsx"),
+    route("app/collection", "routes/app-collection.tsx"),
+    route("app/add", "routes/app-add.tsx"),
+    route("app/items/:itemId", "routes/app-item.tsx"),
+    route("app/sales", "routes/app-sales.tsx"),
+    route("app/import", "routes/app-import.tsx"),
+  ]),
+  route("app/export/holdings.csv", "routes/app-export-holdings.ts"),
+  route("app/export/sales.csv", "routes/app-export-sales.ts"),
 ] satisfies RouteConfig;

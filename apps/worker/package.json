@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tcg/core": "workspace:*",
     "@tcg/db": "workspace:*",
     "@tcg/pricing": "workspace:*",
     "drizzle-orm": "^0.45.3",

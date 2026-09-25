@@ -68,6 +68,12 @@ export default function CardPage({ loaderData }: Route.ComponentProps) {
           </p>
           <p className="mt-4 text-4xl font-semibold tabular-nums">{formatPrice(card.priceCents)}</p>
           <p className="text-sm text-gray-500">Market price, Near Mint</p>
+          <Link
+            to={`/app/add?${new URLSearchParams(selectedId ? { card: card.slug, variant: selectedId } : { card: card.slug })}`}
+            className="mt-4 inline-block rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+          >
+            Add to collection
+          </Link>
 
           <section className="mt-8" aria-labelledby="history-heading">
             <div className="flex flex-wrap items-baseline justify-between gap-2">

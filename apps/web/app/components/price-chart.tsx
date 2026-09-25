@@ -10,7 +10,14 @@ const HEIGHT = 220;
 const PAD = { top: 16, right: 16, bottom: 28, left: 64 };
 
 /** Server-rendered SVG line chart: no client JavaScript. */
-export function PriceChart({ points }: { points: ChartPoint[] }) {
+/** `subject` names what's charted in the accessible summary ("Price", "Portfolio value"). */
+export function PriceChart({
+  points,
+  subject = "Price",
+}: {
+  points: ChartPoint[];
+  subject?: string;
+}) {
   if (points.length < 2) {
     return (
       <p className="rounded-md border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-700">
@@ -40,7 +47,7 @@ export function PriceChart({ points }: { points: ChartPoint[] }) {
     ? "stroke-green-600 dark:stroke-green-400"
     : "stroke-red-600 dark:stroke-red-400";
   const fill = rising ? "fill-green-600/10" : "fill-red-600/10";
-  const label = `Price went from ${formatPrice(first.priceCents)} on ${formatShortDate(first.day)} to ${formatPrice(last.priceCents)} on ${formatShortDate(last.day)}.`;
+  const label = `${subject} went from ${formatPrice(first.priceCents)} on ${formatShortDate(first.day)} to ${formatPrice(last.priceCents)} on ${formatShortDate(last.day)}.`;
 
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label} className="h-auto w-full">
