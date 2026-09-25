@@ -33,12 +33,14 @@ export function Profile() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
 
-  useEffect(() => {
+  const [prevUser, setPrevUser] = useState(user);
+  if (user !== prevUser) {
+    setPrevUser(user);
     if (user) {
       setUsername(user.username);
       setEmail(user.email);
     }
-  }, [user]);
+  }
 
   useEffect(() => {
     usersApi
@@ -121,7 +123,7 @@ export function Profile() {
               {!loading && userStats && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                   <Calendar className="w-4 h-4" />
-                  Member since {formatDate(userStats.user.member_since)}
+                  Member since {formatDate(userStats.user.joined)}
                 </div>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -40,14 +40,18 @@ export function EditCollectionItemModal({
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [prevItem, setPrevItem] = useState<CollectionItem | null>(null);
+  if (open !== prevOpen || item !== prevItem) {
+    setPrevOpen(open);
+    setPrevItem(item);
     if (open && item) {
       setQuantity(item.quantity);
       setCondition(item.condition);
       setPurchasePrice(item.purchase_price != null ? String(item.purchase_price) : "");
       setNotes(item.notes ?? "");
     }
-  }, [open, item]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

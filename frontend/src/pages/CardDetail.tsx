@@ -56,6 +56,12 @@ export function CardDetail() {
   const [refreshCooldown, setRefreshCooldown] = useState(false);
 
   const id = Number(cardId);
+  const loadKey = `${id}:${days}`;
+  const [prevLoadKey, setPrevLoadKey] = useState(loadKey);
+  if (loadKey !== prevLoadKey) {
+    setPrevLoadKey(loadKey);
+    setLoading(true);
+  }
 
   useEffect(() => {
     if (isNaN(id)) {
@@ -63,7 +69,6 @@ export function CardDetail() {
       return;
     }
 
-    setLoading(true);
     let cancelled = false;
     async function load() {
       try {

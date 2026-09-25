@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -38,10 +38,6 @@ export function AddToCollectionModal({
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (open) resetForm();
-  }, [open]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!card) return;
@@ -72,6 +68,12 @@ export function AddToCollectionModal({
     setCondition("near_mint");
     setPurchasePrice("");
     setNotes("");
+  }
+
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) resetForm();
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -29,10 +29,10 @@ export function SearchPage() {
   const [addCard, setAddCard] = useState<CardType | null>(null);
 
   // Autocomplete
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [fetchedSuggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
-  const suggestionTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const suggestionTimeoutRef = useRef<number | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Advanced filters
@@ -51,21 +51,20 @@ export function SearchPage() {
   const [hiddenSources, setHiddenSources] = useState<Set<string>>(new Set());
 
   const setSearchParamsRef = useRef(setSearchParams);
-  setSearchParamsRef.current = setSearchParams;
+  useLayoutEffect(() => {
+    setSearchParamsRef.current = setSearchParams;
+  });
   const submitTriggeredRef = useRef(false);
 
   // Debounced autocomplete
   useEffect(() => {
-    if (!query.trim() || query.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
+    if (query.trim().length < 2) return;
 
     if (suggestionTimeoutRef.current) {
       clearTimeout(suggestionTimeoutRef.current);
     }
 
-    suggestionTimeoutRef.current = setTimeout(async () => {
+    suggestionTimeoutRef.current = window.setTimeout(async () => {
       try {
         const typeParam = tcgType === "all" ? undefined : tcgType;
         const results = await searchApi.getSuggestions(query.trim(), typeParam);
@@ -81,6 +80,8 @@ export function SearchPage() {
       }
     };
   }, [query, tcgType]);
+
+  const suggestions = query.trim().length >= 2 ? fetchedSuggestions : [];
 
   const performSearch = useCallback(async (q: string, newOffset = 0) => {
     if (!q.trim()) return;

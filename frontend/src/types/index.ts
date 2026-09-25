@@ -218,7 +218,7 @@ export type UnifiedSearchResult =
 // User Stats
 export interface UserStats {
   user: {
-    member_since: string;
+    joined: string;
     username: string;
     email: string;
   };
