@@ -57,6 +57,10 @@ export function authErrorMessage(result: AuthResult): string {
       return "Password is too long.";
     case "INVALID_EMAIL":
       return "Enter a valid email address.";
+    case "INVITE_INVALID":
+      return "That invite code isn't valid or has already been used.";
+    case "BETA_FULL":
+      return "The beta is full right now. We'll open more spots soon.";
     case "INVALID_TOKEN":
       return "This link is invalid or has expired. Request a new one.";
     default:

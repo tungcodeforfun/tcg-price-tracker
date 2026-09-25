@@ -7,6 +7,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
+  /** Beta invite code redeemed at sign-up; null for users created without one. */
+  inviteCode: text("invite_code"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()

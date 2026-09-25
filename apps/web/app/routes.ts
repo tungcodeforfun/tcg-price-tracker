@@ -13,6 +13,7 @@ export default [
   route("sitemaps/:section.xml", "routes/sitemap-section.ts"),
   route("robots.txt", "routes/robots.ts"),
   route("api/auth/*", "routes/api.auth.ts"),
+  route("api/pv", "routes/api.pv.ts"),
   layout("routes/auth-layout.tsx", [
     route("signup", "routes/signup.tsx"),
     route("login", "routes/login.tsx"),
@@ -30,6 +31,7 @@ export default [
     route("app/alerts", "routes/app-alerts.tsx"),
     route("app/alerts/new", "routes/app-alert-new.tsx"),
     route("app/alerts/:alertId", "routes/app-alert.tsx"),
+    route("app/feedback", "routes/app-feedback.tsx"),
   ]),
   route("app/export/holdings.csv", "routes/app-export-holdings.ts"),
   route("app/export/sales.csv", "routes/app-export-sales.ts"),

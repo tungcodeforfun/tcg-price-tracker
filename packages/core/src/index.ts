@@ -3,3 +3,4 @@ export * from "./money.ts";
 export * from "./portfolio.ts";
 export * from "./portfolio-csv.ts";
 export * from "./alerts.ts";
+export * from "./beta.ts";

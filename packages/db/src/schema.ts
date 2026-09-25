@@ -280,3 +280,45 @@ export const notifications = pgTable(
     index("notifications_user_id_idx").on(t.userId),
   ],
 );
+
+/** Private-beta invite codes; each sign-up redeems one use. */
+export const inviteCodes = pgTable(
+  "invite_codes",
+  {
+    code: text("code").primaryKey(),
+    maxUses: integer("max_uses").notNull().default(1),
+    uses: integer("uses").notNull().default(0),
+    note: text("note"),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check("invite_codes_max_uses_positive", sql`${t.maxUses} > 0`),
+    check("invite_codes_uses_within_max", sql`${t.uses} >= 0 and ${t.uses} <= ${t.maxUses}`),
+  ],
+);
+
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    /** Copied at submission so the message stays attributable after account deletion. */
+    email: text("email").notNull(),
+    message: text("message").notNull(),
+    pagePath: text("page_path"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("feedback_user_created_idx").on(t.userId, t.createdAt)],
+);
+
+/** Anonymous daily page-view counts per path; no user, IP or cookie is stored. */
+export const pageViews = pgTable(
+  "page_views",
+  {
+    day: date("day").notNull(),
+    path: text("path").notNull(),
+    views: integer("views").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.path] })],
+);

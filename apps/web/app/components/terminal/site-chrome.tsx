@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Form, Link } from "react-router";
+import { Form, Link, useLocation } from "react-router";
 
 /** Command-line style GET search; "/" anywhere on the page focuses it. */
 function SearchCommand({ query }: { query: string }) {
@@ -119,8 +119,20 @@ export function SiteHeader({ query = "", actions }: SiteHeaderProps) {
   );
 }
 
-/** Bottom bar: the JustTCG data credit and disclaimer. */
+/**
+ * `/app/feedback?from=<current path>`, so the note records where it was written. Derived from
+ * the URL alone, so public pages stay cacheable; signed-out visitors go through login first.
+ */
+export function useFeedbackHref(): string {
+  const { pathname, search } = useLocation();
+  const from =
+    pathname === "/app/feedback" ? new URLSearchParams(search).get("from") : pathname + search;
+  return from ? `/app/feedback?from=${encodeURIComponent(from)}` : "/app/feedback";
+}
+
+/** Bottom bar: the JustTCG data credit and disclaimer, plus the beta feedback link. */
 export function SiteFooter() {
+  const feedbackHref = useFeedbackHref();
   return (
     <footer className="border-t border-grid bg-deck">
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-3 py-3 text-[11.5px] text-mute sm:px-4">
@@ -135,9 +147,17 @@ export function SiteFooter() {
           </a>
           . Prices are estimates, not offers.
         </p>
-        <p aria-hidden className="hidden items-center gap-2 sm:flex">
-          <kbd>/</kbd> search
-        </p>
+        <div className="flex items-center gap-6">
+          <Link
+            to={feedbackHref}
+            className="text-text underline decoration-wire underline-offset-4 hover:decoration-amber"
+          >
+            Feedback
+          </Link>
+          <p aria-hidden className="hidden items-center gap-2 sm:flex">
+            <kbd>/</kbd> search
+          </p>
+        </div>
       </div>
     </footer>
   );

@@ -2,7 +2,7 @@ import { createDb, type Db } from "@tcg/db";
 import { createSmtpMailer, type Mailer } from "@tcg/email";
 import { JustTcgClient, type PriceProvider } from "@tcg/pricing";
 import type { WorkerConfig } from "./config.ts";
-import { remainingDailyRequests, selectSetsToSync, type SetToSync } from "./sync/select-sets.ts";
+import { requestBudget, selectSetsToSync, type SetToSync } from "./sync/select-sets.ts";
 import { DrizzleUsageStore } from "./usage-store.ts";
 
 export interface Services {
@@ -33,13 +33,15 @@ export async function setsDueForPrices({
   provider,
   usageStore,
 }: Services): Promise<{ dailyBudget: number; sets: SetToSync[] }> {
-  const dailyBudget = remainingDailyRequests(await usageStore.load(), config.justTcgPlan);
+  const dailyBudget = requestBudget(await usageStore.load(), config.justTcgPlan);
   const sets = await selectSetsToSync({
     db,
     plan: config.justTcgPlan,
     allowlist: config.setAllowlist,
+    newestPerGame: config.newestSetsPerGame,
+    minRefreshHours: config.minRefreshHours,
     cardsPerRequest: provider.cardsPerRequest,
-    dailyBudget,
+    budget: dailyBudget,
   });
   return { dailyBudget, sets };
 }

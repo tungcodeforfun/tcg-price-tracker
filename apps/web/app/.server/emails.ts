@@ -35,3 +35,14 @@ export const existingAccountEmail = (to: string, url: string) =>
     "Sign in",
     url,
   );
+
+/** Plain text only: the message is user input and never needs escaping this way. */
+export const feedbackEmail = (
+  to: string,
+  feedback: { email: string; userId: string; message: string; pagePath: string | null },
+) =>
+  ({
+    to,
+    subject: `Beta feedback from ${feedback.email}`,
+    text: `${feedback.message}\n\n---\nPage: ${feedback.pagePath ?? "(not given)"}\nUser ID: ${feedback.userId}\nEmail: ${feedback.email}`,
+  }) satisfies EmailMessage;

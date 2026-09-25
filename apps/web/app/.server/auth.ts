@@ -1,6 +1,8 @@
 import { schema } from "@tcg/db";
+import { countUsers, redeemInviteCode } from "@tcg/core";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { db } from "./db.ts";
 import { existingAccountEmail, resetPasswordEmail, verifyEmail } from "./emails.ts";
 import { env } from "./env.ts";
@@ -11,6 +13,34 @@ export const auth = betterAuth({
   secret: env.authSecret,
   database: drizzleAdapter(db, { provider: "pg", schema, usePlural: true }),
   telemetry: { enabled: false },
+  user: {
+    additionalFields: {
+      inviteCode: { type: "string", required: false, input: true, returned: false },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Runs for every user insert, so a direct API sign-up can't skip the invite check.
+        // Errors use 400, not 403: Better Auth turns a 403 here into its generic "check your inbox" reply.
+        before: async (user) => {
+          if (!env.invitesRequired) return { data: { ...user, inviteCode: null } };
+          if ((await countUsers(db)) >= env.betaUserCap) {
+            throw APIError.from("BAD_REQUEST", { code: "BETA_FULL", message: "The beta is full" });
+          }
+          const input = typeof user.inviteCode === "string" ? user.inviteCode : "";
+          const code = await redeemInviteCode(db, input);
+          if (!code) {
+            throw APIError.from("BAD_REQUEST", {
+              code: "INVITE_INVALID",
+              message: "Invalid invite code",
+            });
+          }
+          return { data: { ...user, inviteCode: code } };
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,

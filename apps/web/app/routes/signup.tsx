@@ -3,6 +3,7 @@ import { AuthLink, AuthPanel, AuthSubmit } from "~/components/auth-panel";
 import { Field, FormMessage, TextInput } from "~/components/terminal/form";
 import { formString } from "~/lib/form";
 import { authErrorMessage, callAuth } from "~/.server/auth-request";
+import { env } from "~/.server/env";
 import { getSession } from "~/.server/session";
 import type { Route } from "./+types/signup";
 
@@ -10,24 +11,31 @@ export const meta: Route.MetaFunction = () => [{ title: "Sign up · TCG Price Tr
 
 export async function loader({ request }: Route.LoaderArgs) {
   if (await getSession(request)) throw redirect("/app");
-  return null;
+  const invite = new URL(request.url).searchParams.get("invite") ?? "";
+  return { invitesRequired: env.invitesRequired, invite };
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const email = formString(form, "email");
+  const inviteCode = formString(form, "inviteCode");
   const result = await callAuth(request, "/sign-up/email", {
     name: formString(form, "name"),
     email,
     password: form.get("password"),
+    inviteCode,
     callbackURL: "/app",
   });
-  if (!result.ok)
-    return data({ sent: false, error: authErrorMessage(result), email }, { status: result.status });
-  return { sent: true, error: null, email };
+  if (!result.ok) {
+    return data(
+      { sent: false, error: authErrorMessage(result), email, inviteCode },
+      { status: result.status },
+    );
+  }
+  return { sent: true, error: null, email, inviteCode };
 }
 
-export default function Signup({ actionData }: Route.ComponentProps) {
+export default function Signup({ loaderData, actionData }: Route.ComponentProps) {
   if (actionData?.sent) {
     return (
       <AuthPanel section="Verification" title="Check your inbox">
@@ -50,6 +58,21 @@ export default function Signup({ actionData }: Route.ComponentProps) {
     >
       <Form method="post" className="space-y-4">
         {actionData?.error && <FormMessage tone="error">{actionData.error}</FormMessage>}
+        {loaderData.invitesRequired && (
+          <>
+            <FormMessage tone="info">Private beta: sign-up needs an invite code.</FormMessage>
+            <Field label="Invite code">
+              <TextInput
+                name="inviteCode"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                defaultValue={actionData?.inviteCode ?? loaderData.invite}
+                required
+              />
+            </Field>
+          </>
+        )}
         <Field label="Name">
           <TextInput name="name" autoComplete="name" required />
         </Field>

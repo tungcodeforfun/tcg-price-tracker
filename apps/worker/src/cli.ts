@@ -1,4 +1,11 @@
-import { evaluateAlerts, snapshotPortfolios } from "@tcg/core";
+import {
+  createInviteCodes,
+  disableInviteCode,
+  evaluateAlerts,
+  listInviteCodes,
+  snapshotPortfolios,
+  topPageViews,
+} from "@tcg/core";
 import { deliverAlertEmails } from "./alerts/run.ts";
 import { loadConfig } from "./config.ts";
 import { describeCatalog, describeDueSets, describeSetPrices } from "./report.ts";
@@ -6,8 +13,10 @@ import { createServices, setsDueForPrices, type Services } from "./services.ts";
 import { syncCatalog } from "./sync/catalog.ts";
 import { syncSetPrices } from "./sync/set-prices.ts";
 
-const USAGE =
-  "usage: pnpm --filter @tcg/worker sync <catalog | set <setId> | prices | snapshot | alerts>";
+const USAGE = `usage: pnpm --filter @tcg/worker sync <command>
+  catalog | set <setId> | prices | due | snapshot | alerts
+  invites create <count> [maxUses] [note…] | invites list | invites disable <code>
+  views [days]`;
 
 async function catalog({ config, db, provider }: Services): Promise<void> {
   console.log(
@@ -53,7 +62,49 @@ async function alerts(services: Services): Promise<void> {
   );
 }
 
-function parseCommand([command, setId]: string[]): ((services: Services) => Promise<void>) | null {
+/** Shows which sets the next price sync would pick, without calling the provider. */
+async function due(services: Services): Promise<void> {
+  const result = await setsDueForPrices(services);
+  console.log(describeDueSets(result));
+  for (const set of result.sets) console.log(`  ${set.id} (${set.requests} requests)`);
+}
+
+async function invites({ db, config }: Services, [action, ...args]: string[]): Promise<void> {
+  if (action === "create") {
+    const [count = "1", maxUses = "1", ...note] = args;
+    const codes = await createInviteCodes(db, {
+      count: Number(count),
+      maxUses: Number(maxUses),
+      note: note.join(" ") || null,
+    });
+    for (const code of codes) console.log(`${code}  ${config.appUrl}/signup?invite=${code}`);
+  } else if (action === "list") {
+    for (const c of await listInviteCodes(db)) {
+      const status = c.disabledAt ? "disabled" : c.uses >= c.maxUses ? "used up" : "open";
+      console.log(`${c.code}  ${c.uses}/${c.maxUses}  ${status}${c.note ? `  ${c.note}` : ""}`);
+    }
+  } else if (action === "disable" && args[0]) {
+    console.log(
+      (await disableInviteCode(db, args[0])) ? "disabled" : "no open code with that value",
+    );
+  } else {
+    console.error(USAGE);
+    process.exitCode = 2;
+  }
+}
+
+async function views({ db }: Services, days: number): Promise<void> {
+  const rows = await topPageViews(db, days);
+  console.log(`top pages, last ${days} days:`);
+  for (const row of rows) console.log(`${String(row.views).padStart(7)}  ${row.path}`);
+}
+
+function parseCommand([command, ...args]: string[]):
+  ((services: Services) => Promise<void>) | null {
+  const [setId] = args;
+  if (command === "due") return due;
+  if (command === "invites") return (services) => invites(services, args);
+  if (command === "views") return (services) => views(services, Number(args[0] ?? 7) || 7);
   if (command === "catalog") return catalog;
   if (command === "prices") return prices;
   if (command === "snapshot") return snapshot;

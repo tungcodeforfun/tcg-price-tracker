@@ -1,7 +1,7 @@
 import { Form, NavLink, Outlet } from "react-router";
 import { requireSession } from "~/.server/session";
 import { Button } from "~/components/terminal/button";
-import { SiteFooter, SiteHeader } from "~/components/terminal/site-chrome";
+import { SiteFooter, SiteHeader, useFeedbackHref } from "~/components/terminal/site-chrome";
 import type { Route } from "./+types/app-layout";
 
 const NAV = [
@@ -9,6 +9,7 @@ const NAV = [
   { to: "/app/collection", label: "Collection", end: false },
   { to: "/app/sales", label: "Sales", end: false },
   { to: "/app/alerts", label: "Alerts", end: false },
+  { to: "/app/feedback", label: "Feedback", end: true },
   { to: "/games", label: "Browse cards", end: false },
 ];
 
@@ -21,6 +22,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private, no-store" });
 
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
+  const feedbackHref = useFeedbackHref();
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader
@@ -45,7 +47,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
           {NAV.map((item) => (
             <NavLink
               key={item.to}
-              to={item.to}
+              to={item.to === "/app/feedback" ? feedbackHref : item.to}
               end={item.end}
               className="flex h-9 items-center border-b-2 border-transparent px-3 text-[11px] tracking-[0.12em] text-mute uppercase hover:text-text focus-visible:outline-offset-[-2px] aria-[current=page]:border-amber aria-[current=page]:text-text"
             >

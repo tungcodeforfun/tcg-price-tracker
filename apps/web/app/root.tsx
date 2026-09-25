@@ -1,5 +1,6 @@
 import "@fontsource-variable/jetbrains-mono";
 import "@fontsource-variable/space-grotesk";
+import { useEffect, useRef } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -7,6 +8,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 
 import type { Route } from "./+types/root";
@@ -34,7 +36,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Counts views client-side, so pages a CDN serves are still counted; the server ignores bots. */
+function usePageViewBeacon() {
+  const { pathname } = useLocation();
+  // Dev StrictMode runs effects twice; one view per path change.
+  const sent = useRef<string | null>(null);
+  useEffect(() => {
+    if (navigator.webdriver) return;
+    const send = () => {
+      if (sent.current === pathname) return;
+      sent.current = pathname;
+      const body = new Blob([JSON.stringify({ path: pathname })], { type: "application/json" });
+      navigator.sendBeacon("/api/pv", body);
+    };
+    // A speculatively prerendered page counts only once the visitor actually opens it.
+    if ((document as Document & { prerendering?: boolean }).prerendering) {
+      document.addEventListener("prerenderingchange", send, { once: true });
+      return () => document.removeEventListener("prerenderingchange", send);
+    }
+    send();
+  }, [pathname]);
+}
+
 export default function App() {
+  usePageViewBeacon();
   return <Outlet />;
 }
 

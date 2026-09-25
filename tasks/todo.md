@@ -30,17 +30,29 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - Dashboard: one loader, parallel queries, zero client waterfalls.
 - Vendor cost is flat in user count: set-level batch sync only, never per-user vendor calls.
 
+## Strategy (agreed 2026-09-25)
+- **Position:** PriceCharting competitor for trading card games only (Pokémon EN/JP, One Piece, Lorcana at launch; then MTG, Yu-Gi-Oh!, Riftbound). Free public price guide for search traffic plus a collector subscription. No retailer/data plan: reselling price data breaks JustTCG's terms (§7).
+- **Pitch:** prices by condition and printing, built-in P&L and alerts, a source and date on every price, best Japanese Pokémon and new-game coverage. Not competing on price.
+- **Data:** licensed only, no scraping. JustTCG for raw prices; Scrydex for graded prices and images once it grants written permission. Community sold prices come only from users' sold logs: anonymous, shown at ≥5 sales per variant in 30 days, outliers trimmed, opt-out, disclosed in the terms, and always in its own column (never blended). eBay live listings with affiliate links after launch, never used to compute prices.
+- **Data budget:** ≤$50/mo until revenue (JustTCG Starter $19 at launch); ≤$150/mo once graded prices ship (Scrydex Growth $99).
+- **Pricing:** Pro $5.99/mo or $49/yr.
+  - Free: every card/set/search page, raw prices, sources, 90 days of history, 250 cards, 3 alerts, CSV export.
+  - Pro: unlimited cards and alerts, full history, realized P&L + sold log, tax CSV, multiple portfolios, graded prices, full community detail.
+- **Launch:** invite-only private beta (~100 users) on JustTCG's free tier, non-commercial and nobody pays. Leave the beta after 4 weeks or 50 weekly active users, whichever comes first, once billing works end to end in Stripe test mode. Then switch to JustTCG Starter, turn billing on, and have a lawyer review the terms.
+- **Hosting:** Fly.io, US East (`iad`).
+
 ## Constraints
-- **JustTCG free tier:** 1,000 req/mo, 100/day, 10/min, 20 cards/req, **non-commercial**. Dev syncs an allowlist of a few sets. A paid plan (Professional $49 recommended) is **required before charging users**.
-- **No card images yet:** JustTCG serves none, and Scrydex needs written commercial authorization. Cards render as a styled text placeholder behind an `imageUrl` field that's ready for a provider.
-- **Free-tier promise:** card pages, current prices and CSV export stay free. Pro = unlimited cards, alerts with email, realized P&L + sold log + tax CSV, full history.
+- **JustTCG free tier:** 1,000 req/mo (~33/day sustained), 100/day, 10/min, 20 cards/req, **non-commercial**. Beta covers the newest 2–3 sets per game (~1,500–2,000 cards) refreshed every 3 days. A paid plan is **required before charging users**.
+- **No card images yet:** JustTCG serves none, and Scrydex needs written commercial authorization. Cards render as typographic placeholders behind an `imageUrl` field ready for a provider.
 
 ## Prerequisites you own
-- [ ] Resend API key + sending domain (needed for prod email; local uses Mailpit)
-- [ ] Stripe test-mode keys (needed at V6)
-- [ ] Fly.io account (needed at V8)
-- [ ] JustTCG paid plan before launch; Scrydex written authorization for images
-- [ ] Product name + domain
+- [ ] Brand name + domain (decided to pick one before the beta; name still to choose). I can check domain availability for a shortlist.
+- [ ] Send the Scrydex permission request and the JustTCG data-source question (I draft both in `tasks/outreach/`)
+- [ ] Legal entity: sole proprietor for the beta, LLC before Stripe goes live (your call; not legal or tax advice)
+- [ ] Resend API key + verified sending domain (needed for the beta deploy)
+- [ ] Fly.io account (needed for the beta deploy)
+- [ ] Stripe test-mode keys (needed for billing)
+- [ ] JustTCG Starter at public launch
 
 ## Phases (each ends with its verification passing)
 ### V0 — Scaffold
@@ -74,25 +86,48 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - [x] CRUD, evaluation after each price sync, cooldown/dedupe, email delivery via worker
 - [x] Verify: price drop to $38.50 → exactly one Mailpit email, second evaluation sends nothing; real JustTCG set sync as a worker job restored $42.77 → "above $42" fired, "below $40" re-armed, delivery job sent 1 email; 17 core alert tests + 3 email tests
 
-### V6 — Billing
-- [ ] Stripe Checkout, Customer Portal, signature-verified idempotent webhook; entitlement checks in `core`
-- **Verify:** Stripe CLI test purchase → Pro limits lift; cancel → downgrade at period end; replayed webhook is a no-op
+### B1 — Beta infrastructure
+- [x] Invite codes: table, atomic redemption enforced inside Better Auth (direct API sign-ups can't skip it), 100-user cap (`BETA_USER_CAP`), invite links `/signup?invite=…`, CLI `sync invites create|list|disable`
+- [x] Refresh interval (72h on free, 20h on paid) and automatic beta catalog: newest 3 released sets per game (`SYNC_NEWEST_SETS_PER_GAME`) instead of a hand-kept allowlist; daily budget also paces the monthly quota
+- [x] Feedback form at `/app/feedback` (stored, emailed to `FEEDBACK_EMAIL`, 10/hour per user); anonymous page-view counts via a same-site beacon, bots excluded, query strings dropped; CLI `sync views [days]`
+- [x] Verify: direct API sign-up without / with bogus / with reused code → 400 INVITE_INVALID, messy valid code accepted and stored normalized, cap → 400 BETA_FULL without consuming the code; 10 concurrent redemptions of a 3-use code → exactly 3; real beta sync of 10 sets (1,520 cards) used 80 requests of an 83 budget, then 0 due; feedback email in Mailpit; page views increment, bot user agents don't
 
-### V7 — Product surface & polish
-- [x] Design system: "Trading terminal" (picked from 3 prototypes on branch `prototype/redesign`), dark-only, applied to every route; three.js holo card on the home hero only, lazy with static fallback
-- [ ] Pricing page, legal pages (ToS/privacy), a11y audit, performance budgets enforced in CI
-- **Verify:** Lighthouse ≥ 90 perf/a11y on home + card page; mobile-width smoke of every route (done for the redesign: 23 routes at 1280/390, no errors or overflow)
+### B2 — Legal pages
+- [ ] Terms and privacy policy drafted from a standard template, covering community sold data, opt-out, and JustTCG/Scrydex attribution; placeholders marked for your entity details
+- [ ] Outreach drafts in `tasks/outreach/` (Scrydex permission request, JustTCG data-source question)
+- **Verify:** pages linked from the footer and sign-up; every placeholder listed for you
 
-### V8 — Deploy & cutover
-- [ ] Fly config, release migrations, Sentry, Postgres backups, staging deploy
+### B3 — Community sold data
+- [ ] Aggregation job: per-variant median, sale count and date range over 30 days, with outliers trimmed and ≥5 sales required; user opt-out setting
+- [ ] Card-page "Community sold" column with "n/5" progress when below the threshold
+- **Verify:** tests for the threshold, outlier trimming, opt-out exclusion, and that no single user's sale can be recovered
+
+### B4 — Deploy (beta)
+- [ ] Fly config (web + worker process groups, `iad`), release migrations, Sentry, Postgres backups
 - [ ] Confirm `fly-client-ip` reaches the app: without it every client shares one auth rate-limit bucket
 - [ ] Production email: `SMTP_URL` for Resend SMTP, verified sending domain in `EMAIL_FROM`
-- [ ] Merge `v2` → `dev`/`main`; remove Phase 0 app
-- **Verify:** staging end to end: signup → add cards → alert email → upgrade
+- **Verify:** staging end to end: invite sign-up → add cards → alert email → feedback
+
+### B5 — Billing (built, switched off in the beta)
+- [ ] Stripe Checkout, Customer Portal, signature-verified idempotent webhook; entitlements in `core` per the free/Pro split; feature flag
+- **Verify:** Stripe CLI test purchase → Pro limits lift; cancel → downgrade at period end; replayed webhook is a no-op
+
+### B6 — Pricing page and launch prep
+- [ ] Pricing page, a11y audit, performance budgets enforced in CI
+- [ ] Switch to JustTCG Starter, turn billing on, lawyer review of terms; merge `v2` → `main` and remove the Phase 0 app
+- **Verify:** Lighthouse ≥ 90 perf/a11y on home + card page; mobile-width smoke of every route
+
+### Post-launch
+- [ ] Graded prices (Scrydex) as Pro once permission arrives
+- [ ] eBay live listings panel with affiliate links
+- [ ] MTG via Scryfall bulk data (card data stays free)
+
+### Done outside the phases
+- [x] Design system: "Trading terminal" (picked from 3 prototypes on branch `prototype/redesign`), dark-only, applied to every route; three.js holo card on the home hero only, lazy with static fallback
 
 ## Review
 ### Phase 0 (2026-09-25) — superseded by v2 rewrite
-- Phase 0 modernized the old Python/React app (commits `8141163`, `e46098a`, `03f82b6` on `dev`). It stays runnable on `dev` until V8 cutover.
+- Phase 0 modernized the old Python/React app (commits `8141163`, `e46098a`, `03f82b6` on `dev`). It stays in `dev` history at `03f82b6`; `main` still runs it until the B6 launch merge.
 
 ### V0 + V1 (2026-09-25)
 - Workspace TypeScript runs natively on Node 24 (no build step for packages/worker); relative imports use `.ts`.
@@ -124,7 +159,7 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - Alerts fire on crossing, not on level: after firing they stay disarmed until the price moves back across, and never fire twice within 24 hours.
 - Firing and queuing the notification happen in one SQL statement (outbox) with a unique dedupe key; delivery locks rows with `SKIP LOCKED`, so parallel workers can't double-send. Delivery is at-least-once: a crash after SMTP accepts but before commit resends.
 - One digest email per user per delivery run; failed sends retry every 5 minutes, up to 5 attempts.
-- Free-tier alert limits are not enforced yet; that's V6 entitlements.
+- Free-tier alert limits are not enforced yet; that's B5 entitlements.
 
 ### Redesign (2026-09-25)
 - Prototyped 3 directions (ledger, terminal, holo) on the real home and card pages via `?design=`; the owner picked Trading terminal. All three live on branch `prototype/redesign`.
@@ -132,3 +167,9 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - three.js loads only from the home hero via dynamic `import()` after hydration (141 KB gz); reduced motion or no WebGL2 keeps the static face and never downloads it.
 - Initial JS per public page is 114–120 KB gz; the card page (119.8) is at the 120 KB budget, so new client code there needs to earn its bytes.
 - `listGames` now counts only synced sets; Drizzle leaves single-table selects unqualified, so correlated subqueries must alias their tables.
+
+### B1 (2026-09-25)
+- Better Auth turns any 403 thrown while creating a user into its generic "check your inbox" reply (enumeration protection), so invite errors must use 400.
+- The global user cap is checked by count before insert; simultaneous sign-ups at the cap can exceed it by a few. Per-code limits are exact (conditional UPDATE).
+- Page views use a small `sendBeacon` from the page rather than server logs, because CDN-cached HTML never reaches the server. It pushed the card page to 120.1 KB gz initial JS, 0.1 KB over budget: B6's CI budget check needs to settle the number.
+- Restart the dev server after migrations: Better Auth validates its schema once per process and 500s every request after a column is added.
