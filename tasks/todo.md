@@ -79,8 +79,9 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - **Verify:** Stripe CLI test purchase → Pro limits lift; cancel → downgrade at period end; replayed webhook is a no-op
 
 ### V7 — Product surface & polish
-- [ ] Marketing home, pricing page, legal pages, light/dark, responsive, a11y pass, performance budgets enforced
-- **Verify:** Lighthouse ≥ 90 perf/a11y on home + card page; mobile-width smoke of every route
+- [x] Design system: "Trading terminal" (picked from 3 prototypes on branch `prototype/redesign`), dark-only, applied to every route; three.js holo card on the home hero only, lazy with static fallback
+- [ ] Pricing page, legal pages (ToS/privacy), a11y audit, performance budgets enforced in CI
+- **Verify:** Lighthouse ≥ 90 perf/a11y on home + card page; mobile-width smoke of every route (done for the redesign: 23 routes at 1280/390, no errors or overflow)
 
 ### V8 — Deploy & cutover
 - [ ] Fly config, release migrations, Sentry, Postgres backups, staging deploy
@@ -124,3 +125,10 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - Firing and queuing the notification happen in one SQL statement (outbox) with a unique dedupe key; delivery locks rows with `SKIP LOCKED`, so parallel workers can't double-send. Delivery is at-least-once: a crash after SMTP accepts but before commit resends.
 - One digest email per user per delivery run; failed sends retry every 5 minutes, up to 5 attempts.
 - Free-tier alert limits are not enforced yet; that's V6 entitlements.
+
+### Redesign (2026-09-25)
+- Prototyped 3 directions (ledger, terminal, holo) on the real home and card pages via `?design=`; the owner picked Trading terminal. All three live on branch `prototype/redesign`.
+- Dark-only by design; the V7 light/dark toggle is dropped.
+- three.js loads only from the home hero via dynamic `import()` after hydration (141 KB gz); reduced motion or no WebGL2 keeps the static face and never downloads it.
+- Initial JS per public page is 114–120 KB gz; the card page (119.8) is at the 120 KB budget, so new client code there needs to earn its bytes.
+- `listGames` now counts only synced sets; Drizzle leaves single-table selects unqualified, so correlated subqueries must alias their tables.

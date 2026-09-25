@@ -1,7 +1,11 @@
 import { listGames } from "~/.server/catalog";
-import { Link } from "react-router";
 import { db } from "~/.server/db";
 import { env } from "~/.server/env";
+import { DataTable, RowLink, Th } from "~/components/terminal/data-table";
+import { EmptyState } from "~/components/terminal/empty-state";
+import { setCode } from "~/components/terminal/labels";
+import { PageBody, PageHeader } from "~/components/terminal/page";
+import { Panel } from "~/components/terminal/panel";
 import { CATALOG_CACHE } from "~/lib/http";
 import { pageMeta } from "~/lib/seo";
 import type { Route } from "./+types/games";
@@ -21,21 +25,52 @@ export const meta: Route.MetaFunction = ({ loaderData }) =>
   });
 
 export default function Games({ loaderData }: Route.ComponentProps) {
+  const { games } = loaderData;
   return (
-    <>
-      <h1 className="text-3xl font-semibold tracking-tight">Games</h1>
-      <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-        {loaderData.games.map((game) => (
-          <li key={game.id}>
-            <Link
-              to={`/games/${game.id}`}
-              className="block rounded-lg border border-gray-200 p-5 hover:border-gray-400 dark:border-gray-800 dark:hover:border-gray-600"
-            >
-              <span className="text-lg font-medium">{game.name}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </>
+    <PageBody>
+      <PageHeader eyebrow="MKT ▸ Games" title="Games" meta="Card prices by game" />
+      <Panel
+        code="F2"
+        title="Markets"
+        meta={`${games.length} ${games.length === 1 ? "game" : "games"}`}
+        className="border border-grid"
+      >
+        {games.length === 0 ? (
+          <EmptyState title="No games tracked yet" />
+        ) : (
+          <DataTable caption="Tracked games and their set counts">
+            <thead>
+              <tr>
+                <Th className="w-20">Sym</Th>
+                <Th>Game</Th>
+                <Th numeric>Sets</Th>
+                <Th className="w-10">
+                  <span className="sr-only">Open</span>
+                </Th>
+              </tr>
+            </thead>
+            <tbody>
+              {games.map((game) => (
+                <tr key={game.id}>
+                  <td className="font-bold text-amber">{setCode(game.name)}</td>
+                  <td className="w-full max-w-0">
+                    <RowLink
+                      to={`/games/${game.id}`}
+                      className="block truncate font-sans text-[15px] font-medium"
+                    >
+                      {game.name}
+                    </RowLink>
+                  </td>
+                  <td className="text-right">{game.setsCount.toLocaleString("en-US")}</td>
+                  <td aria-hidden className="text-right text-amber">
+                    →
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        )}
+      </Panel>
+    </PageBody>
   );
 }

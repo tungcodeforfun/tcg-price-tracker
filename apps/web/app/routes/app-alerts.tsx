@@ -1,9 +1,14 @@
 import { ALERT_COOLDOWN_HOURS, listAlerts } from "~/.server/catalog";
-import { Link } from "react-router";
 import { db } from "~/.server/db";
 import { requireSession } from "~/.server/session";
-import { describeRule, describeStatus } from "~/components/alert-form";
-import { formatPrice } from "~/lib/format";
+import { AlertRule, AlertStatus, DistanceToTarget } from "~/components/alert-form";
+import { ButtonLink } from "~/components/terminal/button";
+import { DataTable, RowLink, Th } from "~/components/terminal/data-table";
+import { EmptyState } from "~/components/terminal/empty-state";
+import { Price } from "~/components/terminal/figures";
+import { FormMessage } from "~/components/terminal/form";
+import { PageBody, PageHeader } from "~/components/terminal/page";
+import { Panel } from "~/components/terminal/panel";
 import type { Route } from "./+types/app-alerts";
 
 export const meta: Route.MetaFunction = () => [{ title: "Price alerts · TCG Price Tracker" }];
@@ -15,69 +20,92 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Alerts({ loaderData }: Route.ComponentProps) {
   const { alerts, cooldownHours } = loaderData;
+  const active = alerts.filter((a) => a.active).length;
 
   return (
-    <>
-      <h1 className="text-2xl font-semibold tracking-tight">Price alerts</h1>
-      <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+    <PageBody>
+      <PageHeader
+        eyebrow="ACCT ▸ Alerts"
+        title="Price alerts"
+        meta={alerts.length > 0 && `${active} active · ${alerts.length - active} paused`}
+      />
+      <FormMessage tone="info" className="mb-3">
         After each daily price update, an alert emails you when the price crosses your target. It
         fires again only after the price moves back across the target, and at most once every{" "}
-        {cooldownHours} hours.
-      </p>
+        {cooldownHours} hours. MET means the price is already there and you’ll be emailed after the
+        next update.
+        <span className="hidden sm:inline"> “To target” is the move the price still needs.</span>
+      </FormMessage>
 
-      {alerts.length === 0 ? (
-        <p className="mt-6 text-gray-600 dark:text-gray-400">
-          No alerts yet.{" "}
-          <Link to="/games" className="underline">
-            Browse cards
-          </Link>
-          , open a card and choose “Set price alert”.
-        </p>
-      ) : (
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-gray-500">
+      <Panel
+        title="Alerts"
+        meta={`${alerts.length} ${alerts.length === 1 ? "alert" : "alerts"}`}
+        className="border border-grid"
+      >
+        {alerts.length === 0 ? (
+          <EmptyState
+            title="No alerts yet"
+            action={
+              <ButtonLink to="/games" variant="secondary">
+                Browse cards
+              </ButtonLink>
+            }
+          >
+            Open a card and choose “Set price alert” to watch its price.
+          </EmptyState>
+        ) : (
+          <DataTable caption="Your price alerts. Select a row to manage the alert.">
+            <thead>
               <tr>
-                <th className="py-2 font-medium">Card</th>
-                <th className="py-2 pl-3 font-medium">Set</th>
-                <th className="py-2 pl-3 font-medium">Printing / condition</th>
-                <th className="py-2 pl-3 font-medium">Rule</th>
-                <th className="py-2 pl-3 text-right font-medium">Current price</th>
-                <th className="py-2 pl-3 font-medium">Status</th>
-                <th className="py-2 pl-3 font-medium">
-                  <span className="sr-only">Actions</span>
-                </th>
+                <Th>Card</Th>
+                <Th className="hidden sm:table-cell">Printing / condition</Th>
+                <Th>Rule</Th>
+                <Th numeric>Last</Th>
+                <Th numeric className="hidden sm:table-cell">
+                  To target
+                </Th>
+                <Th className="hidden sm:table-cell">Status</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+            <tbody>
               {alerts.map((a) => (
-                <tr key={a.id} className={a.active ? undefined : "text-gray-500"}>
-                  <td className="py-2">
-                    <Link to={`/cards/${a.cardSlug}`} className="hover:underline">
+                <tr key={a.id} className={a.active ? undefined : "text-mute"}>
+                  <td className="min-w-36 whitespace-normal sm:whitespace-nowrap">
+                    <RowLink to={`/app/alerts/${a.id}`} className="font-medium">
                       {a.cardName}
-                    </Link>
+                      <span className="block text-[11px] font-normal text-mute">
+                        <span className="hidden sm:inline">{a.setName}</span>
+                        <span className="sm:sr-only">
+                          {a.printing} · {a.condition}
+                        </span>
+                      </span>
+                      <span className="mt-1 block font-normal sm:hidden">
+                        <AlertStatus alert={a} />
+                      </span>
+                    </RowLink>
                   </td>
-                  <td className="py-2 pl-3">{a.setName}</td>
-                  <td className="py-2 pl-3">
+                  <td className="hidden sm:table-cell">
                     {a.printing} · {a.condition}
-                    {a.language !== "English" && (
-                      <span className="text-gray-500"> ({a.language})</span>
-                    )}
+                    {a.language !== "English" && <span className="text-mute"> · {a.language}</span>}
                   </td>
-                  <td className="py-2 pl-3 tabular-nums">{describeRule(a)}</td>
-                  <td className="py-2 pl-3 text-right tabular-nums">{formatPrice(a.priceCents)}</td>
-                  <td className="py-2 pl-3">{describeStatus(a)}</td>
-                  <td className="py-2 pl-3">
-                    <Link to={`/app/alerts/${a.id}`} className="underline">
-                      Manage<span className="sr-only"> alert for {a.cardName}</span>
-                    </Link>
+                  <td>
+                    <AlertRule alert={a} tagClassName="hidden sm:inline" />
+                  </td>
+                  <td className="text-right">
+                    <Price cents={a.priceCents} />
+                  </td>
+                  <td className="hidden text-right sm:table-cell">
+                    <DistanceToTarget alert={a} />
+                  </td>
+                  <td className="hidden sm:table-cell">
+                    <AlertStatus alert={a} />
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
-      )}
-    </>
+          </DataTable>
+        )}
+      </Panel>
+    </PageBody>
   );
 }

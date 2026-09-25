@@ -1,9 +1,13 @@
 import { getGame } from "~/.server/catalog";
-import { Link } from "react-router";
 import { db } from "~/.server/db";
 import { env } from "~/.server/env";
-import { Breadcrumbs } from "~/components/site-header";
-import { formatDate } from "~/lib/format";
+import { DataTable, RowLink, Th } from "~/components/terminal/data-table";
+import { EmptyState } from "~/components/terminal/empty-state";
+import { setCode } from "~/components/terminal/labels";
+import { Breadcrumbs } from "~/components/terminal/navigation";
+import { PageBody, PageHeader } from "~/components/terminal/page";
+import { Panel } from "~/components/terminal/panel";
+import { formatDate, formatShortDate } from "~/lib/format";
 import { CATALOG_CACHE, notFound } from "~/lib/http";
 import { pageMeta } from "~/lib/seo";
 import type { Route } from "./+types/game";
@@ -29,28 +33,59 @@ export const meta: Route.MetaFunction = ({ loaderData }) =>
 export default function Game({ loaderData }: Route.ComponentProps) {
   const { game, sets } = loaderData;
   return (
-    <>
+    <PageBody>
       <Breadcrumbs items={[{ label: "Games", to: "/games" }, { label: game.name }]} />
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">{game.name}</h1>
-      {sets.length === 0 ? (
-        <p className="mt-6 text-gray-600 dark:text-gray-400">No sets have prices yet.</p>
-      ) : (
-        <ul className="mt-6 divide-y divide-gray-200 dark:divide-gray-800">
-          {sets.map((set) => (
-            <li key={set.id}>
-              <Link
-                to={`/sets/${set.id}`}
-                className="flex items-baseline justify-between gap-4 py-3 hover:underline"
-              >
-                <span className="font-medium">{set.name}</span>
-                <span className="shrink-0 text-sm text-gray-500">
-                  {set.releaseDate ? formatDate(set.releaseDate) : ""}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+      <PageHeader eyebrow="MKT ▸ Sets" title={game.name} meta="Sets with prices · newest first" />
+      <Panel
+        code="F2"
+        title="Sets"
+        meta={`${sets.length} ${sets.length === 1 ? "set" : "sets"}`}
+        className="border border-grid"
+      >
+        {sets.length === 0 ? (
+          <EmptyState title="No sets have prices yet">
+            {game.name} sets appear here once their prices have been synced.
+          </EmptyState>
+        ) : (
+          <DataTable caption={`${game.name} sets, newest first`}>
+            <thead>
+              <tr>
+                <Th className="w-20">Sym</Th>
+                <Th>Set</Th>
+                <Th numeric className="hidden sm:table-cell">
+                  Released
+                </Th>
+                <Th numeric>Cards</Th>
+                <Th numeric className="hidden md:table-cell">
+                  Updated
+                </Th>
+              </tr>
+            </thead>
+            <tbody>
+              {sets.map((set) => (
+                <tr key={set.id}>
+                  <td className="font-bold text-amber">{setCode(set.name)}</td>
+                  <td className="w-full max-w-0">
+                    <RowLink to={`/sets/${set.id}`} className="block truncate font-medium">
+                      {set.name}
+                    </RowLink>
+                    <span className="block text-[11px] text-mute sm:hidden">
+                      {set.releaseDate ? formatDate(set.releaseDate) : "Release date unknown"}
+                    </span>
+                  </td>
+                  <td className="hidden text-right sm:table-cell">
+                    {set.releaseDate ? formatDate(set.releaseDate) : "—"}
+                  </td>
+                  <td className="text-right">{set.cardsCount.toLocaleString("en-US")}</td>
+                  <td className="hidden text-right text-mute md:table-cell">
+                    {set.pricesSyncedAt ? formatShortDate(set.pricesSyncedAt) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        )}
+      </Panel>
+    </PageBody>
   );
 }

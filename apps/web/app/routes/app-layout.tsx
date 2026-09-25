@@ -1,5 +1,7 @@
-import { Form, Link, NavLink, Outlet } from "react-router";
+import { Form, NavLink, Outlet } from "react-router";
 import { requireSession } from "~/.server/session";
+import { Button } from "~/components/terminal/button";
+import { SiteFooter, SiteHeader } from "~/components/terminal/site-chrome";
 import type { Route } from "./+types/app-layout";
 
 const NAV = [
@@ -20,35 +22,42 @@ export const headers: Route.HeadersFunction = () => ({ "Cache-Control": "private
 
 export default function AppLayout({ loaderData }: Route.ComponentProps) {
   return (
-    <div className="min-h-dvh">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-gray-200 px-6 py-3 dark:border-gray-800">
-        <Link to="/app" className="font-semibold">
-          TCG Price Tracker
-        </Link>
-        <nav aria-label="Main" className="flex gap-4 text-sm">
+    <div className="flex min-h-dvh flex-col">
+      <SiteHeader
+        actions={
+          <>
+            <span className="max-w-[16rem] truncate text-[11.5px] text-mute">
+              {loaderData.user.email}
+            </span>
+            <Form method="post" action="/logout">
+              <Button variant="secondary" size="sm">
+                Log out
+              </Button>
+            </Form>
+          </>
+        }
+      />
+      <div className="border-b border-grid bg-void">
+        <nav
+          aria-label="Account"
+          className="mx-auto flex max-w-[1440px] overflow-x-auto px-3 whitespace-nowrap sm:px-4"
+        >
           {NAV.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
-              className="hover:underline aria-[current]:font-semibold"
+              className="flex h-9 items-center border-b-2 border-transparent px-3 text-[11px] tracking-[0.12em] text-mute uppercase hover:text-text focus-visible:outline-offset-[-2px] aria-[current=page]:border-amber aria-[current=page]:text-text"
             >
               {item.label}
             </NavLink>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-4 text-sm">
-          <span className="text-gray-600 dark:text-gray-400">{loaderData.user.email}</span>
-          <Form method="post" action="/logout">
-            <button type="submit" className="underline">
-              Log out
-            </button>
-          </Form>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      </div>
+      <main className="flex-1">
         <Outlet />
       </main>
+      <SiteFooter />
     </div>
   );
 }

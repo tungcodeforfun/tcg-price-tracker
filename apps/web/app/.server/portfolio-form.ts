@@ -1,6 +1,5 @@
 import { data } from "react-router";
-import { formString } from "~/components/auth-form";
-import type { FieldErrors } from "~/components/portfolio-form";
+import { formString, type FieldErrors } from "~/lib/form";
 import {
   isValidDate,
   parseDollars,

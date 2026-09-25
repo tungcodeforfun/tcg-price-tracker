@@ -11,10 +11,15 @@ import { Form, Link, redirect } from "react-router";
 import { db } from "~/.server/db";
 import { formFailure, parseLotForm, parseSaleForm } from "~/.server/portfolio-form";
 import { requireSession } from "~/.server/session";
-import { FormMessage, SubmitButton, formString } from "~/components/auth-form";
-import { Field, LotFields, NotesField, type FormFailure } from "~/components/portfolio-form";
-import { Pnl } from "~/components/pnl";
-import { formatPrice, todayIsoDate } from "~/lib/format";
+import { LotFields, SubmitButton } from "~/components/portfolio-form";
+import { Delta, Price, Stat, StatGrid } from "~/components/terminal/figures";
+import { Field, FormMessage, Textarea, TextInput } from "~/components/terminal/form";
+import { shortName, symbolFor } from "~/components/terminal/labels";
+import { Breadcrumbs } from "~/components/terminal/navigation";
+import { PageBody, PageHeader } from "~/components/terminal/page";
+import { Panel, PanelGrid } from "~/components/terminal/panel";
+import { formString, type FormFailure } from "~/lib/form";
+import { todayIsoDate } from "~/lib/format";
 import { notFound } from "~/lib/http";
 import type { Route } from "./+types/app-item";
 
@@ -83,8 +88,6 @@ export async function action({ request, params }: Route.ActionArgs) {
   return formFailure(form, {}, "Unknown action");
 }
 
-const sectionClass = "rounded-lg border border-gray-200 p-5 dark:border-gray-800";
-
 export default function CollectionItem({ loaderData, actionData }: Route.ComponentProps) {
   const { holding, lotValues, today } = loaderData;
   const failure = (intent: string): FormFailure | undefined =>
@@ -92,137 +95,131 @@ export default function CollectionItem({ loaderData, actionData }: Route.Compone
   const edit = failure("update");
   const sale = failure("sell");
   const other = failure("delete") ?? failure("");
+  const variant = `${holding.printing} · ${holding.condition}${holding.language === "English" ? "" : ` (${holding.language})`}`;
 
   return (
-    <div className="max-w-2xl">
-      <p className="text-sm">
-        <Link to="/app/collection" className="text-gray-500 hover:underline">
-          ← Collection
-        </Link>
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-        <Link to={`/cards/${holding.cardSlug}`} className="hover:underline">
-          {holding.cardName}
-        </Link>
-      </h1>
-      <p className="mt-1 text-sm text-gray-500">
-        {[holding.setName, holding.cardNumber, holding.printing, holding.condition]
-          .filter(Boolean)
-          .join(" · ")}
-        {holding.language !== "English" && ` (${holding.language})`}
-      </p>
-      <dl className="mt-4 grid grid-cols-3 gap-4 text-sm">
-        <div>
-          <dt className="text-gray-500">Market price</dt>
-          <dd className="text-lg font-semibold tabular-nums">{formatPrice(holding.priceCents)}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Value ({holding.quantity})</dt>
-          <dd className="text-lg font-semibold tabular-nums">{formatPrice(holding.valueCents)}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Unrealized P&L</dt>
-          <dd className="text-lg font-semibold tabular-nums">
-            <Pnl cents={holding.unrealizedCents} />
-          </dd>
-        </div>
-      </dl>
+    <PageBody>
+      <Breadcrumbs
+        items={[
+          { label: "Collection", to: "/app/collection" },
+          { label: shortName(holding.cardName) },
+        ]}
+      />
+      <PageHeader
+        eyebrow={`ACCT ▸ Collection ▸ ${symbolFor({ setName: holding.setName, number: holding.cardNumber })}`}
+        title={
+          <Link to={`/cards/${holding.cardSlug}`} className="hover:text-amber">
+            {holding.cardName}
+          </Link>
+        }
+        meta={`${holding.setName} · ${variant}`}
+      />
       {other?.formError && (
-        <div className="mt-4">
-          <FormMessage tone="error">{other.formError}</FormMessage>
-        </div>
+        <FormMessage tone="error" className="mb-3">
+          {other.formError}
+        </FormMessage>
       )}
 
-      <section className={`mt-8 ${sectionClass}`} aria-labelledby="edit-heading">
-        <h2 id="edit-heading" className="text-lg font-semibold">
-          Edit lot
-        </h2>
-        <Form method="post" className="mt-4 space-y-4">
-          <input type="hidden" name="intent" value="update" />
-          {edit?.formError && <FormMessage tone="error">{edit.formError}</FormMessage>}
-          <LotFields
-            values={edit ? { ...lotValues, ...edit.values } : lotValues}
-            errors={edit?.errors}
-          />
-          <SubmitButton>Save changes</SubmitButton>
-        </Form>
-      </section>
+      <PanelGrid className="lg:grid-cols-12">
+        <Panel code="F1" title="Lot" className="lg:col-span-12">
+          <StatGrid className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+            <Stat label="Quantity">{holding.quantity}</Stat>
+            <Stat label="Unit cost">
+              <Price cents={holding.unitCostCents} />
+            </Stat>
+            <Stat label="Market price">
+              <Price cents={holding.priceCents} />
+            </Stat>
+            <Stat label={`Value (${holding.quantity})`}>
+              <Price cents={holding.valueCents} />
+            </Stat>
+            <Stat label="Unrealized P&L">
+              <Price cents={holding.unrealizedCents} signed />
+            </Stat>
+            <Stat label="Chg 7D">
+              <Delta pct={holding.priceChange7dPct} />
+            </Stat>
+          </StatGrid>
+        </Panel>
 
-      <section className={`mt-6 ${sectionClass}`} aria-labelledby="sell-heading">
-        <h2 id="sell-heading" className="text-lg font-semibold">
-          Record a sale
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Selling all {holding.quantity} removes this lot from your collection.
-        </p>
-        <Form method="post" className="mt-4 space-y-4">
-          <input type="hidden" name="intent" value="sell" />
-          {sale?.formError && <FormMessage tone="error">{sale.formError}</FormMessage>}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Quantity"
-              name="quantity"
-              type="number"
-              min={1}
-              max={holding.quantity}
-              required
-              defaultValue={sale?.values.quantity ?? String(holding.quantity)}
-              error={sale?.errors.quantity}
+        <Panel code="F2" title="Edit lot" className="lg:col-span-6">
+          <Form method="post" className="space-y-4 p-3 sm:p-4">
+            <input type="hidden" name="intent" value="update" />
+            {edit?.formError && <FormMessage tone="error">{edit.formError}</FormMessage>}
+            <LotFields
+              values={edit ? { ...lotValues, ...edit.values } : lotValues}
+              errors={edit?.errors}
             />
-            <Field
-              label="Sale price per card ($)"
-              name="unitPrice"
-              inputMode="decimal"
-              required
-              defaultValue={sale?.values.unitPrice}
-              error={sale?.errors.unitPriceCents}
-            />
-            <Field
-              label="Fees ($)"
-              name="fees"
-              inputMode="decimal"
-              defaultValue={sale?.values.fees}
-              error={sale?.errors.feesCents}
-              hint="Total for this sale: platform, payment and shipping costs."
-            />
-            <Field
-              label="Sold on"
-              name="soldOn"
-              type="date"
-              required
-              defaultValue={sale?.values.soldOn ?? today}
-              error={sale?.errors.soldOn}
-            />
-          </div>
-          <NotesField defaultValue={sale?.values.notes} error={sale?.errors.notes} />
-          <SubmitButton>Record sale</SubmitButton>
-        </Form>
-      </section>
+            <SubmitButton>Save changes</SubmitButton>
+          </Form>
+        </Panel>
 
-      <section className={`mt-6 ${sectionClass}`} aria-labelledby="delete-heading">
-        <h2 id="delete-heading" className="text-lg font-semibold">
-          Delete lot
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Removes it without recording a sale. Use this for mistakes, not for cards you sold.
-        </p>
-        <Form
-          method="post"
-          className="mt-4"
-          onSubmit={(event) => {
-            if (!confirm(`Delete ${holding.cardName} from your collection?`))
-              event.preventDefault();
-          }}
-        >
-          <input type="hidden" name="intent" value="delete" />
-          <button
-            type="submit"
-            className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
+        <Panel code="F3" title="Record a sale" className="lg:col-span-6">
+          <Form method="post" className="space-y-4 p-3 sm:p-4">
+            <input type="hidden" name="intent" value="sell" />
+            <p className="text-[12.5px] text-mute">
+              Selling all {holding.quantity} removes this lot from your collection.
+            </p>
+            {sale?.formError && <FormMessage tone="error">{sale.formError}</FormMessage>}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Quantity" error={sale?.errors.quantity}>
+                <TextInput
+                  name="quantity"
+                  type="number"
+                  min={1}
+                  max={holding.quantity}
+                  required
+                  defaultValue={sale?.values.quantity ?? String(holding.quantity)}
+                />
+              </Field>
+              <Field label="Sale price per card ($)" error={sale?.errors.unitPriceCents}>
+                <TextInput
+                  name="unitPrice"
+                  inputMode="decimal"
+                  required
+                  defaultValue={sale?.values.unitPrice}
+                />
+              </Field>
+              <Field
+                label="Fees ($)"
+                error={sale?.errors.feesCents}
+                hint="Total for this sale: platform, payment and shipping costs."
+              >
+                <TextInput name="fees" inputMode="decimal" defaultValue={sale?.values.fees} />
+              </Field>
+              <Field label="Sold on" error={sale?.errors.soldOn}>
+                <TextInput
+                  name="soldOn"
+                  type="date"
+                  required
+                  defaultValue={sale?.values.soldOn ?? today}
+                />
+              </Field>
+            </div>
+            <Field label="Notes" error={sale?.errors.notes}>
+              <Textarea name="notes" rows={2} maxLength={500} defaultValue={sale?.values.notes} />
+            </Field>
+            <SubmitButton variant="secondary">Record sale</SubmitButton>
+          </Form>
+        </Panel>
+
+        <Panel code="F4" title="Delete lot" className="lg:col-span-12">
+          <Form
+            method="post"
+            className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4"
+            onSubmit={(event) => {
+              if (!confirm(`Delete ${holding.cardName} from your collection?`))
+                event.preventDefault();
+            }}
           >
-            Delete lot
-          </button>
-        </Form>
-      </section>
-    </div>
+            <input type="hidden" name="intent" value="delete" />
+            <p className="text-[12.5px] text-mute">
+              Removes it without recording a sale. Use this for mistakes, not for cards you sold.
+            </p>
+            <SubmitButton variant="danger">Delete lot</SubmitButton>
+          </Form>
+        </Panel>
+      </PanelGrid>
+    </PageBody>
   );
 }

@@ -4,13 +4,18 @@ import {
   listCardVariantOptions,
   ValidationError,
 } from "~/.server/catalog";
-import { Form, Link, redirect } from "react-router";
+import { Form, redirect } from "react-router";
 import { db } from "~/.server/db";
 import { formFailure, parseLotForm } from "~/.server/portfolio-form";
 import { requireSession } from "~/.server/session";
-import { FormMessage, SubmitButton, formString } from "~/components/auth-form";
-import { LotFields } from "~/components/portfolio-form";
-import { formatPrice } from "~/lib/format";
+import { LotFields, SubmitButton } from "~/components/portfolio-form";
+import { Price } from "~/components/terminal/figures";
+import { FormMessage } from "~/components/terminal/form";
+import { shortName, symbolFor } from "~/components/terminal/labels";
+import { Breadcrumbs } from "~/components/terminal/navigation";
+import { PageBody, PageHeader } from "~/components/terminal/page";
+import { Panel } from "~/components/terminal/panel";
+import { formString } from "~/lib/form";
 import { notFound } from "~/lib/http";
 import type { Route } from "./+types/app-add";
 
@@ -66,61 +71,65 @@ export default function AddToCollection({ loaderData, actionData }: Route.Compon
   const checkedId = values.variant ?? selectedId;
 
   return (
-    <div className="max-w-xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Add to collection</h1>
-      <p className="mt-1 text-gray-600 dark:text-gray-400">
-        <Link to={`/cards/${cardSlug}`} className="underline">
-          {cardName}
-        </Link>{" "}
-        · {[setName, cardNumber].filter(Boolean).join(" · ")}
-      </p>
-
-      <Form method="post" className="mt-6 space-y-6">
-        {actionData?.formError && <FormMessage tone="error">{actionData.formError}</FormMessage>}
-        <fieldset aria-describedby={errors.variant ? "variant-error" : undefined}>
-          <legend className="text-sm font-medium">Printing and condition</legend>
-          {errors.variant && (
-            <p id="variant-error" className="mt-1 text-sm text-red-700 dark:text-red-400">
-              {errors.variant}
-            </p>
-          )}
-          <div className="mt-2 divide-y divide-gray-200 rounded-md border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-            {options.map((o) => (
-              <label
-                key={o.variantId}
-                className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm has-[:checked]:bg-gray-100 dark:has-[:checked]:bg-gray-900"
-              >
-                <input
-                  type="radio"
-                  name="variant"
-                  value={o.variantId}
-                  defaultChecked={o.variantId === checkedId}
-                  required
-                />
-                <span className="flex-1">
-                  {o.printing} · {o.condition}
-                  {o.language !== "English" && (
-                    <span className="text-gray-500"> ({o.language})</span>
-                  )}
-                </span>
-                <span className="tabular-nums text-gray-600 dark:text-gray-400">
-                  {formatPrice(o.priceCents)}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <LotFields
-          values={{
-            quantity: values.quantity ?? "1",
-            unitCost: values.unitCost ?? "",
-            acquiredOn: values.acquiredOn ?? "",
-            notes: values.notes ?? "",
-          }}
-          errors={errors}
-        />
-        <SubmitButton>Add to collection</SubmitButton>
-      </Form>
-    </div>
+    <PageBody>
+      <Breadcrumbs
+        items={[
+          { label: "Collection", to: "/app/collection" },
+          { label: shortName(cardName), to: `/cards/${cardSlug}` },
+          { label: "Add" },
+        ]}
+      />
+      <PageHeader
+        eyebrow="ACCT ▸ Collection"
+        title="Add to collection"
+        meta={[symbolFor({ setName, number: cardNumber }), setName].join(" · ")}
+        className="max-w-3xl"
+      />
+      <Panel code="F1" title={`New lot · ${cardName}`} className="max-w-3xl border border-grid">
+        <Form method="post" className="space-y-5 p-3 sm:p-4">
+          {actionData?.formError && <FormMessage tone="error">{actionData.formError}</FormMessage>}
+          <fieldset aria-describedby={errors.variant ? "variant-error" : undefined}>
+            <legend className="micro mb-1.5 text-text">Printing and condition</legend>
+            {errors.variant && (
+              <p id="variant-error" className="mb-1.5 text-[11.5px] text-down">
+                <span aria-hidden>✕ </span>
+                {errors.variant}
+              </p>
+            )}
+            <div className="divide-y divide-grid border border-wire bg-void">
+              {options.map((o) => (
+                <label
+                  key={o.variantId}
+                  className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[12.5px] hover:bg-rail has-[:checked]:bg-amber/10 has-[:checked]:shadow-[inset_2px_0_0_var(--color-amber)]"
+                >
+                  <input
+                    type="radio"
+                    name="variant"
+                    value={o.variantId}
+                    defaultChecked={o.variantId === checkedId}
+                    required
+                  />
+                  <span className="min-w-0 flex-1">
+                    {o.printing} · {o.condition}
+                    {o.language !== "English" && <span className="text-mute"> ({o.language})</span>}
+                  </span>
+                  <Price cents={o.priceCents} className="text-mute" />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <LotFields
+            values={{
+              quantity: values.quantity ?? "1",
+              unitCost: values.unitCost ?? "",
+              acquiredOn: values.acquiredOn ?? "",
+              notes: values.notes ?? "",
+            }}
+            errors={errors}
+          />
+          <SubmitButton>Add to collection</SubmitButton>
+        </Form>
+      </Panel>
+    </PageBody>
   );
 }

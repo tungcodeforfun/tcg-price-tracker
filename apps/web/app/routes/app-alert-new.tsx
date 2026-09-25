@@ -10,9 +10,15 @@ import { Form, Link, redirect } from "react-router";
 import { db } from "~/.server/db";
 import { formFailure, parseAlertForm } from "~/.server/portfolio-form";
 import { requireSession } from "~/.server/session";
-import { FormMessage, SubmitButton, formString } from "~/components/auth-form";
 import { AlertFields } from "~/components/alert-form";
-import { formatPrice } from "~/lib/format";
+import { Button } from "~/components/terminal/button";
+import { DataTable, Th } from "~/components/terminal/data-table";
+import { Price } from "~/components/terminal/figures";
+import { FormMessage } from "~/components/terminal/form";
+import { Breadcrumbs } from "~/components/terminal/navigation";
+import { PageBody, PageHeader } from "~/components/terminal/page";
+import { Panel, PanelGrid } from "~/components/terminal/panel";
+import { formString } from "~/lib/form";
 import { notFound } from "~/lib/http";
 import type { Route } from "./+types/app-alert-new";
 
@@ -74,18 +80,22 @@ export default function NewAlert({ loaderData, actionData }: Route.ComponentProp
   const thresholdEdited = useRef(values.threshold !== undefined);
 
   return (
-    <div className="max-w-xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Set price alert</h1>
-      <p className="mt-1 text-gray-600 dark:text-gray-400">
-        <Link to={`/cards/${cardSlug}`} className="underline">
-          {cardName}
-        </Link>{" "}
-        · {[setName, cardNumber].filter(Boolean).join(" · ")}
-      </p>
-
+    <PageBody>
+      <Breadcrumbs items={[{ label: "Alerts", to: "/app/alerts" }, { label: "New alert" }]} />
+      <PageHeader
+        eyebrow="ACCT ▸ Alerts ▸ New"
+        title="Set price alert"
+        meta={
+          <>
+            <Link to={`/cards/${cardSlug}`} className="text-text hover:text-amber">
+              {cardName}
+            </Link>{" "}
+            · {[setName, cardNumber].filter(Boolean).join(" · ")}
+          </>
+        }
+      />
       <Form
         method="post"
-        className="mt-6 space-y-6"
         onChange={(event) => {
           const target: EventTarget = event.target;
           if (!(target instanceof HTMLInputElement)) return;
@@ -96,49 +106,97 @@ export default function NewAlert({ loaderData, actionData }: Route.ComponentProp
           if (price && threshold instanceof HTMLInputElement) threshold.value = price;
         }}
       >
-        {actionData?.formError && <FormMessage tone="error">{actionData.formError}</FormMessage>}
-        <fieldset aria-describedby={errors.variant ? "variant-error" : undefined}>
-          <legend className="text-sm font-medium">Printing and condition</legend>
-          {errors.variant && (
-            <p id="variant-error" className="mt-1 text-sm text-red-700 dark:text-red-400">
-              {errors.variant}
-            </p>
-          )}
-          <div className="mt-2 divide-y divide-gray-200 rounded-md border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-            {options.map((o) => (
-              <label
-                key={o.variantId}
-                className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm has-[:checked]:bg-gray-100 dark:has-[:checked]:bg-gray-900"
-              >
-                <input
-                  type="radio"
-                  name="variant"
-                  value={o.variantId}
-                  defaultChecked={o.variantId === checkedId}
-                  required
-                />
-                <span className="flex-1">
-                  {o.printing} · {o.condition}
-                  {o.language !== "English" && (
-                    <span className="text-gray-500"> ({o.language})</span>
-                  )}
-                </span>
-                <span className="tabular-nums text-gray-600 dark:text-gray-400">
-                  {formatPrice(o.priceCents)}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <AlertFields
-          values={{
-            direction: values.direction ?? "below",
-            threshold: values.threshold ?? prices.get(checkedId) ?? "",
-          }}
-          errors={errors}
-        />
-        <SubmitButton>Create alert</SubmitButton>
+        {actionData?.formError && (
+          <FormMessage tone="error" className="mb-3">
+            {actionData.formError}
+          </FormMessage>
+        )}
+        <PanelGrid className="lg:grid-cols-12">
+          <Panel
+            title="Printing × condition"
+            meta={`${options.length} ${options.length === 1 ? "quote" : "quotes"}`}
+            className="lg:col-span-7"
+          >
+            <fieldset aria-describedby={errors.variant ? "variant-error" : undefined}>
+              <legend className="sr-only">Printing and condition</legend>
+              {errors.variant && (
+                <p id="variant-error" className="px-3 pt-2 text-[11.5px] text-down">
+                  <span aria-hidden>✕ </span>
+                  {errors.variant}
+                </p>
+              )}
+              <DataTable>
+                <thead>
+                  <tr>
+                    <Th className="w-8">
+                      <span className="sr-only">Selected</span>
+                    </Th>
+                    <Th>Printing</Th>
+                    <Th>Condition</Th>
+                    <Th className="hidden sm:table-cell">Lang</Th>
+                    <Th numeric>Last</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {options.map((o) => {
+                    const id = `variant-${o.variantId}`;
+                    return (
+                      <tr
+                        key={o.variantId}
+                        className="has-checked:bg-amber/8 has-checked:shadow-[inset_2px_0_0_var(--color-amber)]"
+                      >
+                        <td>
+                          <input
+                            id={id}
+                            type="radio"
+                            name="variant"
+                            value={o.variantId}
+                            defaultChecked={o.variantId === checkedId}
+                            required
+                            className="relative z-10 block"
+                          />
+                        </td>
+                        <td>
+                          <label
+                            htmlFor={id}
+                            className="cursor-pointer font-medium after:absolute after:inset-0"
+                          >
+                            {o.printing}
+                            <span className="sr-only">
+                              {" "}
+                              · {o.condition}
+                              {o.language !== "English" && ` · ${o.language}`}
+                            </span>
+                          </label>
+                        </td>
+                        <td className="text-mute">{o.condition}</td>
+                        <td className="hidden text-mute sm:table-cell">
+                          {o.language === "English" ? "EN" : o.language}
+                        </td>
+                        <td className="text-right">
+                          <Price cents={o.priceCents} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </DataTable>
+            </fieldset>
+          </Panel>
+          <Panel title="Rule" className="lg:col-span-5">
+            <div className="space-y-4 p-3 sm:p-4">
+              <AlertFields
+                values={{
+                  direction: values.direction ?? "below",
+                  threshold: values.threshold ?? prices.get(checkedId) ?? "",
+                }}
+                errors={errors}
+              />
+              <Button type="submit">Create alert</Button>
+            </div>
+          </Panel>
+        </PanelGrid>
       </Form>
-    </div>
+    </PageBody>
   );
 }

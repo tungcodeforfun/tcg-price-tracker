@@ -3,7 +3,15 @@ import { cards, games, sets, variants, type Db } from "@tcg/db";
 import { createTestDb, truncateAll } from "@tcg/db/testing";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { defaultVariant, getCard, getGame, getSet, searchCards } from "../src/catalog.ts";
+import {
+  defaultVariant,
+  getCard,
+  getGame,
+  getHomeHighlights,
+  getSet,
+  listGames,
+  searchCards,
+} from "../src/catalog.ts";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -146,6 +154,10 @@ describe("public catalog visibility", () => {
     const game = await getGame(db, "pokemon");
     expect(game?.sets.map((s) => s.id)).toEqual(["base-set"]);
     expect(await getSet(db, "unsynced-set")).toBeNull();
+    expect(await listGames(db)).toEqual([
+      { id: "one-piece", name: "One Piece", setsCount: 1 },
+      { id: "pokemon", name: "Pokemon", setsCount: 1 },
+    ]);
   });
 
   it("hides disabled games and their cards", async () => {
@@ -179,5 +191,52 @@ describe("card variants", () => {
       "Reverse Holofoil/Near Mint",
     ]);
     expect(defaultVariant(card!.variants)).toMatchObject({ printing: "Normal", priceCents: 400 });
+  });
+});
+
+describe("getHomeHighlights", () => {
+  it("counts only public data and ranks movers by absolute Near Mint/Sealed change", async () => {
+    const cardWith = async (
+      name: string,
+      setId: string,
+      seeds: (VariantSeed & { change?: number })[],
+    ) => {
+      const id = await seedCard(
+        name,
+        seeds.map((v) => ({
+          condition: v.condition,
+          printing: v.printing,
+          priceCents: v.priceCents,
+        })),
+        setId,
+      );
+      for (const seed of seeds) {
+        if (seed.change === undefined) continue;
+        await db.execute(
+          sql`update variants set price_change_7d_pct = ${seed.change}
+              where card_id = ${id} and condition = ${seed.condition}`,
+        );
+      }
+    };
+    await cardWith("Riser", "base-set", [{ condition: "Near Mint", priceCents: 100, change: 12 }]);
+    await cardWith("Faller", "op-01", [{ condition: "Near Mint", priceCents: 9000, change: -30 }]);
+    await cardWith("Played only", "base-set", [
+      { condition: "Damaged", priceCents: 50, change: 80 },
+    ]);
+    await cardWith("Flat", "base-set", [{ condition: "Near Mint", priceCents: 500, change: 0 }]);
+    await cardWith("Hidden", "lob", [{ condition: "Near Mint", priceCents: 99999, change: 90 }]);
+
+    const highlights = await getHomeHighlights(db);
+    expect(highlights.counts).toEqual({ games: 2, sets: 2, cards: 4 });
+    expect(highlights.topCards.map((c) => c.name)).toEqual([
+      "Faller",
+      "Flat",
+      "Riser",
+      "Played only",
+    ]);
+    expect(highlights.movers.map((m) => [m.name, m.change7dPct])).toEqual([
+      ["Faller", -30],
+      ["Riser", 12],
+    ]);
   });
 });

@@ -1,5 +1,5 @@
 import { cards, games, pricePoints, sets, variants, type Db } from "@tcg/db";
-import { and, asc, count, eq, gte, isNotNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 
 /** Conditions whose price represents a card's headline value. */
 const HEADLINE_CONDITIONS = ["Near Mint", "Sealed"];
@@ -83,9 +83,17 @@ const cardSummaryColumns = {
   priceCents: headlinePrice,
 };
 
+/** Enabled games; `setsCount` is the number of sets with synced prices (the public ones). */
 export async function listGames(db: Db): Promise<GameSummary[]> {
   return db
-    .select({ id: games.id, name: games.name, setsCount: games.setsCount })
+    .select({
+      id: games.id,
+      name: games.name,
+      setsCount: sql<number>`(
+        select count(*)::int from ${sets} s
+        where s.game_id = ${games}.id and s.prices_synced_at is not null
+      )`,
+    })
     .from(games)
     .where(eq(games.enabled, true))
     .orderBy(asc(games.name));
@@ -310,4 +318,59 @@ export async function listCardPaths(db: Db, page: number): Promise<SitemapEntry[
     .limit(SITEMAP_PAGE_SIZE)
     .offset(page * SITEMAP_PAGE_SIZE);
   return rows.map((c) => ({ path: `/cards/${c.slug}`, lastModified: c.updatedAt }));
+}
+
+export interface CardMover extends CardSummary {
+  /** 7-day change of the headline variant, percent. */
+  change7dPct: number;
+}
+
+export interface HomeHighlights {
+  counts: { games: number; sets: number; cards: number };
+  /** Most valuable cards by headline price. */
+  topCards: CardSummary[];
+  /** Largest absolute 7-day moves among Near Mint/Sealed variants. */
+  movers: CardMover[];
+}
+
+export async function getHomeHighlights(db: Db, limit = 8): Promise<HomeHighlights> {
+  const enabled = eq(games.enabled, true);
+  const enabledGameIds = db.select({ id: games.id }).from(games).where(enabled);
+  const [gameCount, setCount, cardCount] = await Promise.all([
+    db.$count(games, enabled),
+    db.$count(sets, and(inArray(sets.gameId, enabledGameIds), isNotNull(sets.pricesSyncedAt))),
+    db.$count(cards, inArray(cards.gameId, enabledGameIds)),
+  ]);
+  const counts = { games: gameCount, sets: setCount, cards: cardCount };
+  const topCards = await db
+    .select(cardSummaryColumns)
+    .from(cards)
+    .innerJoin(sets, eq(sets.id, cards.setId))
+    .innerJoin(games, eq(games.id, cards.gameId))
+    .where(enabled)
+    .orderBy(sql`price_cents desc nulls last`, asc(cards.name))
+    .limit(limit);
+  const movers = await db
+    .selectDistinctOn([cards.id], {
+      ...cardSummaryColumns,
+      change7dPct: sql<number>`${variants.priceChange7dPct}`,
+    })
+    .from(cards)
+    .innerJoin(sets, eq(sets.id, cards.setId))
+    .innerJoin(games, eq(games.id, cards.gameId))
+    .innerJoin(variants, eq(variants.cardId, cards.id))
+    .where(
+      and(
+        enabled,
+        sql`${variants.condition} in (${sql.join(
+          HEADLINE_CONDITIONS.map((c) => sql`${c}`),
+          sql`, `,
+        )})`,
+        isNotNull(variants.priceChange7dPct),
+        sql`${variants.priceChange7dPct} <> 0`,
+      ),
+    )
+    .orderBy(cards.id, sql`abs(${variants.priceChange7dPct}) desc`);
+  movers.sort((a, b) => Math.abs(b.change7dPct) - Math.abs(a.change7dPct));
+  return { counts, topCards, movers: movers.slice(0, limit) };
 }

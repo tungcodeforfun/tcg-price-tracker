@@ -1,12 +1,7 @@
-import { data } from "react-router";
-import {
-  AuthCard,
-  AuthForm,
-  FormMessage,
-  SubmitButton,
-  TextField,
-  formString,
-} from "~/components/auth-form";
+import { data, Form } from "react-router";
+import { AuthLink, AuthPanel, AuthSubmit } from "~/components/auth-panel";
+import { Field, FormMessage, TextInput } from "~/components/terminal/form";
+import { formString } from "~/lib/form";
 import { authErrorMessage, callAuth } from "~/.server/auth-request";
 import { env } from "~/.server/env";
 import type { Route } from "./+types/forgot-password";
@@ -28,20 +23,30 @@ export async function action({ request }: Route.ActionArgs) {
 export default function ForgotPassword({ actionData }: Route.ComponentProps) {
   if (actionData?.sent) {
     return (
-      <AuthCard title="Check your inbox">
+      <AuthPanel section="Reset link" title="Check your inbox">
         <FormMessage tone="success">
           If an account exists for that email, we sent a link to reset your password.
         </FormMessage>
-      </AuthCard>
+      </AuthPanel>
     );
   }
   return (
-    <AuthCard title="Reset your password">
-      <AuthForm>
+    <AuthPanel
+      section="Reset link"
+      title="Reset your password"
+      footer={
+        <>
+          Remembered it? <AuthLink to="/login">Log in</AuthLink>
+        </>
+      }
+    >
+      <Form method="post" className="space-y-4">
         {actionData?.error && <FormMessage tone="error">{actionData.error}</FormMessage>}
-        <TextField label="Email" name="email" type="email" autoComplete="email" />
-        <SubmitButton>Send reset link</SubmitButton>
-      </AuthForm>
-    </AuthCard>
+        <Field label="Email">
+          <TextInput name="email" type="email" autoComplete="email" required />
+        </Field>
+        <AuthSubmit>Send reset link</AuthSubmit>
+      </Form>
+    </AuthPanel>
   );
 }

@@ -1,12 +1,7 @@
-import { data, Link, redirect } from "react-router";
-import {
-  AuthCard,
-  AuthForm,
-  FormMessage,
-  SubmitButton,
-  TextField,
-  formString,
-} from "~/components/auth-form";
+import { data, Form, redirect } from "react-router";
+import { AuthLink, AuthPanel, AuthSubmit } from "~/components/auth-panel";
+import { Field, FormMessage, TextInput } from "~/components/terminal/form";
+import { formString } from "~/lib/form";
 import { authErrorMessage, callAuth } from "~/.server/auth-request";
 import type { Route } from "./+types/reset-password";
 
@@ -37,37 +32,40 @@ export async function action({ request }: Route.ActionArgs) {
 export default function ResetPassword({ loaderData, actionData }: Route.ComponentProps) {
   if (!loaderData.token) {
     return (
-      <AuthCard title="Link expired">
+      <AuthPanel
+        section="Reset link"
+        title="Link expired"
+        footer={<AuthLink to="/forgot-password">Request a new link</AuthLink>}
+      >
         <FormMessage tone="error">This reset link is invalid or has expired.</FormMessage>
-        <p className="mt-4 text-sm">
-          <Link to="/forgot-password" className="underline">
-            Request a new link
-          </Link>
-        </p>
-      </AuthCard>
+      </AuthPanel>
     );
   }
   return (
-    <AuthCard title="Choose a new password">
-      <AuthForm>
+    <AuthPanel section="New password" title="Choose a new password">
+      <Form method="post" className="space-y-4">
         {actionData?.error && <FormMessage tone="error">{actionData.error}</FormMessage>}
         <input type="hidden" name="token" value={loaderData.token} />
-        <TextField
-          label="New password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          minLength={10}
-        />
-        <TextField
-          label="Confirm password"
-          name="confirmPassword"
-          type="password"
-          autoComplete="new-password"
-          minLength={10}
-        />
-        <SubmitButton>Update password</SubmitButton>
-      </AuthForm>
-    </AuthCard>
+        <Field label="New password">
+          <TextInput
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+          />
+        </Field>
+        <Field label="Confirm password">
+          <TextInput
+            name="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+          />
+        </Field>
+        <AuthSubmit>Update password</AuthSubmit>
+      </Form>
+    </AuthPanel>
   );
 }

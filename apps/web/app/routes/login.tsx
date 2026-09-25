@@ -1,12 +1,7 @@
-import { data, Link, redirect } from "react-router";
-import {
-  AuthCard,
-  AuthForm,
-  FormMessage,
-  SubmitButton,
-  TextField,
-  formString,
-} from "~/components/auth-form";
+import { data, Form, redirect } from "react-router";
+import { AuthLink, AuthPanel, AuthSubmit } from "~/components/auth-panel";
+import { Field, FormMessage, TextInput } from "~/components/terminal/form";
+import { formString } from "~/lib/form";
 import { authErrorMessage, callAuth } from "~/.server/auth-request";
 import { getSession } from "~/.server/session";
 import { safeRedirect } from "~/lib/safe-redirect";
@@ -35,43 +30,38 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Login({ loaderData, actionData }: Route.ComponentProps) {
   return (
-    <AuthCard
+    <AuthPanel
+      section="Credentials"
       title="Log in"
       footer={
         <>
-          New here?{" "}
-          <Link to="/signup" className="underline">
-            Create an account
-          </Link>
+          New here? <AuthLink to="/signup">Create an account</AuthLink>
         </>
       }
     >
-      <AuthForm>
+      <Form method="post" className="space-y-4">
         {loaderData.passwordReset && !actionData && (
           <FormMessage tone="success">Password updated. Log in with your new password.</FormMessage>
         )}
         {actionData?.error && <FormMessage tone="error">{actionData.error}</FormMessage>}
         <input type="hidden" name="redirectTo" value={loaderData.redirectTo} />
-        <TextField
-          label="Email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          defaultValue={actionData?.email}
-        />
-        <TextField
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-        />
-        <SubmitButton>Log in</SubmitButton>
-        <p className="text-sm">
-          <Link to="/forgot-password" className="underline">
-            Forgot your password?
-          </Link>
+        <Field label="Email">
+          <TextInput
+            name="email"
+            type="email"
+            autoComplete="email"
+            defaultValue={actionData?.email}
+            required
+          />
+        </Field>
+        <Field label="Password">
+          <TextInput name="password" type="password" autoComplete="current-password" required />
+        </Field>
+        <AuthSubmit>Log in</AuthSubmit>
+        <p className="text-[12px]">
+          <AuthLink to="/forgot-password">Forgot your password?</AuthLink>
         </p>
-      </AuthForm>
-    </AuthCard>
+      </Form>
+    </AuthPanel>
   );
 }

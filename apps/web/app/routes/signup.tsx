@@ -1,12 +1,7 @@
-import { data, Link, redirect } from "react-router";
-import {
-  AuthCard,
-  AuthForm,
-  FormMessage,
-  SubmitButton,
-  TextField,
-  formString,
-} from "~/components/auth-form";
+import { data, Form, redirect } from "react-router";
+import { AuthLink, AuthPanel, AuthSubmit } from "~/components/auth-panel";
+import { Field, FormMessage, TextInput } from "~/components/terminal/form";
+import { formString } from "~/lib/form";
 import { authErrorMessage, callAuth } from "~/.server/auth-request";
 import { getSession } from "~/.server/session";
 import type { Route } from "./+types/signup";
@@ -35,45 +30,49 @@ export async function action({ request }: Route.ActionArgs) {
 export default function Signup({ actionData }: Route.ComponentProps) {
   if (actionData?.sent) {
     return (
-      <AuthCard title="Check your inbox">
-        <FormMessage tone="success">
+      <AuthPanel section="Verification" title="Check your inbox">
+        <FormMessage tone="success" className="break-words">
           We sent a verification link to {actionData.email}. Open it to finish creating your
           account.
         </FormMessage>
-      </AuthCard>
+      </AuthPanel>
     );
   }
   return (
-    <AuthCard
+    <AuthPanel
+      section="New account"
       title="Create your account"
       footer={
         <>
-          Already have an account?{" "}
-          <Link to="/login" className="underline">
-            Log in
-          </Link>
+          Already have an account? <AuthLink to="/login">Log in</AuthLink>
         </>
       }
     >
-      <AuthForm>
+      <Form method="post" className="space-y-4">
         {actionData?.error && <FormMessage tone="error">{actionData.error}</FormMessage>}
-        <TextField label="Name" name="name" autoComplete="name" />
-        <TextField
-          label="Email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          defaultValue={actionData?.email}
-        />
-        <TextField
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          minLength={10}
-        />
-        <SubmitButton>Sign up</SubmitButton>
-      </AuthForm>
-    </AuthCard>
+        <Field label="Name">
+          <TextInput name="name" autoComplete="name" required />
+        </Field>
+        <Field label="Email">
+          <TextInput
+            name="email"
+            type="email"
+            autoComplete="email"
+            defaultValue={actionData?.email}
+            required
+          />
+        </Field>
+        <Field label="Password">
+          <TextInput
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+          />
+        </Field>
+        <AuthSubmit>Sign up</AuthSubmit>
+      </Form>
+    </AuthPanel>
   );
 }

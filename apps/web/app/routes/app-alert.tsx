@@ -10,15 +10,20 @@ import { Form, Link, redirect } from "react-router";
 import { db } from "~/.server/db";
 import { formFailure, parseAlertForm } from "~/.server/portfolio-form";
 import { requireSession } from "~/.server/session";
-import { FormMessage, SubmitButton, formString } from "~/components/auth-form";
 import {
   AlertFields,
+  AlertRule,
+  AlertStatus,
   describeLastTriggered,
-  describeRule,
-  describeStatus,
+  DistanceToTarget,
 } from "~/components/alert-form";
-import type { FormFailure } from "~/components/portfolio-form";
-import { formatPrice } from "~/lib/format";
+import { Button } from "~/components/terminal/button";
+import { Price, Stat, StatGrid } from "~/components/terminal/figures";
+import { FormMessage } from "~/components/terminal/form";
+import { Breadcrumbs } from "~/components/terminal/navigation";
+import { PageBody, PageHeader } from "~/components/terminal/page";
+import { Panel, PanelGrid } from "~/components/terminal/panel";
+import { formString, type FormFailure } from "~/lib/form";
 import { notFound } from "~/lib/http";
 import type { Route } from "./+types/app-alert";
 
@@ -73,10 +78,6 @@ export async function action({ request, params }: Route.ActionArgs) {
   return formFailure(form, {}, "Unknown action");
 }
 
-const sectionClass = "rounded-lg border border-gray-200 p-5 dark:border-gray-800";
-const secondaryButtonClass =
-  "rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-900";
-
 export default function PriceAlert({ loaderData, actionData }: Route.ComponentProps) {
   const { alert, alertValues } = loaderData;
   const failure = (intent: string): FormFailure | undefined =>
@@ -85,99 +86,97 @@ export default function PriceAlert({ loaderData, actionData }: Route.ComponentPr
   const other = failure("pause") ?? failure("resume") ?? failure("delete") ?? failure("");
 
   return (
-    <div className="max-w-2xl">
-      <p className="text-sm">
-        <Link to="/app/alerts" className="text-gray-500 hover:underline">
-          ← Price alerts
-        </Link>
-      </p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-        <Link to={`/cards/${alert.cardSlug}`} className="hover:underline">
-          {alert.cardName}
-        </Link>
-      </h1>
-      <p className="mt-1 text-sm text-gray-500">
-        {[alert.setName, alert.printing, alert.condition].join(" · ")}
-        {alert.language !== "English" && ` (${alert.language})`}
-      </p>
-      <dl className="mt-4 grid grid-cols-3 gap-4 text-sm">
-        <div>
-          <dt className="text-gray-500">Current price</dt>
-          <dd className="text-lg font-semibold tabular-nums">{formatPrice(alert.priceCents)}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Rule</dt>
-          <dd className="text-lg font-semibold tabular-nums">{describeRule(alert)}</dd>
-        </div>
-        <div>
-          <dt className="text-gray-500">Last triggered</dt>
-          <dd className="text-lg font-semibold tabular-nums">
-            {describeLastTriggered(alert) ?? "Never"}
-          </dd>
-        </div>
-      </dl>
-      <p className="mt-4 text-sm">
-        <span className="text-gray-500">Status:</span> {describeStatus(alert)}
-      </p>
+    <PageBody>
+      <Breadcrumbs items={[{ label: "Alerts", to: "/app/alerts" }, { label: alert.cardName }]} />
+      <PageHeader
+        eyebrow="ACCT ▸ Alerts"
+        title={
+          <Link to={`/cards/${alert.cardSlug}`} className="hover:text-amber">
+            {alert.cardName}
+          </Link>
+        }
+        meta={[
+          alert.setName,
+          alert.printing,
+          alert.condition,
+          alert.language !== "English" && alert.language,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      />
       {other?.formError && (
-        <div className="mt-4">
-          <FormMessage tone="error">{other.formError}</FormMessage>
-        </div>
+        <FormMessage tone="error" className="mb-3">
+          {other.formError}
+        </FormMessage>
       )}
 
-      <section className={`mt-8 ${sectionClass}`} aria-labelledby="edit-heading">
-        <h2 id="edit-heading" className="text-lg font-semibold">
-          Edit alert
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">Saving re-arms the alert.</p>
-        <Form method="post" className="mt-4 space-y-4">
-          <input type="hidden" name="intent" value="update" />
-          {edit?.formError && <FormMessage tone="error">{edit.formError}</FormMessage>}
-          <AlertFields
-            values={edit ? { ...alertValues, ...edit.values } : alertValues}
-            errors={edit?.errors}
-          />
-          <SubmitButton>Save changes</SubmitButton>
-        </Form>
-      </section>
+      <PanelGrid className="lg:grid-cols-12">
+        <Panel title="Status" className="lg:col-span-12">
+          <StatGrid className="grid-cols-2 lg:grid-cols-5">
+            <Stat label="Last">
+              <Price cents={alert.priceCents} />
+            </Stat>
+            <Stat label="Rule">
+              <AlertRule alert={alert} />
+            </Stat>
+            <Stat label="To target">
+              <DistanceToTarget alert={alert} />
+            </Stat>
+            <Stat label="Status">
+              <AlertStatus alert={alert} />
+            </Stat>
+            <Stat label="Last triggered" className="col-span-2 lg:col-span-1">
+              {describeLastTriggered(alert) ?? "Never"}
+            </Stat>
+          </StatGrid>
+        </Panel>
 
-      <section className={`mt-6 ${sectionClass}`} aria-labelledby="pause-heading">
-        <h2 id="pause-heading" className="text-lg font-semibold">
-          {alert.active ? "Pause alert" : "Resume alert"}
-        </h2>
-        <p className="mt-1 text-sm text-gray-500">
-          {alert.active
-            ? "A paused alert keeps its settings but sends no emails."
-            : "This alert is paused and sends no emails until you resume it."}
-        </p>
-        <Form method="post" className="mt-4">
-          <input type="hidden" name="intent" value={alert.active ? "pause" : "resume"} />
-          <button type="submit" className={secondaryButtonClass}>
-            {alert.active ? "Pause alert" : "Resume alert"}
-          </button>
-        </Form>
-      </section>
+        <Panel title="Edit rule" className="lg:col-span-8">
+          <Form method="post" className="space-y-4 p-3 sm:p-4">
+            <input type="hidden" name="intent" value="update" />
+            {edit?.formError && <FormMessage tone="error">{edit.formError}</FormMessage>}
+            <AlertFields
+              values={edit ? { ...alertValues, ...edit.values } : alertValues}
+              errors={edit?.errors}
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit">Save changes</Button>
+              <p className="text-[11.5px] text-mute">Saving re-arms the alert.</p>
+            </div>
+          </Form>
+        </Panel>
 
-      <section className={`mt-6 ${sectionClass}`} aria-labelledby="delete-heading">
-        <h2 id="delete-heading" className="text-lg font-semibold">
-          Delete alert
-        </h2>
-        <Form
-          method="post"
-          className="mt-4"
-          onSubmit={(event) => {
-            if (!confirm(`Delete the price alert for ${alert.cardName}?`)) event.preventDefault();
-          }}
-        >
-          <input type="hidden" name="intent" value="delete" />
-          <button
-            type="submit"
-            className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
-          >
-            Delete alert
-          </button>
-        </Form>
-      </section>
-    </div>
+        <Panel title="Manage" className="lg:col-span-4">
+          <div className="divide-y divide-grid">
+            <Form method="post" className="p-3 sm:p-4">
+              <input type="hidden" name="intent" value={alert.active ? "pause" : "resume"} />
+              <p className="text-[12.5px] text-mute">
+                {alert.active
+                  ? "A paused alert keeps its settings but sends no emails."
+                  : "This alert is paused and sends no emails until you resume it."}
+              </p>
+              <Button type="submit" variant="secondary" className="mt-3">
+                {alert.active ? "Pause alert" : "Resume alert"}
+              </Button>
+            </Form>
+            <Form
+              method="post"
+              className="p-3 sm:p-4"
+              onSubmit={(event) => {
+                if (!confirm(`Delete the price alert for ${alert.cardName}?`)) {
+                  event.preventDefault();
+                }
+              }}
+            >
+              <input type="hidden" name="intent" value="delete" />
+              <p className="text-[12.5px] text-mute">Deleting removes the alert for good.</p>
+              <Button type="submit" variant="danger" className="mt-3">
+                Delete alert
+              </Button>
+            </Form>
+          </div>
+        </Panel>
+      </PanelGrid>
+    </PageBody>
   );
 }
