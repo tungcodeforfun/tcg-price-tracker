@@ -43,6 +43,13 @@
       "when": 1790355313073,
       "tag": "0005_beta",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790358375038,
+      "tag": "0006_card_images",
+      "breakpoints": true
     }
   ]
 }

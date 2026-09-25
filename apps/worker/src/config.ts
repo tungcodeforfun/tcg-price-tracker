@@ -12,6 +12,8 @@ export interface WorkerConfig {
   minRefreshHours: number;
   /** JustTCG game ids whose catalog and prices are synced. */
   enabledGames: string[];
+  /** Game ids whose card images must not be synced (kill switch shared with the web app). */
+  imagesDisabledGames: string[];
   /** Public site origin, for links in emails. */
   appUrl: string;
   smtpUrl: string;
@@ -61,6 +63,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     // Free tier (~33 requests/day) refreshes every 3 days; paid plans daily.
     minRefreshHours: positiveInt(env, "SYNC_MIN_REFRESH_HOURS", justTcgPlan === "free" ? 72 : 20),
     enabledGames: commaList(env.ENABLED_GAMES?.trim() || DEFAULT_ENABLED_GAMES),
+    imagesDisabledGames: commaList(env.IMAGES_DISABLED_GAMES),
     appUrl: required(env, "APP_URL").replace(/\/+$/, ""),
     smtpUrl: required(env, "SMTP_URL"),
     emailFrom: required(env, "EMAIL_FROM"),

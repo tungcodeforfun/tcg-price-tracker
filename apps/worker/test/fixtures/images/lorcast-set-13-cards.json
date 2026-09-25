@@ -1,0 +1,176 @@
+[
+  {
+    "id": "crd_1792f6aa4efe42ce93bd680da01f7016",
+    "name": "Woody",
+    "version": "Helping a Friend",
+    "layout": "normal",
+    "released_at": "2026-07-17",
+    "image_uris": {
+      "digital": {
+        "small": "https://cards.lorcast.io/card/digital/small/crd_1792f6aa4efe42ce93bd680da01f7016.avif?1783188235",
+        "normal": "https://cards.lorcast.io/card/digital/normal/crd_1792f6aa4efe42ce93bd680da01f7016.avif?1783188235",
+        "large": "https://cards.lorcast.io/card/digital/large/crd_1792f6aa4efe42ce93bd680da01f7016.avif?1783188235"
+      }
+    },
+    "cost": 4,
+    "inkwell": false,
+    "ink": "Amber",
+    "inks": [
+      "Amber"
+    ],
+    "type": [
+      "Character"
+    ],
+    "classifications": [
+      "Storyborn",
+      "Hero",
+      "Toy"
+    ],
+    "text": "HANG ON! When you play this character, choose one of the following. If you have another Toy character in play, choose both instead:\n• You may return a character card with cost 2 or less from your discard to your hand.\n• You may play a character with cost 2 or less for free.",
+    "keywords": [],
+    "move_cost": null,
+    "strength": 2,
+    "willpower": 4,
+    "lore": 2,
+    "rarity": "Rare",
+    "illustrators": [
+      "Marcel Berg"
+    ],
+    "collector_number": "1",
+    "lang": "en",
+    "flavor_text": "",
+    "tcgplayer_id": 702669,
+    "legalities": {
+      "core": "legal",
+      "infinity": "legal"
+    },
+    "set": {
+      "id": "set_57c6817823c14dda8eccbca4b555d858",
+      "code": "13",
+      "name": "Attack of the Vine!"
+    },
+    "prices": {
+      "usd": "0.3",
+      "usd_foil": "0.85"
+    },
+    "purchase_uris": {
+      "tcgplayer": "https://www.tcgplayer.com/product/702669"
+    }
+  },
+  {
+    "id": "crd_4ce702771dcf4edeb10ba61698ecc3a0",
+    "name": "Ming Lee",
+    "version": "Proud Parent",
+    "layout": "normal",
+    "released_at": "2026-07-17",
+    "image_uris": {
+      "digital": {
+        "small": "https://cards.lorcast.io/card/digital/small/crd_4ce702771dcf4edeb10ba61698ecc3a0.avif?1783188240",
+        "normal": "https://cards.lorcast.io/card/digital/normal/crd_4ce702771dcf4edeb10ba61698ecc3a0.avif?1783188240",
+        "large": "https://cards.lorcast.io/card/digital/large/crd_4ce702771dcf4edeb10ba61698ecc3a0.avif?1783188240"
+      }
+    },
+    "cost": 3,
+    "inkwell": true,
+    "ink": "Amber",
+    "inks": [
+      "Amber"
+    ],
+    "type": [
+      "Character"
+    ],
+    "classifications": [
+      "Dreamborn",
+      "Mentor",
+      "Red Panda"
+    ],
+    "text": "BIGGEST FAN If you have a character named Mei Lee in play, you pay 1 {I} less to play this character.\nFOLLOW THE MUSIC If you played a song this turn, you pay 1 {I} less to play this character.",
+    "keywords": [],
+    "move_cost": null,
+    "strength": 2,
+    "willpower": 3,
+    "lore": 2,
+    "rarity": "Rare",
+    "illustrators": [
+      "Maria Dresden"
+    ],
+    "collector_number": "2",
+    "lang": "en",
+    "flavor_text": "",
+    "tcgplayer_id": 702670,
+    "legalities": {
+      "core": "legal",
+      "infinity": "legal"
+    },
+    "set": {
+      "id": "set_57c6817823c14dda8eccbca4b555d858",
+      "code": "13",
+      "name": "Attack of the Vine!"
+    },
+    "prices": {
+      "usd": "0.14",
+      "usd_foil": "0.35"
+    },
+    "purchase_uris": {
+      "tcgplayer": "https://www.tcgplayer.com/product/702670"
+    }
+  },
+  {
+    "id": "crd_0720242347b14666bc3a97f5a1c64b00",
+    "name": "Isabela Madrigal",
+    "version": "Kind Cultivator",
+    "layout": "normal",
+    "released_at": "2026-07-17",
+    "image_uris": {
+      "digital": {
+        "small": "https://cards.lorcast.io/card/digital/small/crd_0720242347b14666bc3a97f5a1c64b00.avif?1783188245",
+        "normal": "https://cards.lorcast.io/card/digital/normal/crd_0720242347b14666bc3a97f5a1c64b00.avif?1783188245",
+        "large": "https://cards.lorcast.io/card/digital/large/crd_0720242347b14666bc3a97f5a1c64b00.avif?1783188245"
+      }
+    },
+    "cost": 2,
+    "inkwell": true,
+    "ink": "Amber",
+    "inks": [
+      "Amber"
+    ],
+    "type": [
+      "Character"
+    ],
+    "classifications": [
+      "Storyborn",
+      "Ally",
+      "Madrigal"
+    ],
+    "text": "",
+    "keywords": [],
+    "move_cost": null,
+    "strength": 2,
+    "willpower": 4,
+    "lore": 1,
+    "rarity": "Common",
+    "illustrators": [
+      "Linh Dang"
+    ],
+    "collector_number": "3",
+    "lang": "en",
+    "flavor_text": "She didn't just clear the vines from her friends' path—she turned the tendrils into beautiful scenery.",
+    "tcgplayer_id": 704540,
+    "legalities": {
+      "core": "legal",
+      "infinity": "legal"
+    },
+    "set": {
+      "id": "set_57c6817823c14dda8eccbca4b555d858",
+      "code": "13",
+      "name": "Attack of the Vine!"
+    },
+    "prices": {
+      "usd": "0.06",
+      "usd_foil": "0.21"
+    },
+    "purchase_uris": {
+      "tcgplayer": "https://www.tcgplayer.com/product/704540"
+    }
+  }
+]

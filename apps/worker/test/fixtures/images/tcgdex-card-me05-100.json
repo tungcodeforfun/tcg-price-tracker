@@ -1,0 +1,140 @@
+{
+  "category": "Pokemon",
+  "id": "me05-100",
+  "illustrator": "5ban Graphics",
+  "image": "https://assets.tcgdex.net/en/me/me05/100",
+  "localId": "100",
+  "name": "Rampardos ex",
+  "rarity": "Ultra Rare",
+  "set": {
+    "cardCount": {
+      "official": 84,
+      "total": 120
+    },
+    "id": "me05",
+    "logo": "https://assets.tcgdex.net/en/me/me05/logo",
+    "name": "Pitch Black",
+    "symbol": "https://assets.tcgdex.net/univ/me/me05/symbol"
+  },
+  "variants": {
+    "firstEdition": false,
+    "holo": true,
+    "normal": false,
+    "reverse": false,
+    "wPromo": false
+  },
+  "variants_detailed": [
+    {
+      "type": "holo",
+      "size": "standard",
+      "thirdParty": {
+        "cardmarket": 895885,
+        "tcgplayer": 704857
+      },
+      "variantId": "jr7oetx1mqug9",
+      "pricing": {
+        "cardmarket": {
+          "updated": "2026-09-24T22:54:32.708Z",
+          "unit": "EUR",
+          "idProduct": 895885,
+          "avg": 2.73,
+          "low": 1,
+          "trend": 2.47,
+          "avg1": 2.91,
+          "avg7": 2.52,
+          "avg30": 2.71,
+          "avg-holo": null,
+          "low-holo": null,
+          "trend-holo": 0,
+          "avg1-holo": null,
+          "avg7-holo": null,
+          "avg30-holo": null
+        },
+        "tcgplayer": {
+          "unit": "USD",
+          "updated": "2026-09-24T22:54:59.913Z",
+          "holofoil": {
+            "productId": 704857,
+            "lowPrice": 2,
+            "midPrice": 3.84,
+            "highPrice": 49.99,
+            "marketPrice": 3.04,
+            "directLowPrice": 3.92
+          }
+        }
+      }
+    }
+  ],
+  "dexId": [
+    409
+  ],
+  "hp": 330,
+  "types": [
+    "Fighting"
+  ],
+  "evolveFrom": "Cranidos",
+  "stage": "Stage2",
+  "suffix": "EX",
+  "abilities": [
+    {
+      "type": "Ability",
+      "name": "Destructive Headbutting",
+      "effect": "Once during your turn, if this Pokémon is in the Active Spot, you may use this Ability. Flip a coin. If heads, discard an Energy from your opponent's Active Pokémon."
+    }
+  ],
+  "attacks": [
+    {
+      "cost": [
+        "Fighting",
+        "Fighting"
+      ],
+      "name": "Rowdy Hammer",
+      "effect": "During your next turn, attacks used by this Pokémon do 150 more damage to your opponent's Active Pokémon (before applying Weakness and Resistance).",
+      "damage": 150
+    }
+  ],
+  "weaknesses": [
+    {
+      "type": "Grass",
+      "value": "×2"
+    }
+  ],
+  "retreat": 2,
+  "regulationMark": "J",
+  "legal": {
+    "standard": true,
+    "expanded": true
+  },
+  "updated": "2026-08-19T19:50:07Z",
+  "pricing": {
+    "cardmarket": {
+      "updated": "2026-09-24T22:54:32.708Z",
+      "unit": "EUR",
+      "idProduct": 895885,
+      "avg": 2.73,
+      "low": 1,
+      "trend": 2.47,
+      "avg1": 2.91,
+      "avg7": 2.52,
+      "avg30": 2.71,
+      "avg-holo": null,
+      "low-holo": null,
+      "trend-holo": 0,
+      "avg1-holo": null,
+      "avg7-holo": null,
+      "avg30-holo": null
+    },
+    "tcgplayer": {
+      "unit": "USD",
+      "updated": "2026-09-24T22:54:59.913Z",
+      "holofoil": {
+        "productId": 704857,
+        "lowPrice": 2,
+        "midPrice": 3.84,
+        "highPrice": 49.99,
+        "marketPrice": 3.04,
+        "directLowPrice": 3.92
+      }
+    }
+  }
+}

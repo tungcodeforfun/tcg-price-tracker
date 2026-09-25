@@ -18,6 +18,13 @@ function required(name: string): string {
   return value;
 }
 
+function list(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export const env = {
   databaseUrl: required("DATABASE_URL"),
   appUrl: required("APP_URL"),
@@ -30,4 +37,8 @@ export const env = {
   betaUserCap: positiveInt("BETA_USER_CAP", 100),
   /** Where beta feedback is emailed; feedback is only stored when unset. */
   feedbackEmail: process.env.FEEDBACK_EMAIL?.trim() || null,
+  /** Game ids whose card images are switched off (takedown kill switch); their cards show placeholders. */
+  imagesDisabledGames: list("IMAGES_DISABLED_GAMES"),
+  /** Takedown contact shown in the footer to rights holders; hidden when unset. */
+  takedownEmail: process.env.TAKEDOWN_EMAIL?.trim() || null,
 };

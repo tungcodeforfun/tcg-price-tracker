@@ -3,6 +3,7 @@ import { defaultVariant, getCard, getPriceHistory } from "~/.server/catalog";
 import { db } from "~/.server/db";
 import { env } from "~/.server/env";
 import { ButtonLink } from "~/components/terminal/button";
+import { CardFace } from "~/components/terminal/card-face";
 import { DataTable, RowLink, Th } from "~/components/terminal/data-table";
 import { EmptyState } from "~/components/terminal/empty-state";
 import { Delta, Price } from "~/components/terminal/figures";
@@ -85,8 +86,11 @@ function QuoteHeader({
   return (
     <section
       aria-labelledby="quote-title"
-      className="grid gap-x-8 gap-y-5 bg-deck p-4 sm:p-5 lg:col-span-12 lg:grid-cols-[1fr_auto]"
+      className="grid gap-x-8 gap-y-5 bg-deck p-4 sm:grid-cols-[auto_1fr] sm:p-5 lg:col-span-12 lg:grid-cols-[auto_1fr_auto]"
     >
+      <div className="w-40 sm:row-span-2 sm:w-44 lg:row-span-1 lg:w-52">
+        <CardFace card={card} className="w-full" priority credit />
+      </div>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className="border border-wire bg-void px-2 py-0.5 text-[13px] font-bold tracking-[0.08em]">
@@ -118,7 +122,7 @@ function QuoteHeader({
         </div>
       </div>
 
-      <div className="border-t border-grid pt-4 lg:min-w-[320px] lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8 lg:text-right">
+      <div className="border-t border-grid pt-4 sm:col-start-2 lg:col-start-3 lg:min-w-[320px] lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8 lg:text-right">
         <p className="micro">
           Last · {selected ? `${selected.printing} · ${selected.condition}` : "Near Mint"}
         </p>

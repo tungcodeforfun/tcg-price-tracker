@@ -13,10 +13,18 @@ import {
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { env } from "~/.server/env";
 import { ButtonLink } from "~/components/terminal/button";
 import { PageBody } from "~/components/terminal/page";
 import { Panel } from "~/components/terminal/panel";
 import { SiteFooter, SiteHeader } from "~/components/terminal/site-chrome";
+
+/** Site-wide footer settings; static per deploy, so never refetched after the first load. */
+export function loader() {
+  return { takedownEmail: env.takedownEmail };
+}
+
+export const shouldRevalidate = () => false;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (

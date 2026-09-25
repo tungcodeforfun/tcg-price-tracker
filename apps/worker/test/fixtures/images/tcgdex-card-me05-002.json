@@ -1,0 +1,194 @@
+{
+  "category": "Pokemon",
+  "id": "me05-002",
+  "illustrator": "Mina Nakai",
+  "image": "https://assets.tcgdex.net/en/me/me05/002",
+  "localId": "002",
+  "name": "Grubbin",
+  "rarity": "Common",
+  "set": {
+    "cardCount": {
+      "official": 84,
+      "total": 120
+    },
+    "id": "me05",
+    "logo": "https://assets.tcgdex.net/en/me/me05/logo",
+    "name": "Pitch Black",
+    "symbol": "https://assets.tcgdex.net/univ/me/me05/symbol"
+  },
+  "variants": {
+    "firstEdition": false,
+    "holo": false,
+    "normal": true,
+    "reverse": true,
+    "wPromo": false
+  },
+  "variants_detailed": [
+    {
+      "type": "normal",
+      "size": "standard",
+      "thirdParty": {
+        "cardmarket": 895790,
+        "tcgplayer": 704759
+      },
+      "variantId": "endfynwn4n10gzq",
+      "pricing": {
+        "cardmarket": {
+          "updated": "2026-09-24T22:54:32.705Z",
+          "unit": "EUR",
+          "idProduct": 895790,
+          "avg": 0.02,
+          "low": 0.02,
+          "trend": 0.02,
+          "avg1": 0.02,
+          "avg7": 0.02,
+          "avg30": 0.02,
+          "avg-holo": 0.06,
+          "low-holo": 0.02,
+          "trend-holo": 0.07,
+          "avg1-holo": 0.07,
+          "avg7-holo": 0.06,
+          "avg30-holo": 0.06
+        },
+        "tcgplayer": {
+          "unit": "USD",
+          "updated": "2026-09-24T22:54:59.913Z",
+          "normal": {
+            "productId": 704759,
+            "lowPrice": 0.01,
+            "midPrice": 0.12,
+            "highPrice": 6.99,
+            "marketPrice": 0.04,
+            "directLowPrice": 0.01
+          },
+          "reverse-holofoil": {
+            "productId": 704759,
+            "lowPrice": 0.01,
+            "midPrice": 0.2,
+            "highPrice": 3.6,
+            "marketPrice": 0.15,
+            "directLowPrice": 0.1
+          }
+        }
+      }
+    },
+    {
+      "type": "reverse",
+      "size": "standard",
+      "thirdParty": {
+        "cardmarket": 895790,
+        "tcgplayer": 704759
+      },
+      "variantId": "cm4kqul3x1bwlz1f",
+      "pricing": {
+        "cardmarket": {
+          "updated": "2026-09-24T22:54:32.705Z",
+          "unit": "EUR",
+          "idProduct": 895790,
+          "avg": 0.02,
+          "low": 0.02,
+          "trend": 0.02,
+          "avg1": 0.02,
+          "avg7": 0.02,
+          "avg30": 0.02,
+          "avg-holo": 0.06,
+          "low-holo": 0.02,
+          "trend-holo": 0.07,
+          "avg1-holo": 0.07,
+          "avg7-holo": 0.06,
+          "avg30-holo": 0.06
+        },
+        "tcgplayer": {
+          "unit": "USD",
+          "updated": "2026-09-24T22:54:59.913Z",
+          "normal": {
+            "productId": 704759,
+            "lowPrice": 0.01,
+            "midPrice": 0.12,
+            "highPrice": 6.99,
+            "marketPrice": 0.04,
+            "directLowPrice": 0.01
+          },
+          "reverse-holofoil": {
+            "productId": 704759,
+            "lowPrice": 0.01,
+            "midPrice": 0.2,
+            "highPrice": 3.6,
+            "marketPrice": 0.15,
+            "directLowPrice": 0.1
+          }
+        }
+      }
+    }
+  ],
+  "dexId": [
+    736
+  ],
+  "hp": 70,
+  "types": [
+    "Grass"
+  ],
+  "stage": "Basic",
+  "attacks": [
+    {
+      "cost": [
+        "Colorless"
+      ],
+      "name": "String Shot",
+      "effect": "Flip a coin. If heads, your opponent's Active Pokémon is now Paralyzed.",
+      "damage": 10
+    }
+  ],
+  "weaknesses": [
+    {
+      "type": "Fire",
+      "value": "×2"
+    }
+  ],
+  "retreat": 2,
+  "regulationMark": "J",
+  "legal": {
+    "standard": true,
+    "expanded": true
+  },
+  "updated": "2026-07-18T09:39:17+02:00",
+  "pricing": {
+    "cardmarket": {
+      "updated": "2026-09-24T22:54:32.705Z",
+      "unit": "EUR",
+      "idProduct": 895790,
+      "avg": 0.02,
+      "low": 0.02,
+      "trend": 0.02,
+      "avg1": 0.02,
+      "avg7": 0.02,
+      "avg30": 0.02,
+      "avg-holo": 0.06,
+      "low-holo": 0.02,
+      "trend-holo": 0.07,
+      "avg1-holo": 0.07,
+      "avg7-holo": 0.06,
+      "avg30-holo": 0.06
+    },
+    "tcgplayer": {
+      "unit": "USD",
+      "updated": "2026-09-24T22:54:59.913Z",
+      "normal": {
+        "productId": 704759,
+        "lowPrice": 0.01,
+        "midPrice": 0.12,
+        "highPrice": 6.99,
+        "marketPrice": 0.04,
+        "directLowPrice": 0.01
+      },
+      "reverse-holofoil": {
+        "productId": 704759,
+        "lowPrice": 0.01,
+        "midPrice": 0.2,
+        "highPrice": 3.6,
+        "marketPrice": 0.15,
+        "directLowPrice": 0.1
+      }
+    }
+  }
+}

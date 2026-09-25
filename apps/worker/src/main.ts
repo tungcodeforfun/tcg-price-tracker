@@ -2,6 +2,7 @@ import { evaluateAlerts, snapshotPortfolios } from "@tcg/core";
 import { PgBoss } from "pg-boss";
 import { deliverAlertEmails } from "./alerts/run.ts";
 import { loadConfig } from "./config.ts";
+import { createImageSources, describeSetImages, syncSetImages } from "./images/sync.ts";
 import { describeCatalog, describeDueSets, describeSetPrices } from "./report.ts";
 import { createServices, setsDueForPrices } from "./services.ts";
 import { syncCatalog } from "./sync/catalog.ts";
@@ -20,6 +21,7 @@ interface SetPricesJob {
 const config = loadConfig();
 const services = createServices(config);
 const { db, provider } = services;
+const imageSources = createImageSources({ disabledGames: config.imagesDisabledGames });
 
 const boss = new PgBoss(config.databaseUrl);
 boss.on("error", (error) => console.error("[pg-boss]", error));
@@ -82,6 +84,18 @@ await boss.work(DELIVER_NOTIFICATIONS, async () => {
   return result;
 });
 
+/** Card images are best effort: a failure is logged and never fails the price job. */
+async function syncImages(setId: string): Promise<void> {
+  try {
+    const result = await syncSetImages({ db, sources: imageSources, setId });
+    if (result.status !== "unsupported") {
+      console.log(`[${SYNC_SET_PRICES}] ${describeSetImages(setId, result)}`);
+    }
+  } catch (error) {
+    console.error(`[${SYNC_SET_PRICES}] images for ${setId} failed:`, error);
+  }
+}
+
 // One set at a time keeps request pacing and quota checks serial.
 await boss.work<SetPricesJob>(
   SYNC_SET_PRICES,
@@ -95,6 +109,7 @@ await boss.work<SetPricesJob>(
       console.log(
         `[${SYNC_SET_PRICES}] alerts: ${alerts.triggered} triggered, ${alerts.rearmed} re-armed`,
       );
+      if (result.status === "succeeded") await syncImages(data.setId);
     }
   },
 );

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Form, Link, useLocation } from "react-router";
+import { Form, Link, useLocation, useRouteLoaderData } from "react-router";
+import type { loader as rootLoader } from "~/root";
 
 /** Command-line style GET search; "/" anywhere on the page focuses it. */
 function SearchCommand({ query }: { query: string }) {
@@ -130,9 +131,14 @@ export function useFeedbackHref(): string {
   return from ? `/app/feedback?from=${encodeURIComponent(from)}` : "/app/feedback";
 }
 
-/** Bottom bar: the JustTCG data credit and disclaimer, plus the beta feedback link. */
+/**
+ * Bottom bar: the JustTCG data credit and disclaimer, the beta feedback link, and the card image
+ * notice with the takedown contact. Settings come from the root loader, never the session, so
+ * public pages stay cacheable.
+ */
 export function SiteFooter() {
   const feedbackHref = useFeedbackHref();
+  const takedownEmail = useRouteLoaderData<typeof rootLoader>("root")?.takedownEmail;
   return (
     <footer className="border-t border-grid bg-deck">
       <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-3 py-3 text-[11.5px] text-mute sm:px-4">
@@ -158,6 +164,25 @@ export function SiteFooter() {
             <kbd>/</kbd> search
           </p>
         </div>
+      </div>
+      <div className="mx-auto max-w-[1440px] px-3 pb-3 text-[11px] text-mute sm:px-4">
+        <p>
+          Card images © their respective owners. Not affiliated with or endorsed by The Pokémon
+          Company, Disney or Ravensburger.
+          {takedownEmail && (
+            <>
+              {" "}
+              Rights holder? Contact{" "}
+              <a
+                href={`mailto:${takedownEmail}`}
+                className="text-text underline decoration-wire underline-offset-4 hover:decoration-amber"
+              >
+                {takedownEmail}
+              </a>
+              .
+            </>
+          )}
+        </p>
       </div>
     </footer>
   );

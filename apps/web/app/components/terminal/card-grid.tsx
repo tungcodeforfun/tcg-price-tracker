@@ -1,40 +1,8 @@
 import type { CardSummary } from "@tcg/core";
 import { Link } from "react-router";
+import { CardFace } from "./card-face";
 import { Price } from "./figures";
-import { known, shortName, symbolFor } from "./labels";
-
-type FaceCard = Pick<CardSummary, "name" | "setName" | "number">;
-
-export interface CardFaceProps {
-  card: FaceCard;
-  /** Sizes the face (its width); text scales with it, and the face keeps a 63:88 card shape. */
-  className?: string;
-}
-
-/**
- * Typographic stand-in for card art (there are no card images): the ticker symbol, a large
- * initial and the card name. Reads as "symbol name", so it can sit inside a link as its text.
- */
-export function CardFace({ card, className = "" }: CardFaceProps) {
-  const name = shortName(card.name);
-  return (
-    <div
-      className={`@container flex aspect-[63/88] flex-col overflow-hidden border border-wire bg-void ${className}`}
-    >
-      <p className="truncate border-b border-grid px-[6cqw] py-[4cqw] text-[7.5cqw] font-bold tracking-[0.06em] text-amber">
-        {symbolFor(card)}
-      </p>
-      <div aria-hidden className="dot-matrix grid min-h-0 flex-1 place-items-center">
-        <span className="font-sans text-[46cqw] leading-none font-bold text-transparent [-webkit-text-stroke:1px_var(--color-mute)]">
-          {(Array.from(name.trim())[0] ?? "·").toUpperCase()}
-        </span>
-      </div>
-      <p className="line-clamp-3 border-t border-grid px-[6cqw] py-[5cqw] font-sans text-[9cqw] leading-[1.15] font-semibold">
-        {name}
-      </p>
-    </div>
-  );
-}
+import { known } from "./labels";
 
 export interface CardTileProps {
   card: CardSummary;

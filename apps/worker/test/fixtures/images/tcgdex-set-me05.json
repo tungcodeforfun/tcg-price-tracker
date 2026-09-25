@@ -1,0 +1,46 @@
+{
+  "cardCount": {
+    "firstEd": 0,
+    "holo": 58,
+    "normal": 68,
+    "official": 84,
+    "reverse": 74,
+    "total": 120
+  },
+  "cards": [
+    {
+      "id": "me05-001",
+      "image": "https://assets.tcgdex.net/en/me/me05/001",
+      "localId": "001",
+      "name": "Tropius"
+    },
+    {
+      "id": "me05-002",
+      "image": "https://assets.tcgdex.net/en/me/me05/002",
+      "localId": "002",
+      "name": "Grubbin"
+    },
+    {
+      "id": "me05-100",
+      "image": "https://assets.tcgdex.net/en/me/me05/100",
+      "localId": "100",
+      "name": "Rampardos ex"
+    }
+  ],
+  "id": "me05",
+  "legal": {
+    "expanded": true,
+    "standard": false
+  },
+  "logo": "https://assets.tcgdex.net/en/me/me05/logo",
+  "name": "Pitch Black",
+  "releaseDate": "2026-07-17",
+  "serie": {
+    "id": "me",
+    "name": "Mega Evolution"
+  },
+  "symbol": "https://assets.tcgdex.net/univ/me/me05/symbol",
+  "abbreviation": {
+    "official": "PBL"
+  }
+}

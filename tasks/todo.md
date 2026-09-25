@@ -33,21 +33,22 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 ## Strategy (agreed 2026-09-25)
 - **Position:** PriceCharting competitor for trading card games only (Pokémon EN/JP, One Piece, Lorcana at launch; then MTG, Yu-Gi-Oh!, Riftbound). Free public price guide for search traffic plus a collector subscription. No retailer/data plan: reselling price data breaks JustTCG's terms (§7).
 - **Pitch:** prices by condition and printing, built-in P&L and alerts, a source and date on every price, best Japanese Pokémon and new-game coverage. Not competing on price.
-- **Data:** licensed only, no scraping. JustTCG for raw prices; Scrydex for graded prices and images once it grants written permission. Community sold prices come only from users' sold logs: anonymous, shown at ≥5 sales per variant in 30 days, outliers trimmed, opt-out, disclosed in the terms, and always in its own column (never blended). eBay live listings with affiliate links after launch, never used to compute prices.
-- **Data budget:** ≤$50/mo until revenue (JustTCG Starter $19 at launch); ≤$150/mo once graded prices ship (Scrydex Growth $99).
+- **Data:** licensed only, no scraping. JustTCG for raw prices. Graded prices are parked (Scrydex would need written permission; not pursued for now). Community sold prices come only from users' sold logs: anonymous, shown at ≥5 sales per variant in 30 days, outliers trimmed, opt-out, disclosed in the terms, and always in its own column (never blended). eBay live listings with affiliate links after launch, never used to compute prices.
+- **Card images (deliberate exception, owner's risk decision 2026-09-25):** no source or publisher licenses card art for commercial use (`tasks/research/card-image-sources.md`). We use fan-site-practice images anyway: TCGdex for Pokémon EN, Lorcast for Lorcana; Pokémon JP and One Piece keep placeholders. Public pages only (never Pro/app screens), source and rights-holder credits, "not affiliated" notice, takedown contact, per-game kill switch, honor takedowns the same day. Both sources got the art by scraping publisher sites, so this relaxes the no-scraping rule for images only.
+- **Data budget:** ≤$50/mo until revenue (JustTCG Starter $19 at launch).
 - **Pricing:** Pro $5.99/mo or $49/yr.
   - Free: every card/set/search page, raw prices, sources, 90 days of history, 250 cards, 3 alerts, CSV export.
-  - Pro: unlimited cards and alerts, full history, realized P&L + sold log, tax CSV, multiple portfolios, graded prices, full community detail.
+  - Pro: unlimited cards and alerts, full history, realized P&L + sold log, tax CSV, multiple portfolios, full community detail.
 - **Launch:** invite-only private beta (~100 users) on JustTCG's free tier, non-commercial and nobody pays. Leave the beta after 4 weeks or 50 weekly active users, whichever comes first, once billing works end to end in Stripe test mode. Then switch to JustTCG Starter, turn billing on, and have a lawyer review the terms.
 - **Hosting:** Fly.io, US East (`iad`).
 
 ## Constraints
 - **JustTCG free tier:** 1,000 req/mo (~33/day sustained), 100/day, 10/min, 20 cards/req, **non-commercial**. Beta covers the newest 2–3 sets per game (~1,500–2,000 cards) refreshed every 3 days. A paid plan is **required before charging users**.
-- **No card images yet:** JustTCG serves none, and Scrydex needs written commercial authorization. Cards render as typographic placeholders behind an `imageUrl` field ready for a provider.
+- **Card images:** only Pokémon EN (TCGdex) and Lorcana (Lorcast); other games render typographic placeholders. Unlicensed; tolerated by rights holders until it isn't, so `image_url` is optional everywhere.
 
 ## Prerequisites you own
 - [ ] Brand name + domain (decided to pick one before the beta; name still to choose). I can check domain availability for a shortlist.
-- [ ] Send the Scrydex permission request and the JustTCG data-source question (I draft both in `tasks/outreach/`)
+- [ ] Send the JustTCG data-source question (I draft it in `tasks/outreach/`)
 - [ ] Legal entity: sole proprietor for the beta, LLC before Stripe goes live (your call; not legal or tax advice)
 - [ ] Resend API key + verified sending domain (needed for the beta deploy)
 - [ ] Fly.io account (needed for the beta deploy)
@@ -93,8 +94,8 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - [x] Verify: direct API sign-up without / with bogus / with reused code → 400 INVITE_INVALID, messy valid code accepted and stored normalized, cap → 400 BETA_FULL without consuming the code; 10 concurrent redemptions of a 3-use code → exactly 3; real beta sync of 10 sets (1,520 cards) used 80 requests of an 83 budget, then 0 due; feedback email in Mailpit; page views increment, bot user agents don't
 
 ### B2 — Legal pages
-- [ ] Terms and privacy policy drafted from a standard template, covering community sold data, opt-out, and JustTCG/Scrydex attribution; placeholders marked for your entity details
-- [ ] Outreach drafts in `tasks/outreach/` (Scrydex permission request, JustTCG data-source question)
+- [ ] Terms and privacy policy drafted from a standard template, covering community sold data, opt-out, and JustTCG attribution; placeholders marked for your entity details
+- [ ] Outreach draft in `tasks/outreach/` (JustTCG data-source question)
 - **Verify:** pages linked from the footer and sign-up; every placeholder listed for you
 
 ### B3 — Community sold data
@@ -104,6 +105,7 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 
 ### B4 — Deploy (beta)
 - [ ] Fly config (web + worker process groups, `iad`), release migrations, Sentry, Postgres backups
+- [ ] Copy card images to our own storage (Fly Tigris) instead of hotlinking TCGdex/Lorcast; keep source URL and fetch date; kill switch also purges the copies
 - [ ] Confirm `fly-client-ip` reaches the app: without it every client shares one auth rate-limit bucket
 - [ ] Production email: `SMTP_URL` for Resend SMTP, verified sending domain in `EMAIL_FROM`
 - **Verify:** staging end to end: invite sign-up → add cards → alert email → feedback
@@ -118,7 +120,8 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - **Verify:** Lighthouse ≥ 90 perf/a11y on home + card page; mobile-width smoke of every route
 
 ### Post-launch
-- [ ] Graded prices (Scrydex) as Pro once permission arrives
+- [ ] Graded prices: parked. Revisit with a source that allows commercial use (Scrydex needs written permission)
+- [ ] Card images for Pokémon JP and One Piece: ask Bandai (global.carddass.com/inquiry.php); revisit if a licensed source appears
 - [ ] eBay live listings panel with affiliate links
 - [ ] MTG via Scryfall bulk data (card data stays free)
 

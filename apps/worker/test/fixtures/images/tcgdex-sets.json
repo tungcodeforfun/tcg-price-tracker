@@ -1,0 +1,80 @@
+[
+  {
+    "id": "2014xy",
+    "name": "McDonald's Collection 2014",
+    "cardCount": {
+      "total": 12,
+      "official": 12
+    }
+  },
+  {
+    "id": "2015xy",
+    "name": "McDonald's Collection 2015",
+    "cardCount": {
+      "total": 12,
+      "official": 12
+    }
+  },
+  {
+    "id": "cel25cc",
+    "name": "Celebrations Classic Collection",
+    "cardCount": {
+      "total": 25,
+      "official": 25
+    }
+  },
+  {
+    "id": "cel25",
+    "name": "Celebrations",
+    "logo": "https://assets.tcgdex.net/en/swsh/cel25/logo",
+    "symbol": "https://assets.tcgdex.net/univ/swsh/cel25/symbol",
+    "cardCount": {
+      "total": 25,
+      "official": 25
+    }
+  },
+  {
+    "id": "mep",
+    "name": "MEP Black Star Promos",
+    "cardCount": {
+      "total": 89,
+      "official": 0
+    }
+  },
+  {
+    "id": "me04",
+    "name": "Chaos Rising",
+    "logo": "https://assets.tcgdex.net/en/me/me04/logo",
+    "symbol": "https://assets.tcgdex.net/univ/me/me04/symbol",
+    "cardCount": {
+      "total": 122,
+      "official": 86
+    }
+  },
+  {
+    "id": "me05",
+    "name": "Pitch Black",
+    "logo": "https://assets.tcgdex.net/en/me/me05/logo",
+    "symbol": "https://assets.tcgdex.net/univ/me/me05/symbol",
+    "cardCount": {
+      "total": 120,
+      "official": 84
+    }
+  },
+  {
+    "id": "30th",
+    "name": "30th Celebration",
+    "cardCount": {
+      "total": 158,
+      "official": 128
+    }
+  },
+  {
+    "id": "30th-c",
+    "name": "30th Classic Collection",
+    "cardCount": {
+      "total": 30,
+      "official": 0
+    }
+  }
+]

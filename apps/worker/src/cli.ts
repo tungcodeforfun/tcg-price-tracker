@@ -8,6 +8,13 @@ import {
 } from "@tcg/core";
 import { deliverAlertEmails } from "./alerts/run.ts";
 import { loadConfig } from "./config.ts";
+import {
+  clearGameImages,
+  createImageSources,
+  describeSetImages,
+  setsWithImageSource,
+  syncSetImages,
+} from "./images/sync.ts";
 import { describeCatalog, describeDueSets, describeSetPrices } from "./report.ts";
 import { createServices, setsDueForPrices, type Services } from "./services.ts";
 import { syncCatalog } from "./sync/catalog.ts";
@@ -15,6 +22,7 @@ import { syncSetPrices } from "./sync/set-prices.ts";
 
 const USAGE = `usage: pnpm --filter @tcg/worker sync <command>
   catalog | set <setId> | prices | due | snapshot | alerts
+  images <setId> | images all | images clear <gameId>
   invites create <count> [maxUses] [note…] | invites list | invites disable <code>
   views [days]`;
 
@@ -99,9 +107,37 @@ async function views({ db }: Services, days: number): Promise<void> {
   for (const row of rows) console.log(`${String(row.views).padStart(7)}  ${row.path}`);
 }
 
+/** Card images for one set, or `all` sets with cards in a game that has an image source. */
+async function images({ config, db }: Services, target: string): Promise<void> {
+  const sources = createImageSources({ disabledGames: config.imagesDisabledGames });
+  const setIds = target === "all" ? await setsWithImageSource(db, sources) : [target];
+  const started = performance.now();
+  let requests = 0;
+  for (const setId of setIds) {
+    try {
+      const result = await syncSetImages({ db, sources, setId });
+      requests += result.requests;
+      console.log(describeSetImages(setId, result));
+    } catch (error) {
+      console.error(`images ${setId} failed:`, error);
+      process.exitCode = 1;
+    }
+  }
+  const seconds = ((performance.now() - started) / 1000).toFixed(1);
+  console.log(`images: ${setIds.length} sets, ${requests} requests, ${seconds}s`);
+}
+
+/** Kill switch: blanks the game's images; IMAGES_DISABLED_GAMES keeps syncs from refilling them. */
+async function clearImages({ config, db }: Services, gameId: string): Promise<void> {
+  console.log(`cleared images on ${await clearGameImages(db, gameId)} ${gameId} cards`);
+  if (createImageSources({ disabledGames: config.imagesDisabledGames }).has(gameId)) {
+    console.log(`add ${gameId} to IMAGES_DISABLED_GAMES, or the next price sync refills them`);
+  }
+}
+
 function parseCommand([command, ...args]: string[]):
   ((services: Services) => Promise<void>) | null {
-  const [setId] = args;
+  const [setId, gameId] = args;
   if (command === "due") return due;
   if (command === "invites") return (services) => invites(services, args);
   if (command === "views") return (services) => views(services, Number(args[0] ?? 7) || 7);
@@ -110,6 +146,10 @@ function parseCommand([command, ...args]: string[]):
   if (command === "snapshot") return snapshot;
   if (command === "alerts") return alerts;
   if (command === "set" && setId) return (services) => setPrices(services, setId);
+  if (command === "images" && setId === "clear") {
+    return gameId ? (services) => clearImages(services, gameId) : null;
+  }
+  if (command === "images" && setId) return (services) => images(services, setId);
   return null;
 }
 

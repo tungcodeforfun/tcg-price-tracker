@@ -70,7 +70,11 @@ export const cards = pgTable(
     rarity: text("rarity"),
     tcgplayerId: text("tcgplayer_id"),
     details: text("details"),
+    /** Card art URL from a third-party source; null means show the typographic placeholder. */
     imageUrl: text("image_url"),
+    /** Which image source filled `imageUrl` (e.g. "tcgdex", "lorcast"). */
+    imageSource: text("image_source"),
+    imageUpdatedAt: timestamp("image_updated_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

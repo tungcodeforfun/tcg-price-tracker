@@ -38,6 +38,8 @@ export interface CardSummary {
   gameId: string;
   /** Lowest Near Mint/Sealed price across printings, USD cents. */
   priceCents: number | null;
+  /** Third-party card art; null when none is available or images are off for the game. */
+  imageUrl: string | null;
 }
 
 export interface VariantDetail {
@@ -81,6 +83,7 @@ const cardSummaryColumns = {
   setName: sets.name,
   gameId: cards.gameId,
   priceCents: headlinePrice,
+  imageUrl: cards.imageUrl,
 };
 
 /** Enabled games; `setsCount` is the number of sets with synced prices (the public ones). */
