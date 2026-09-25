@@ -2,100 +2,38 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, v2]
   pull_request:
-    branches: [main, dev]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  PYTHON_VERSION: '3.13'
-  NODE_VERSION: '22'
+    branches: [main, dev, v2]
 
 jobs:
-  frontend:
+  check:
     runs-on: ubuntu-latest
-    name: Frontend
-    steps:
-    - uses: actions/checkout@v7
-
-    - uses: actions/setup-node@v7
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: npm
-        cache-dependency-path: frontend/package-lock.json
-
-    - name: Install
-      working-directory: ./frontend
-      run: npm ci
-
-    - name: Lint
-      working-directory: ./frontend
-      run: npm run lint
-
-    - name: Build
-      working-directory: ./frontend
-      run: npm run build
-
-  backend:
-    runs-on: ubuntu-latest
-    name: Backend
     services:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: tcgtracker_test
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: tcgtracker_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          POSTGRES_USER: tcg
+          POSTGRES_PASSWORD: tcg
+          POSTGRES_DB: tcg_test
         ports:
           - 5432:5432
-
+        options: >-
+          --health-cmd "pg_isready -U tcg -d tcg_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
     env:
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_NAME: tcgtracker_test
-      DB_USER: tcgtracker_test
-      DB_PASSWORD: test_password
-      SECRET_KEY: test-secret-key-for-ci-testing-purposes-must-be-32-chars-minimum
-      API_TCGPLAYER_CLIENT_ID: test_client_id
-      API_TCGPLAYER_CLIENT_SECRET: test_client_secret
-      API_EBAY_CLIENT_ID: test_ebay_client_id
-      API_EBAY_CLIENT_SECRET: test_ebay_client_secret
-
-    defaults:
-      run:
-        working-directory: ./tcgtracker
-
+      TEST_DATABASE_URL: postgres://tcg:tcg@localhost:5432/tcg_test
     steps:
-    - uses: actions/checkout@v7
-
-    - uses: astral-sh/setup-uv@v10.2.0
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        enable-cache: true
-        cache-dependency-glob: tcgtracker/uv.lock
-
-    - name: Install
-      run: uv sync --locked --extra dev
-
-    - name: Lint
-      run: uv run flake8 src tests
-
-    - name: Typecheck
-      run: uv run mypy src/tcgtracker
-
-    - name: Migrate
-      run: uv run tcg-cli db upgrade
-
-    - name: Check models match migrations
-      run: uv run alembic check
-
-    - name: Test
-      run: uv run pytest
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build

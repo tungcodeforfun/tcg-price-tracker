@@ -1,48 +1,8 @@
 version: 2
 updates:
-  # Python dependencies
-  - package-ecosystem: "uv"
-    directory: "/tcgtracker"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 5
-    reviewers:
-      - "tungcodeforfun"
-    assignees:
-      - "tungcodeforfun"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "python"
-    
-  # Docker dependencies
-  - package-ecosystem: "docker"
-    directory: "/tcgtracker"
-    schedule:
-      interval: "weekly"
-      day: "tuesday"
-      time: "04:00"
-      timezone: "UTC"
-    open-pull-requests-limit: 3
-    reviewers:
-      - "tungcodeforfun"
-    assignees:
-      - "tungcodeforfun"
-    commit-message:
-      prefix: "chore"
-      include: "scope"
-    labels:
-      - "dependencies"
-      - "docker"
-
-  # Frontend (npm) dependencies
+  # npm workspace dependencies
   - package-ecosystem: "npm"
-    directory: "/frontend"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "wednesday"

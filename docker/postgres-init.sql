@@ -1,0 +1,1 @@
+CREATE DATABASE tcg_test OWNER tcg;

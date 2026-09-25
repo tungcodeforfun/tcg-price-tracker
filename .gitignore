@@ -1,97 +1,29 @@
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-/lib/
-/lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Testing
-.coverage
-.pytest_cache/
-htmlcov/
-.tox/
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-tmp/
-temp/
-*.backup
-*.bak
-
-# Node modules (if using any frontend)
+# Dependencies & build output
 node_modules/
+build/
+dist/
+.react-router/
+coverage/
+*.tsbuildinfo
 
-# Secrets and configuration
+# Environment & secrets
+.env
+.env.*
+!.env.example
 *.pem
 *.key
 *.crt
-secrets/.env.sandbox
 
-# Environment files with sensitive data
-.env.sandbox
-.env.production
-.env.staging
-.env.test
-*.env.*
-!.env.example
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
 
-# Claude AI configuration
+# Logs
+*.log
+
+# Local tooling
 .claude/
-*.claude
 .mcp.json
-
-# Documentation and test files
-docs/
-test.html
-test*.json
 postman-collection.json
-*.pyc
