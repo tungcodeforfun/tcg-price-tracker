@@ -2,3 +2,4 @@ pnpm-lock.yaml
 **/build
 **/.react-router
 packages/db/migrations/meta
+**/test/fixtures

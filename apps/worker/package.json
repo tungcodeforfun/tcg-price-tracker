@@ -1,0 +1,18 @@
+{
+  "name": "@tcg/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "node src/main.ts",
+    "sync": "node --env-file-if-exists=../../.env src/cli.ts",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tcg/db": "workspace:*",
+    "@tcg/pricing": "workspace:*",
+    "drizzle-orm": "^0.45.3",
+    "pg-boss": "^12.34.0"
+  }
+}

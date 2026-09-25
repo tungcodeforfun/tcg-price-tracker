@@ -44,18 +44,18 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 
 ## Phases (each ends with its verification passing)
 ### V0 — Scaffold
-- [ ] `v2` branch; remove old app dirs, stale compose/CI/README content
-- [ ] Node 24 (`.nvmrc`), pnpm workspace, shared tsconfig, ESLint 10, Prettier, Vitest
-- [ ] Compose: postgres:17, mailpit. `.env.example`
-- [ ] CI: install, typecheck, lint, test (Postgres service), build
-- **Verify:** `pnpm i && pnpm typecheck lint test build` green; web dev server renders a page
+- [x] `v2` branch; remove old app dirs, stale compose/CI/README content
+- [x] Node 24 (`.nvmrc`), pnpm workspace, shared tsconfig, ESLint 10, Prettier, Vitest
+- [x] Compose: postgres:17, mailpit. `.env.example`
+- [x] CI: install, typecheck, lint, test (Postgres service), build
+- [x] Verify: typecheck/lint/build green; SSR home renders, unknown route 404 (CI not yet run on GitHub)
 
 ### V1 — DB + pricing sync
-- [ ] Drizzle schema (catalog, ops) + first migration
-- [ ] JustTCG client against the official v1 spec; quota tracker; `PriceProvider` interface
-- [ ] Worker jobs: `sync-catalog` (games → sets for allowlisted games), `sync-prices` (allowlisted sets, batched, writes variants + daily `price_points`)
-- [ ] Integration tests against real Postgres with recorded JustTCG fixtures
-- **Verify:** run against the real free-tier key for 1–2 sets; rows land; quota counter matches `_metadata`
+- [x] Drizzle schema (catalog, ops) + first migration
+- [x] JustTCG client against the official v1 spec; quota tracker; `PriceProvider` interface
+- [x] Worker jobs: `sync-catalog` (games → sets for enabled games), `sync-prices` (allowlisted sets, batched, writes variants + daily `price_points`)
+- [x] Integration tests against real Postgres with recorded JustTCG fixtures (pricing 14, worker 17)
+- [x] Verify: real free-tier sync of 2 sets (30 cards, 78 variants, 1,921 price points); quota row updated from `_metadata`
 
 ### V2 — Auth
 - [ ] Better Auth email/password, email verification, password reset, session cookies; protected route helper
@@ -90,3 +90,9 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 ## Review
 ### Phase 0 (2026-09-25) — superseded by v2 rewrite
 - Phase 0 modernized the old Python/React app (commits `8141163`, `e46098a`, `03f82b6` on `dev`). It stays runnable on `dev` until V8 cutover.
+
+### V0 + V1 (2026-09-25)
+- Workspace TypeScript runs natively on Node 24 (no build step for packages/worker); relative imports use `.ts`.
+- JustTCG `_metadata` usage counts lag real usage by a few requests; the client's 5-request daily reserve covers it.
+- Set `cards_count` from `/v1/sets` can exceed what `/v1/cards` returns (One Piece set-sail: 26 vs 18).
+- Known gaps, deferred: set selection budgets only the daily quota (monthly reserve still enforced by the client); `sync-set-prices` is serial per worker process, not across processes; `listSets` ignores pagination (all observed responses fit one page).
