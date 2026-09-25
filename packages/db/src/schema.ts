@@ -146,3 +146,4 @@ export const syncRuns = pgTable(
   },
   (t) => [index("sync_runs_kind_started_idx").on(t.kind, t.startedAt)],
 );
+export * from "./auth-schema.ts";

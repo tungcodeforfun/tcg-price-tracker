@@ -58,9 +58,9 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - [x] Verify: real free-tier sync of 2 sets (30 cards, 78 variants, 1,921 price points); quota row updated from `_metadata`
 
 ### V2 — Auth
-- [ ] Better Auth email/password, email verification, password reset, session cookies; protected route helper
-- [ ] Rate limiting on auth routes
-- **Verify:** browser signup → Mailpit verification link → login → logout → reset password
+- [x] Better Auth email/password, email verification, password reset, session cookies; protected route helper
+- [x] Rate limiting on auth routes (database-backed; sign-in 5/min, sign-up and reset requests 3/min per IP)
+- [x] Verify: browser signup → Mailpit verification link → logout → login → reset password; old session and old password rejected after reset; 6th bad login from one IP → 429
 
 ### V3 — Catalog UX (public, SSR)
 - [ ] Game/set/card pages with price chart per variant, search with trigram + filters, SEO meta + sitemap
@@ -84,6 +84,8 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 
 ### V8 — Deploy & cutover
 - [ ] Fly config, release migrations, Sentry, Postgres backups, staging deploy
+- [ ] Confirm `fly-client-ip` reaches the app: without it every client shares one auth rate-limit bucket
+- [ ] Production email: `SMTP_URL` for Resend SMTP, verified sending domain in `EMAIL_FROM`
 - [ ] Merge `v2` → `dev`/`main`; remove Phase 0 app
 - **Verify:** staging end to end: signup → add cards → alert email → upgrade
 
@@ -96,3 +98,9 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - JustTCG `_metadata` usage counts lag real usage by a few requests; the client's 5-request daily reserve covers it.
 - Set `cards_count` from `/v1/sets` can exceed what `/v1/cards` returns (One Piece set-sail: 26 vs 18).
 - Known gaps, deferred: set selection budgets only the daily quota (monthly reserve still enforced by the client); `sync-set-prices` is serial per worker process, not across processes; `listSets` ignores pagination (all observed responses fit one page).
+
+### V2 (2026-09-25)
+- Form actions go through Better Auth's HTTP handler (`callAuth`), not `auth.api`, because server-side `auth.api` calls skip rate limiting.
+- Session cookie cache removed: it kept sessions revoked by a password reset valid for up to 5 minutes. Each protected request does one indexed session lookup instead.
+- Only `fly-client-ip` is trusted for client IPs; `x-forwarded-for` is client-spoofable.
+- Sign-up and password-reset responses don't reveal whether an email is registered; existing users get a "sign-up attempt" email instead.
