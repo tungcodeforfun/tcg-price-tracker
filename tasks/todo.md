@@ -63,8 +63,8 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - [x] Verify: browser signup → Mailpit verification link → logout → login → reset password; old session and old password rejected after reset; 6th bad login from one IP → 429
 
 ### V3 — Catalog UX (public, SSR)
-- [ ] Game/set/card pages with price chart per variant, search with trigram + filters, SEO meta + sitemap
-- **Verify:** pages render without JS, cache headers present, search p95 measured
+- [x] Game/set/card pages with price chart per variant, search with trigram + filters, SEO meta + sitemap
+- [x] Verify: pages render without JS (curl), cache headers present, 404s uncached; search p95 25 ms / max 64 ms on 60K cards; public pages 112–114 KB gz JS
 
 ### V4 — Collection & P&L
 - [ ] Add/edit/remove items, sold log, realized/unrealized P&L, CSV import/export, daily portfolio snapshots job, dashboard
@@ -104,3 +104,10 @@ Research: `tasks/research/price-data-sources.md`, `tasks/research/popular-tcgs-a
 - Session cookie cache removed: it kept sessions revoked by a password reset valid for up to 5 minutes. Each protected request does one indexed session lookup instead.
 - Only `fly-client-ip` is trusted for client IPs; `x-forwarded-for` is client-spoofable.
 - Sign-up and password-reset responses don't reveal whether an email is registered; existing users get a "sign-up attempt" email instead.
+
+### V3 (2026-09-25)
+- Price chart is server-rendered SVG, so card pages ship no chart library.
+- Search needs 3+ characters: shorter patterns can't use the trigram index and fell back to a full scan (83 ms at 60K cards, growing linearly).
+- Web routes import catalog code via `~/.server/catalog`; a client leak is a build error and ESLint blocks direct `@tcg/core` imports. One leak (a shared constant) had added 34 KB gz to the search page.
+- Only sets with synced prices are public; unsynced sets 404 to avoid thin pages. Sitemap is an index with card sitemaps of 40K URLs each (limit 50K).
+- Public pages don't read the session, so they stay user-agnostic and CDN-cacheable.

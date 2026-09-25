@@ -1,0 +1,16 @@
+{
+  "name": "@tcg/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tcg/db": "workspace:*",
+    "drizzle-orm": "^0.45.3"
+  }
+}

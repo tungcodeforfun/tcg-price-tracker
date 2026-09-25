@@ -12,6 +12,7 @@
   "dependencies": {
     "@react-router/node": "^8.4.0",
     "@react-router/serve": "^8.4.0",
+    "@tcg/core": "workspace:*",
     "@tcg/db": "workspace:*",
     "@tcg/email": "workspace:*",
     "better-auth": "^1.7.5",

@@ -16,4 +16,23 @@ export default defineConfig([
     extends: [reactHooks.configs.flat.recommended],
     languageOptions: { globals: { ...globals.browser } },
   },
+  {
+    files: ["apps/web/app/**/*.{ts,tsx}"],
+    ignores: ["apps/web/app/.server/**"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tcg/core",
+              message:
+                "Import from ~/.server/catalog so client bundles can't pull in the database layer.",
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
